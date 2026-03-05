@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.ImageMapper">
+
+    <resultMap id="ImageResultMap" type="com.busgallery.busgallery.entity.Image">
+        <id property="id" column="id"/>
+        <result property="objectName" column="object_name"/>
+        <result property="url" column="url"/>
+        <result property="thumbnailUrl" column="thumbnail_url"/>
+        <result property="sizeBytes" column="size_bytes"/>
+        <result property="width" column="width"/>
+        <result property="height" column="height"/>
+        <result property="mimeType" column="content_type"/>
+        <result property="hash" column="hash"/>
+        <result property="uploadUser" column="uploader"/>
+        <result property="createTime" column="created_at"/>
+    </resultMap>
+
+    <!-- 无别名列清单 -->
+    <sql id="BaseColumnList">
+        id, object_name, url, thumbnail_url,
+        size_bytes, width, height,
+        content_type, hash, uploader,
+        created_at
+    </sql>
+
+    <!-- 带别名（i.）的列清单 -->
+    <sql id="AliasedColumnList">
+        i.id, i.object_name, i.url, i.thumbnail_url,
+        i.size_bytes, i.width, i.height,
+        i.content_type, i.hash, i.uploader,
+        i.created_at
+    </sql>
+
+    <select id="selectById" parameterType="long" resultMap="ImageResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM image
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByVehicleId" parameterType="long" resultMap="ImageResultMap">
+        SELECT <include refid="AliasedColumnList"/>
+        FROM image i
+        INNER JOIN vehicle_image vi ON vi.image_id = i.id
+        WHERE vi.vehicle_id = #{vehicleId}
+        ORDER BY vi.sort_order ASC, i.id DESC
+    </select>
+
+    <select id="selectLatest" parameterType="int" resultMap="ImageResultMap">
+        SELECT <include refid="AliasedColumnList"/>
+        FROM image i
+        ORDER BY i.created_at DESC, i.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insert" parameterType="com.busgallery.busgallery.entity.Image"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO image (
+        object_name, url, thumbnail_url,
+        size_bytes, width, height,
+        content_type, hash, uploader
+        ) VALUES (
+        #{objectName}, #{url}, #{thumbnailUrl},
+        #{sizeBytes}, #{width}, #{height},
+        #{mimeType}, #{hash}, #{uploadUser}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.busgallery.busgallery.entity.Image">
+        UPDATE image SET
+        object_name   = #{objectName},
+        url           = #{url},
+        thumbnail_url = #{thumbnailUrl},
+        size_bytes    = #{sizeBytes},
+        width         = #{width},
+        height        = #{height},
+        content_type  = #{mimeType},
+        hash          = #{hash},
+        uploader      = #{uploadUser}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete" parameterType="long">
+        DELETE FROM image WHERE id = #{id}
+    </delete>
+
+</mapper>

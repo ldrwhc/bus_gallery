@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.CompanyMapper">
+
+    <resultMap id="CompanyResultMap" type="com.busgallery.busgallery.entity.Company">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="logoUrl" column="logo_url"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <association property="region" javaType="com.busgallery.busgallery.entity.Region">
+            <id property="id" column="region_id"/>
+        </association>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, name, region_id, description, logo_url, created_at, updated_at
+    </sql>
+
+    <select id="selectById" parameterType="long" resultMap="CompanyResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM company
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByName" parameterType="string" resultMap="CompanyResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM company
+        WHERE name = #{name}
+        LIMIT 1
+    </select>
+
+    <select id="selectByRegionId" parameterType="long" resultMap="CompanyResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM company
+        WHERE region_id = #{regionId}
+        ORDER BY name
+    </select>
+
+    <select id="selectAll" resultMap="CompanyResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM company
+        ORDER BY region_id, name
+    </select>
+
+    <insert id="insert" parameterType="com.busgallery.busgallery.entity.Company"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO company (name, region_id, description, logo_url)
+        VALUES (
+        #{name},
+        <choose>
+            <when test="region != null and region.id != null">
+                #{region.id}
+            </when>
+            <otherwise>
+                NULL
+            </otherwise>
+        </choose>,
+        #{description},
+        #{logoUrl}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.busgallery.busgallery.entity.Company">
+        UPDATE company
+        SET
+        name = #{name},
+        region_id =
+        <choose>
+            <when test="region != null and region.id != null">
+                #{region.id}
+            </when>
+            <otherwise>
+                NULL
+            </otherwise>
+        </choose>,
+        description = #{description},
+        logo_url = #{logoUrl}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete" parameterType="long">
+        DELETE FROM company WHERE id = #{id}
+    </delete>
+</mapper>

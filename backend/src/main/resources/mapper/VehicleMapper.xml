@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.VehicleMapper">
+
+        <resultMap id="VehicleResultMap" type="com.busgallery.busgallery.entity.Vehicle">
+                <id property="id" column="id"/>
+                <result property="plateNumber" column="plate_number"/>
+                <result property="customNumber" column="custom_number"/>
+                <result property="factoryDate" column="factory_date"/>
+                <result property="launchDate" column="launch_date"/>
+                <result property="airConditioned" column="air_conditioned"/>
+                <result property="source" column="source"/>
+                <result property="remark" column="remark"/>
+                <result property="createdAt" column="created_at"/>
+                <result property="updatedAt" column="updated_at"/>
+                <association property="model" javaType="com.busgallery.busgallery.entity.Model">
+                        <id property="id" column="model_id"/>
+                </association>
+                <association property="company" javaType="com.busgallery.busgallery.entity.Company">
+                        <id property="id" column="company_id"/>
+                </association>
+                <association property="region" javaType="com.busgallery.busgallery.entity.Region">
+                        <id property="id" column="region_id"/>
+                </association>
+        </resultMap>
+
+        <sql id="BaseColumnList">
+                id, plate_number, custom_number, model_id, company_id, region_id,
+                factory_date, launch_date, air_conditioned, source, remark,
+                created_at, updated_at
+        </sql>
+
+        <select id="selectById" parameterType="long" resultMap="VehicleResultMap">
+                SELECT <include refid="BaseColumnList"/>
+                FROM vehicle
+                WHERE id = #{id}
+        </select>
+
+        <select id="selectByPlateNumber" parameterType="string" resultMap="VehicleResultMap">
+                SELECT <include refid="BaseColumnList"/>
+                FROM vehicle
+                WHERE plate_number = #{plateNumber}
+        </select>
+
+        <select id="selectByRegionId" parameterType="long" resultMap="VehicleResultMap">
+                SELECT <include refid="BaseColumnList"/>
+                FROM vehicle
+                WHERE region_id = #{regionId}
+                ORDER BY
+                CASE WHEN launch_date IS NULL THEN 1 ELSE 0 END ASC,
+                launch_date DESC,
+                id DESC
+        </select>
+
+        <select id="selectByCompanyId" parameterType="long" resultMap="VehicleResultMap">
+                SELECT <include refid="BaseColumnList"/>
+                FROM vehicle
+                WHERE company_id = #{companyId}
+                ORDER BY
+                CASE WHEN launch_date IS NULL THEN 1 ELSE 0 END ASC,
+                launch_date DESC,
+                id DESC
+        </select>
+
+        <select id="selectByModelId" parameterType="long" resultMap="VehicleResultMap">
+                SELECT <include refid="BaseColumnList"/>
+                FROM vehicle
+                WHERE model_id = #{modelId}
+                ORDER BY
+                CASE WHEN launch_date IS NULL THEN 1 ELSE 0 END ASC,
+                launch_date DESC,
+                id DESC
+        </select>
+
+        <select id="selectPage" resultMap="VehicleResultMap">
+                SELECT <include refid="BaseColumnList"/>
+                FROM vehicle
+                WHERE 1 = 1
+                <if test="regionId != null">
+                        AND region_id = #{regionId}
+                </if>
+                <if test="companyId != null">
+                        AND company_id = #{companyId}
+                </if>
+                <if test="modelId != null">
+                        AND model_id = #{modelId}
+                </if>
+                <if test="brandId != null">
+                        AND model_id IN (SELECT id FROM model WHERE brand_id = #{brandId})
+                </if>
+                ORDER BY
+                CASE WHEN launch_date IS NULL THEN 1 ELSE 0 END ASC,
+                launch_date DESC,
+                id DESC
+                LIMIT #{limit} OFFSET #{offset}
+        </select>
+
+        <select id="count" resultType="long">
+                SELECT COUNT(1)
+                FROM vehicle
+                WHERE 1 = 1
+                <if test="regionId != null">
+                        AND region_id = #{regionId}
+                </if>
+                <if test="companyId != null">
+                        AND company_id = #{companyId}
+                </if>
+                <if test="modelId != null">
+                        AND model_id = #{modelId}
+                </if>
+                <if test="brandId != null">
+                        AND model_id IN (SELECT id FROM model WHERE brand_id = #{brandId})
+                </if>
+        </select>
+
+        <insert id="insert"
+                parameterType="com.busgallery.busgallery.entity.Vehicle"
+                useGeneratedKeys="true"
+                keyProperty="id">
+                INSERT INTO vehicle (
+                plate_number,
+                custom_number,
+                model_id,
+                company_id,
+                region_id,
+                factory_date,
+                launch_date,
+                air_conditioned,
+                source,
+                remark
+                ) VALUES (
+                #{plateNumber},
+                #{customNumber},
+                #{model.id},
+                #{company.id},
+                <choose>
+                        <when test="region != null and region.id != null">
+                                #{region.id}
+                        </when>
+                        <otherwise>
+                                NULL
+                        </otherwise>
+                </choose>,
+                #{factoryDate},
+                #{launchDate},
+                #{airConditioned},
+                #{source},
+                #{remark}
+                )
+        </insert>
+
+        <update id="update"
+                parameterType="com.busgallery.busgallery.entity.Vehicle">
+                UPDATE vehicle
+                SET
+                plate_number    = #{plateNumber},
+                custom_number   = #{customNumber},
+                model_id        = #{model.id},
+                company_id      = #{company.id},
+                region_id =
+                <choose>
+                        <when test="region != null &amp;&amp; region.id != null">
+                                #{region.id}
+                        </when>
+                        <otherwise>
+                                NULL
+                        </otherwise>
+                </choose>,
+                factory_date    = #{factoryDate},
+                launch_date     = #{launchDate},
+                air_conditioned = #{airConditioned},
+                source          = #{source},
+                remark          = #{remark}
+                WHERE id = #{id}
+        </update>
+
+        <delete id="delete" parameterType="long">
+                DELETE FROM vehicle WHERE id = #{id}
+        </delete>
+</mapper>

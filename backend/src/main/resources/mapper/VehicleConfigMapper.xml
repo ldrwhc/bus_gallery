@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.VehicleConfigMapper">
+
+    <resultMap id="VehicleConfigResultMap"
+               type="com.busgallery.busgallery.entity.VehicleConfig">
+        <id property="id" column="id"/>
+        <result property="motor" column="motor"/>
+        <result property="engine" column="engine"/>
+        <result property="fuelType" column="fuel_type"/>
+        <result property="stepType" column="step_type"/>
+        <result property="suspension" column="suspension"/>
+        <result property="axle" column="axle"/>
+        <result property="otherConfigs" column="other_configs"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <association property="vehicle" javaType="com.busgallery.busgallery.entity.Vehicle">
+            <id property="id" column="vehicle_id"/>
+        </association>
+        <association property="brand" javaType="com.busgallery.busgallery.entity.Brand">
+            <id property="id" column="brand_id"/>
+        </association>
+        <association property="model" javaType="com.busgallery.busgallery.entity.Model">
+            <id property="id" column="model_id"/>
+        </association>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, vehicle_id, brand_id, model_id,
+        motor, engine, fuel_type, step_type,
+        suspension, axle, other_configs,
+        created_at, updated_at
+    </sql>
+
+    <select id="selectById" parameterType="long" resultMap="VehicleConfigResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle_config
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByVehicleId" parameterType="long" resultMap="VehicleConfigResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle_config
+        WHERE vehicle_id = #{vehicleId}
+    </select>
+
+    <insert id="insert" parameterType="com.busgallery.busgallery.entity.VehicleConfig"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO vehicle_config (
+        vehicle_id, brand_id, model_id,
+        motor, engine, fuel_type, step_type,
+        suspension, axle, other_configs
+        ) VALUES (
+        #{vehicle.id}, #{brand.id}, #{model.id},
+        #{motor}, #{engine}, #{fuelType}, #{stepType},
+        #{suspension}, #{axle}, #{otherConfigs}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.busgallery.busgallery.entity.VehicleConfig">
+        UPDATE vehicle_config SET
+        vehicle_id    = #{vehicle.id},
+        brand_id      = #{brand.id},
+        model_id      = #{model.id},
+        motor         = #{motor},
+        engine        = #{engine},
+        fuel_type     = #{fuelType},
+        step_type     = #{stepType},
+        suspension    = #{suspension},
+        axle          = #{axle},
+        other_configs = #{otherConfigs}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteByVehicleId" parameterType="long">
+        DELETE FROM vehicle_config WHERE vehicle_id = #{vehicleId}
+    </delete>
+
+    <delete id="delete" parameterType="long">
+        DELETE FROM vehicle_config WHERE id = #{id}
+    </delete>
+
+</mapper>

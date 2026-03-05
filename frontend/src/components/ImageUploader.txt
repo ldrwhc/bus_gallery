@@ -1,0 +1,370 @@
+<template>
+    <div class="upload-card">
+        <h3>上传车辆图片并建档</h3>
+
+        <el-form class="upload-form" label-width="90px" :model="form">
+            <!-- 车牌 / 自编号 -->
+            <el-row :gutter="16">
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="车牌号" required>
+                        <el-input v-model="form.plateNumber" placeholder="例如：京A·12345" clearable />
+                    </el-form-item>
+                </el-col>
+
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="自编号">
+                        <el-input v-model="form.customNumber" placeholder="车辆自编号" clearable />
+                    </el-form-item>
+                </el-col>
+            </el-row>
+
+            <!-- 品牌 / 车型 -->
+            <el-row :gutter="16">
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="品牌">
+                        <el-autocomplete v-model="brandInput" class="w-full" placeholder="输入品牌名称，支持模糊查找"
+                            :fetch-suggestions="queryBrandSuggestions" clearable @select="handleBrandSelect"
+                            @change="handleBrandChange" />
+                    </el-form-item>
+                </el-col>
+
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="车型">
+                        <el-autocomplete v-model="modelInput" class="w-full" placeholder="输入车型名称，支持模糊查找"
+                            :fetch-suggestions="queryModelSuggestions" clearable @select="handleModelSelect"
+                            @change="handleModelChange" />
+                    </el-form-item>
+                </el-col>
+            </el-row>
+
+            <!-- 地区 / 公司 -->
+            <el-row :gutter="16">
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="地区" required>
+                        <el-autocomplete v-model="regionInput" class="w-full" placeholder="输入城市名称，支持模糊查找"
+                            :fetch-suggestions="queryRegionSuggestions" clearable @select="handleRegionSelect"
+                            @change="handleRegionChange" />
+                    </el-form-item>
+                </el-col>
+
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="公司" required>
+                        <el-autocomplete v-model="companyInput" class="w-full" placeholder="输入公司名称，支持模糊查找"
+                            :fetch-suggestions="queryCompanySuggestions" clearable @select="handleCompanySelect"
+                            @change="handleCompanyChange" />
+                    </el-form-item>
+                </el-col>
+            </el-row>
+
+            <!-- 日期 / 空调 -->
+            <el-row :gutter="16">
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="出厂日期">
+                        <el-date-picker v-model="form.factoryDate" type="date" value-format="YYYY-MM-DD"
+                            placeholder="选择出厂日期" style="width: 100%" />
+                    </el-form-item>
+                </el-col>
+
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="上线日期">
+                        <el-date-picker v-model="form.launchDate" type="date" value-format="YYYY-MM-DD"
+                            placeholder="选择上线日期" style="width: 100%" />
+                    </el-form-item>
+                </el-col>
+            </el-row>
+
+            <el-row :gutter="16">
+                <el-col :md="12" :sm="24">
+                    <el-form-item label="空调">
+                        <el-switch v-model="form.airConditioned" active-text="有空调" inactive-text="无空调" />
+                    </el-form-item>
+                </el-col>
+            </el-row>
+
+            <!-- 备注 -->
+            <el-form-item label="备注">
+                <el-input v-model="form.notes" placeholder="可填写车辆配置、上线线路等备注" type="textarea" :rows="2" />
+            </el-form-item>
+
+            <!-- 图片上传 -->
+            <el-form-item label="图片" required>
+                <el-upload class="upload-area" drag :auto-upload="false" :limit="1" :file-list="fileList"
+                    :on-change="handleFileChange">
+                    <i class="el-icon-upload"></i>
+                    <div class="el-upload__text">
+                        拖拽图片到此或 <em>点击选择图片</em>
+                    </div>
+                    <div class="el-upload__tip">仅支持单张上传，类型需符合后端限制</div>
+                </el-upload>
+            </el-form-item>
+
+            <div class="actions">
+                <el-button type="primary" :loading="loading" :disabled="loading" @click="submit">
+                    上传并建档
+                </el-button>
+                <el-button :disabled="loading" @click="reset">重置</el-button>
+            </div>
+        </el-form>
+    </div>
+</template>
+
+<script setup>
+import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { useStore } from 'vuex';
+import { ElMessage } from 'element-plus';
+import { uploadImage } from '@/api/images';
+import { createVehicle } from '@/api/vehicles';
+
+const emit = defineEmits(['uploaded']);
+const store = useStore();
+
+const regionOptions = computed(
+    () => store.getters['regions/regionOptions'] || []
+);
+const companyOptions = computed(
+    () => store.getters['companies/companyOptions'] || []
+);
+const brandOptions = computed(
+    () => store.getters['brands/brandOptions'] || []
+);
+const modelOptions = computed(
+    () => store.getters['models/modelOptions'] || []
+);
+
+const form = reactive({
+    plateNumber: '',
+    customNumber: '',
+    brandId: null,
+    modelId: null,
+    regionId: null,
+    companyId: null,
+    factoryDate: '',
+    launchDate: '',
+    airConditioned: true,
+    notes: ''
+});
+
+const inputs = {
+    brand: ref(''),
+    model: ref(''),
+    region: ref(''),
+    company: ref('')
+};
+
+const selectedLabels = reactive({
+    brand: '',
+    model: '',
+    region: '',
+    company: ''
+});
+
+const fileList = ref([]);
+const selectedFile = ref(null);
+const loading = ref(false);
+
+onMounted(() => {
+    store.dispatch('regions/loadRegions');
+    store.dispatch('companies/loadCompanies');
+    store.dispatch('brands/loadBrands');
+    store.dispatch('models/loadModels');
+});
+
+const normalizeOptions = (options) =>
+    options.map((item) => ({
+        value: item.label,
+        id: item.value
+    }));
+
+const buildSuggestionFn = (sourceGetter) => (query, cb) => {
+    const keyword = (query || '').trim().toLowerCase();
+    const list = normalizeOptions(sourceGetter.value);
+    const result = keyword
+        ? list.filter((item) => item.value.toLowerCase().includes(keyword))
+        : list.slice(0, 10);
+    cb(result);
+};
+
+const queryBrandSuggestions = buildSuggestionFn(brandOptions);
+const queryModelSuggestions = buildSuggestionFn(modelOptions);
+const queryRegionSuggestions = buildSuggestionFn(regionOptions);
+const queryCompanySuggestions = buildSuggestionFn(companyOptions);
+
+const buildSelectHandler = (field, idKey) => (item) => {
+    form[idKey] = item.id;
+    selectedLabels[field] = item.value;
+    inputs[field].value = item.value;
+};
+
+const buildChangeHandler = (field, idKey) => (val) => {
+    inputs[field].value = val;
+    if (!val) {
+        form[idKey] = null;
+        selectedLabels[field] = '';
+        return;
+    }
+    if (val !== selectedLabels[field]) {
+        form[idKey] = null;
+    }
+};
+
+const handleBrandSelect = buildSelectHandler('brand', 'brandId');
+const handleModelSelect = buildSelectHandler('model', 'modelId');
+const handleRegionSelect = buildSelectHandler('region', 'regionId');
+const handleCompanySelect = buildSelectHandler('company', 'companyId');
+
+const handleBrandChange = buildChangeHandler('brand', 'brandId');
+const handleModelChange = buildChangeHandler('model', 'modelId');
+const handleRegionChange = buildChangeHandler('region', 'regionId');
+const handleCompanyChange = buildChangeHandler('company', 'companyId');
+
+const syncInputWithId = (field, idKey, optionsGetter) => {
+    watch(
+        () => form[idKey],
+        (val) => {
+            if (!val) return;
+            const match = optionsGetter.value.find((item) => item.value === val);
+            if (match) {
+                selectedLabels[field] = match.label;
+                inputs[field].value = match.label;
+            }
+        }
+    );
+};
+
+syncInputWithId('brand', 'brandId', brandOptions);
+syncInputWithId('model', 'modelId', modelOptions);
+syncInputWithId('region', 'regionId', regionOptions);
+syncInputWithId('company', 'companyId', companyOptions);
+
+const handleFileChange = (file, files) => {
+    fileList.value = files.slice(-1);
+    selectedFile.value = file.raw;
+};
+
+const reset = () => {
+    form.plateNumber = '';
+    form.customNumber = '';
+    form.brandId = null;
+    form.modelId = null;
+    form.regionId = null;
+    form.companyId = null;
+    form.factoryDate = '';
+    form.launchDate = '';
+    form.airConditioned = true;
+    form.notes = '';
+    Object.keys(inputs).forEach((key) => {
+        inputs[key].value = '';
+        selectedLabels[key] = '';
+    });
+    fileList.value = [];
+    selectedFile.value = null;
+};
+
+const validate = () => {
+    if (!selectedFile.value) {
+        ElMessage.warning('请先选择要上传的图片');
+        return false;
+    }
+    if (!form.plateNumber?.trim()) {
+        ElMessage.warning('请填写车牌号');
+        return false;
+    }
+    if (!form.regionId) {
+        ElMessage.warning('请从下拉建议中选择地区');
+        return false;
+    }
+    if (!form.companyId) {
+        ElMessage.warning('请从下拉建议中选择公司');
+        return false;
+    }
+    return true;
+};
+
+const extractImageId = (imageResponse) => {
+    if (!imageResponse) return null;
+    if (typeof imageResponse === 'object') {
+        return imageResponse.id ?? imageResponse.data?.id ?? null;
+    }
+    return null;
+};
+
+const buildConfigPayload = () => {
+    if (!form.brandId && !form.modelId) return null;
+    return {
+        brandId: form.brandId || null,
+        modelId: form.modelId || null
+    };
+};
+
+const submit = async () => {
+    if (!validate()) return;
+    try {
+        loading.value = true;
+
+        const uploadedImage = await uploadImage({
+            file: selectedFile.value,
+            title: form.plateNumber?.trim(),
+            description: form.notes?.trim()
+        });
+        const imageId = extractImageId(uploadedImage);
+        if (!imageId) {
+            throw new Error('上传成功但未返回图片 ID');
+        }
+
+        const payload = {
+            plateNumber: form.plateNumber.trim(),
+            customNumber: form.customNumber?.trim() || null,
+            modelId: form.modelId || null,
+            companyId: form.companyId,
+            regionId: form.regionId,
+            factoryDate: form.factoryDate || null,
+            launchDate: form.launchDate || null,
+            airConditioned: form.airConditioned,
+            remark: form.notes?.trim() || null,
+            source: '用户上传',
+            imageIds: [imageId]
+        };
+
+        const config = buildConfigPayload();
+        if (config) payload.config = config;
+
+        await createVehicle(payload);
+        ElMessage.success('车辆档案已创建');
+        emit('uploaded');
+        reset();
+    } catch (error) {
+        ElMessage.error(error.message || '上传失败，请稍后重试');
+    } finally {
+        loading.value = false;
+    }
+};
+</script>
+
+<style scoped lang="scss">
+.upload-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+
+    h3 {
+        margin: 0 0 16px;
+    }
+}
+
+.upload-form {
+    .upload-area {
+        width: 100%;
+    }
+}
+
+.w-full {
+    width: 100%;
+}
+
+.actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 12px;
+}
+</style>

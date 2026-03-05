@@ -1,0 +1,80 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: registry.cn-hangzhou.aliyuncs.com/xfg-studio/mysql:8.0.32
+    container_name: bus-gallery-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: bus_gallery
+      MYSQL_ROOT_HOST: '%'
+    ports:
+      - "13306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p123456" ]
+      interval: 5s
+      timeout: 5s
+      retries: 1
+
+  minio:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/quay.io/minio/minio:RELEASE.2024-12-13T22-19-12Z-linuxarm64
+    platform: linux/arm64
+    container_name: minio
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: 12345678
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+
+  backend:
+    build:
+      context: ../
+      dockerfile: backend/Dockerfile
+      args:
+        - MIRROR=aliyun
+    image: bus-gallery-backend:latest
+    container_name: bus-gallery-backend
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://mysql:3306/bus_gallery?useSSL=false&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      DB_USERNAME: root
+      DB_PASSWORD: 123456
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: 12345678
+      MINIO_BUCKET: bus-gallery
+      MINIO_CDN_HOST: http://localhost/bus-gallery
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ../
+      dockerfile: frontend/Dockerfile
+      args:
+        - MIRROR=aliyun
+    container_name: bus-gallery-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  mysql-data:
+  minio-data:

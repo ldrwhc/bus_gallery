@@ -1,0 +1,23 @@
+package com.busgallery.busgallery.dto.response;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.Collections;
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class PageResponse<T> {
+
+    private List<T> records = Collections.emptyList();
+    private long total;
+    private int page;
+    private int size;
+
+    public static <T> PageResponse<T> of(List<T> records, long total, int page, int size) {
+        return new PageResponse<>(records, total, page, size);
+    }
+}

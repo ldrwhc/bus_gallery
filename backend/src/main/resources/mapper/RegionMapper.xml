@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.RegionMapper">
+
+    <resultMap id="RegionResultMap" type="com.busgallery.busgallery.entity.Region">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="level" column="level"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, name, parent_id, level, created_at, updated_at
+    </sql>
+
+    <select id="selectById" parameterType="long" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByName" parameterType="string" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        WHERE name = #{name}
+        LIMIT 1
+    </select>
+
+    <select id="selectByNameAndParent" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        WHERE name = #{name}
+        <if test="parentId == null">
+            AND parent_id IS NULL
+        </if>
+        <if test="parentId != null">
+            AND parent_id = #{parentId}
+        </if>
+        LIMIT 1
+    </select>
+
+    <select id="selectAll" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        ORDER BY level, name
+    </select>
+
+    <select id="selectByParentId" parameterType="long" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        WHERE parent_id = #{parentId}
+        ORDER BY name
+    </select>
+
+    <insert id="insert" parameterType="com.busgallery.busgallery.entity.Region"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO region (name, parent_id, level)
+        VALUES (#{name}, #{parentId}, #{level})
+    </insert>
+
+    <update id="update" parameterType="com.busgallery.busgallery.entity.Region">
+        UPDATE region
+        SET
+        name = #{name},
+        parent_id = #{parentId},
+        level = #{level}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete" parameterType="long">
+        DELETE FROM region WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,95 @@
+package com.busgallery.busgallery.controller;
+
+import com.busgallery.busgallery.entity.Company;
+import com.busgallery.busgallery.entity.Image;
+import com.busgallery.busgallery.entity.Vehicle;
+import com.busgallery.busgallery.service.CompanyService;
+import com.busgallery.busgallery.service.ImageService;
+import com.busgallery.busgallery.service.VehicleService;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/companies")
+@RequiredArgsConstructor
+public class CompanyController {
+
+    private final CompanyService companyService;
+    private final VehicleService vehicleService;
+    private final ImageService imageService;
+
+    @GetMapping
+    public List<Company> list(@RequestParam(value = "regionId", required = false) Long regionId) {
+        if (regionId == null) {
+            return companyService.findAll();
+        }
+        return companyService.findByRegion(regionId);
+    }
+
+    @GetMapping("/{id}")
+    public Company detail(@PathVariable Long id) {
+        return companyService.findById(id);
+    }
+
+    @GetMapping("/{id}/vehicles")
+    public List<Vehicle> listVehicles(@PathVariable Long id) {
+        return vehicleService.listByCompany(id);
+    }
+
+    /**
+     * 公司分类：展示该公司所有车型（附缩略图）
+     */
+    @GetMapping("/{id}/model-summaries")
+    public List<ModelSummary> listModelSummaries(@PathVariable Long id) {
+        List<Vehicle> vehicles = vehicleService.listByCompany(id);
+        Map<Long, ModelSummary> summaryMap = new LinkedHashMap<>();
+        for (Vehicle vehicle : vehicles) {
+            if (vehicle.getModel() == null) {
+                continue;
+            }
+            Long modelId = vehicle.getModel().getId();
+            ModelSummary summary = summaryMap.computeIfAbsent(modelId, key ->
+                    new ModelSummary(modelId, vehicle.getModel().getName(), null));
+            if (!StringUtils.hasText(summary.getThumbnailUrl())) {
+                List<Image> images = imageService.listByVehicle(vehicle.getId());
+                if (!CollectionUtils.isEmpty(images)) {
+                    Image img = images.get(0);
+                    summary.setThumbnailUrl(StringUtils.hasText(img.getThumbnailUrl()) ? img.getThumbnailUrl() : img.getUrl());
+                }
+            }
+        }
+        return new ArrayList<>(summaryMap.values());
+    }
+
+    @PostMapping
+    public Company create(@RequestBody Company company) {
+        return companyService.create(company);
+    }
+
+    @PutMapping("/{id}")
+    public Company update(@PathVariable Long id, @RequestBody Company company) {
+        company.setId(id);
+        return companyService.update(company);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        companyService.delete(id);
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ModelSummary {
+        private Long modelId;
+        private String modelName;
+        private String thumbnailUrl;
+    }
+}

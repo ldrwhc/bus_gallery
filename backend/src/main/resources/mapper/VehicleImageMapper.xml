@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.VehicleImageMapper">
+
+    <resultMap id="VehicleImageResultMap"
+               type="com.busgallery.busgallery.entity.VehicleImage">
+        <id property="id.vehicleId" column="vehicle_id"/>
+        <id property="id.imageId" column="image_id"/>
+        <result property="isCover" column="is_cover"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdAt" column="created_at"/>
+        <association property="vehicle" javaType="com.busgallery.busgallery.entity.Vehicle">
+            <id property="id" column="vehicle_id"/>
+        </association>
+        <association property="image" javaType="com.busgallery.busgallery.entity.Image">
+            <id property="id" column="image_id"/>
+        </association>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        vehicle_id, image_id, is_cover, sort_order, created_at
+    </sql>
+
+    <select id="selectByVehicleId" resultMap="VehicleImageResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle_image
+        WHERE vehicle_id = #{vehicleId}
+        ORDER BY sort_order ASC
+    </select>
+
+    <insert id="insert" parameterType="com.busgallery.busgallery.entity.VehicleImage">
+        INSERT INTO vehicle_image (vehicle_id, image_id, is_cover, sort_order)
+        VALUES (#{vehicle.id}, #{image.id}, #{isCover}, #{sortOrder})
+    </insert>
+
+    <insert id="insertBatch">
+        INSERT INTO vehicle_image (vehicle_id, image_id, is_cover, sort_order)
+        VALUES
+        <foreach collection="vehicleImages" item="item" separator=",">
+            (#{item.vehicle.id}, #{item.image.id}, #{item.isCover}, #{item.sortOrder})
+        </foreach>
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM vehicle_image
+        WHERE vehicle_id = #{vehicleId} AND image_id = #{imageId}
+    </delete>
+
+    <delete id="deleteByVehicleId">
+        DELETE FROM vehicle_image WHERE vehicle_id = #{vehicleId}
+    </delete>
+
+    <delete id="deleteByImageId">
+        DELETE FROM vehicle_image WHERE image_id = #{imageId}
+    </delete>
+
+</mapper>

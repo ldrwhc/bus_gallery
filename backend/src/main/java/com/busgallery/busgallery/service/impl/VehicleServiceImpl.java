@@ -1,0 +1,372 @@
+package com.busgallery.busgallery.service.impl;
+
+import com.busgallery.busgallery.entity.*;
+import com.busgallery.busgallery.mapper.*;
+import com.busgallery.busgallery.service.VehicleService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+@Service
+@RequiredArgsConstructor
+public class VehicleServiceImpl implements VehicleService {
+
+    private final VehicleMapper vehicleMapper;
+    private final VehicleConfigMapper vehicleConfigMapper;
+    private final VehicleImageMapper vehicleImageMapper;
+    private final BrandMapper brandMapper;
+    private final ModelMapper modelMapper;
+    private final CompanyMapper companyMapper;
+    private final RegionMapper regionMapper;
+
+    @Override
+    public Vehicle findById(Long id) {
+        Vehicle vehicle = vehicleMapper.selectById(id);
+        populateVehicleRelations(vehicle);
+        return vehicle;
+    }
+
+    @Override
+    public Vehicle findByPlateNumber(String plateNumber) {
+        Vehicle vehicle = vehicleMapper.selectByPlateNumber(plateNumber);
+        populateVehicleRelations(vehicle);
+        return vehicle;
+    }
+
+    @Override
+    public List<Vehicle> listByRegion(Long regionId) {
+        List<Vehicle> list = vehicleMapper.selectByRegionId(regionId);
+        list.forEach(this::populateVehicleRelations);
+        return list;
+    }
+
+    @Override
+    public List<Vehicle> listByCompany(Long companyId) {
+        List<Vehicle> list = vehicleMapper.selectByCompanyId(companyId);
+        list.forEach(this::populateVehicleRelations);
+        return list;
+    }
+
+    @Override
+    public List<Vehicle> listByModel(Long modelId) {
+        List<Vehicle> list = vehicleMapper.selectByModelId(modelId);
+        list.forEach(this::populateVehicleRelations);
+        return list;
+    }
+
+    @Override
+    public List<Vehicle> queryPage(int page, int size, Long regionId, Long companyId, Long brandId, Long modelId) {
+        int pageNo = Math.max(page, 1);
+        int pageSize = Math.max(size, 1);
+        int offset = (pageNo - 1) * pageSize;
+        List<Vehicle> list = vehicleMapper.selectPage(offset, pageSize, regionId, companyId, brandId, modelId);
+        list.forEach(this::populateVehicleRelations);
+        return list;
+    }
+
+    @Override
+    public long count(Long regionId, Long companyId, Long brandId, Long modelId) {
+        return vehicleMapper.count(regionId, companyId, brandId, modelId);
+    }
+
+    @Override
+    public VehicleConfig findConfigByVehicleId(Long vehicleId) {
+        VehicleConfig config = vehicleConfigMapper.selectByVehicleId(vehicleId);
+        populateVehicleConfigRelations(config);
+        return config;
+    }
+
+    @Override
+    @Transactional
+    public Vehicle create(Vehicle vehicle,
+                          VehicleConfig config,
+                          List<Long> imageIds,
+                          Long brandId,
+                          String brandName,
+                          String modelName,
+                          String companyName,
+                          String regionProvince,
+                          String regionCity) {
+        ensureRegionExists(vehicle, regionProvince, regionCity);
+        ensureModelExists(vehicle, brandId, brandName, modelName);
+        ensureCompanyExists(vehicle, companyName);
+        vehicleMapper.insert(vehicle);
+        upsertVehicleConfig(vehicle, config);
+        saveVehicleImages(vehicle.getId(), imageIds);
+        Vehicle saved = vehicleMapper.selectById(vehicle.getId());
+        populateVehicleRelations(saved);
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public Vehicle update(Vehicle vehicle,
+                          VehicleConfig config,
+                          List<Long> imageIds,
+                          Long brandId,
+                          String brandName,
+                          String modelName,
+                          String companyName,
+                          String regionProvince,
+                          String regionCity) {
+        ensureRegionExists(vehicle, regionProvince, regionCity);
+        ensureModelExists(vehicle, brandId, brandName, modelName);
+        ensureCompanyExists(vehicle, companyName);
+        vehicleMapper.update(vehicle);
+        upsertVehicleConfig(vehicle, config);
+        saveVehicleImages(vehicle.getId(), imageIds);
+        Vehicle saved = vehicleMapper.selectById(vehicle.getId());
+        populateVehicleRelations(saved);
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        vehicleImageMapper.deleteByVehicleId(id);
+        vehicleConfigMapper.deleteByVehicleId(id);
+        vehicleMapper.delete(id);
+    }
+
+    private void populateVehicleRelations(Vehicle vehicle) {
+        if (vehicle == null) {
+            return;
+        }
+        if (vehicle.getModel() != null && vehicle.getModel().getId() != null) {
+            Model fullModel = modelMapper.selectById(vehicle.getModel().getId());
+            vehicle.setModel(fullModel);
+        }
+        if (vehicle.getCompany() != null && vehicle.getCompany().getId() != null) {
+            Company fullCompany = companyMapper.selectById(vehicle.getCompany().getId());
+            vehicle.setCompany(fullCompany);
+        }
+        if (vehicle.getRegion() != null && vehicle.getRegion().getId() != null) {
+            Region fullRegion = regionMapper.selectById(vehicle.getRegion().getId());
+            vehicle.setRegion(fullRegion);
+        }
+    }
+
+    private void populateVehicleConfigRelations(VehicleConfig config) {
+        if (config == null) {
+            return;
+        }
+        if (config.getBrand() != null && config.getBrand().getId() != null) {
+            Brand brand = brandMapper.selectById(config.getBrand().getId());
+            config.setBrand(brand);
+        }
+        if (config.getModel() != null && config.getModel().getId() != null) {
+            Model model = modelMapper.selectById(config.getModel().getId());
+            config.setModel(model);
+        }
+    }
+
+    private void ensureRegionExists(Vehicle vehicle, String provinceName, String cityName) {
+        if (vehicle.getRegion() != null && vehicle.getRegion().getId() != null) {
+            return;
+        }
+        if (!StringUtils.hasText(cityName)) {
+            throw new IllegalArgumentException("请选择城市或填写地区信息");
+        }
+        Long regionId = findOrCreateRegion(provinceName, cityName.trim());
+        Region region = new Region();
+        region.setId(regionId);
+        vehicle.setRegion(region);
+    }
+
+    private void ensureModelExists(Vehicle vehicle,
+                                   Long brandId,
+                                   String brandName,
+                                   String modelName) {
+        Long currentModelId = vehicle.getModel() != null ? vehicle.getModel().getId() : null;
+        if (currentModelId != null) {
+            Model existing = modelMapper.selectById(currentModelId);
+            if (existing != null) {
+                return;
+            }
+            currentModelId = null;
+        }
+
+        if (!StringUtils.hasText(modelName)) {
+            throw new IllegalArgumentException("请选择或填写车型名称");
+        }
+
+        Long resolvedBrandId = resolveBrandId(brandId, brandName);
+        Long modelId = findOrCreateModel(resolvedBrandId, modelName.trim());
+        Model model = new Model();
+        model.setId(modelId);
+        vehicle.setModel(model);
+    }
+
+    private Long resolveBrandId(Long brandId, String brandName) {
+        if (brandId != null) {
+            Brand brand = brandMapper.selectById(brandId);
+            if (brand != null) {
+                return brandId;
+            }
+            if (!StringUtils.hasText(brandName)) {
+                throw new IllegalArgumentException("原有品牌不存在，请重新选择或填写品牌名称");
+            }
+        }
+        if (!StringUtils.hasText(brandName)) {
+            throw new IllegalArgumentException("请提供品牌信息");
+        }
+        return findOrCreateBrand(brandName.trim());
+    }
+
+    private void ensureCompanyExists(Vehicle vehicle, String companyName) {
+        if (vehicle.getCompany() != null && vehicle.getCompany().getId() != null) {
+            Company existing = companyMapper.selectById(vehicle.getCompany().getId());
+            if (existing != null) {
+                return;
+            }
+            vehicle.setCompany(null);
+        }
+        if (!StringUtils.hasText(companyName)) {
+            throw new IllegalArgumentException("公司ID或公司名称至少需要提供一个");
+        }
+        Long regionId = vehicle.getRegion() != null ? vehicle.getRegion().getId() : null;
+        if (regionId == null) {
+            throw new IllegalArgumentException("创建新公司时必须选择地区");
+        }
+        Long companyId = findOrCreateCompany(companyName.trim(), regionId);
+        Company company = new Company();
+        company.setId(companyId);
+        vehicle.setCompany(company);
+    }
+
+    private Long findOrCreateBrand(String brandName) {
+        Brand existing = brandMapper.selectByName(brandName);
+        if (existing != null) {
+            return existing.getId();
+        }
+        Brand brand = new Brand();
+        brand.setName(brandName);
+        brandMapper.insert(brand);
+        return brand.getId();
+    }
+
+    private Long findOrCreateModel(Long brandId, String modelName) {
+        Model existing = modelMapper.selectByBrandAndName(brandId, modelName);
+        if (existing != null) {
+            return existing.getId();
+        }
+        Model model = new Model();
+        model.setName(modelName);
+        Brand brandRef = new Brand();
+        brandRef.setId(brandId);
+        model.setBrand(brandRef);
+        modelMapper.insert(model);
+        return model.getId();
+    }
+
+    private Long findOrCreateCompany(String companyName, Long regionId) {
+        Company existing = companyMapper.selectByName(companyName);
+        if (existing != null) {
+            return existing.getId();
+        }
+        Company company = new Company();
+        company.setName(companyName);
+        Region regionRef = new Region();
+        regionRef.setId(regionId);
+        company.setRegion(regionRef);
+        companyMapper.insert(company);
+        return company.getId();
+    }
+
+    private Long findOrCreateRegion(String provinceName, String cityName) {
+        String cityTrim = cityName.trim();
+        Region existingByName = regionMapper.selectByName(cityTrim);
+        if (existingByName != null) {
+            return existingByName.getId();
+        }
+
+        Long provinceId = null;
+        String provinceTrim = StringUtils.hasText(provinceName) ? provinceName.trim() : null;
+        if (provinceTrim != null) {
+            if (provinceTrim.equals(cityTrim)) {
+                Region existingProvince = regionMapper.selectByName(provinceTrim);
+                if (existingProvince != null) {
+                    return existingProvince.getId();
+                }
+                Region province = new Region();
+                province.setName(provinceTrim);
+                province.setParentId(null);
+                province.setLevel(1);
+                regionMapper.insert(province);
+                return province.getId();
+            }
+            Region existingProvince = regionMapper.selectByName(provinceTrim);
+            if (existingProvince != null) {
+                provinceId = existingProvince.getId();
+            } else {
+                Region province = new Region();
+                province.setName(provinceTrim);
+                province.setParentId(null);
+                province.setLevel(1);
+                regionMapper.insert(province);
+                provinceId = province.getId();
+            }
+        }
+
+        Region existingCity = regionMapper.selectByNameAndParent(cityTrim, provinceId);
+        if (existingCity != null) {
+            return existingCity.getId();
+        }
+
+        Region city = new Region();
+        city.setName(cityTrim);
+        city.setParentId(provinceId);
+        city.setLevel(provinceId == null ? 1 : 2);
+        regionMapper.insert(city);
+        return city.getId();
+    }
+
+    private void upsertVehicleConfig(Vehicle vehicle, VehicleConfig config) {
+        if (config == null) {
+            vehicleConfigMapper.deleteByVehicleId(vehicle.getId());
+            return;
+        }
+        Vehicle vehicleRef = new Vehicle();
+        vehicleRef.setId(vehicle.getId());
+        config.setVehicle(vehicleRef);
+
+        VehicleConfig existing = vehicleConfigMapper.selectByVehicleId(vehicle.getId());
+        if (existing == null) {
+            vehicleConfigMapper.insert(config);
+        } else {
+            config.setId(existing.getId());
+            vehicleConfigMapper.update(config);
+        }
+    }
+
+    private void saveVehicleImages(Long vehicleId, List<Long> imageIds) {
+        vehicleImageMapper.deleteByVehicleId(vehicleId);
+        if (CollectionUtils.isEmpty(imageIds)) {
+            return;
+        }
+        List<VehicleImage> relations = new ArrayList<>(imageIds.size());
+        AtomicInteger order = new AtomicInteger(0);
+        for (Long imageId : imageIds) {
+            VehicleImage relation = new VehicleImage();
+            relation.setId(new VehicleImageId(vehicleId, imageId));
+
+            Vehicle vehicleRef = new Vehicle();
+            vehicleRef.setId(vehicleId);
+            relation.setVehicle(vehicleRef);
+
+            Image imageRef = new Image();
+            imageRef.setId(imageId);
+            relation.setImage(imageRef);
+
+            relation.setSortOrder(order.getAndIncrement());
+            relations.add(relation);
+        }
+        vehicleImageMapper.insertBatch(relations);
+    }
+}
