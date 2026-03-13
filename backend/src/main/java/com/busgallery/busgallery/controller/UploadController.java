@@ -1,5 +1,8 @@
 package com.busgallery.busgallery.controller;
 
+import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.RequireLogin;
+import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
@@ -23,13 +26,20 @@ public class UploadController {
     private final ImageService imageService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequireLogin
     public VehicleController.VehicleDetailResponse uploadVehicle(
             @RequestPart("file") MultipartFile file,
             @RequestPart("payload") UploadPayload payload
     ) {
         payload.validate();
 
-        Image image = imageService.uploadAndSave(file, payload.getUploadUser());
+        UserSession session = AuthContextHolder.requireUser();
+        Image metadata = new Image();
+        metadata.setUploadUser(StringUtils.hasText(session.getDisplayName()) ? session.getDisplayName() : session.getUsername());
+        metadata.setUploaderId(session.getUserId());
+        metadata.setUploaderUsername(session.getUsername());
+        metadata.setUploaderDisplayName(session.getDisplayName());
+        Image image = imageService.uploadAndSave(file, metadata);
         Vehicle vehicle = payload.toVehicle();
         VehicleConfig config = payload.toVehicleConfig();
 
@@ -141,6 +151,7 @@ public class UploadController {
             cfg.setEngine(config.getEngine());
             cfg.setFuelType(config.getFuelType());
             cfg.setStepType(config.getStepType());
+            cfg.setTransmissionSystem(config.getTransmissionSystem());
             cfg.setSuspension(config.getSuspension());
             cfg.setAxle(config.getAxle());
             cfg.setOtherConfigs(config.getOtherConfigs());
@@ -156,6 +167,7 @@ public class UploadController {
         private String engine;
         private String fuelType;
         private String stepType;
+        private String transmissionSystem;
         private String suspension;
         private String axle;
         private String otherConfigs;

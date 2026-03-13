@@ -1,34 +1,31 @@
-// src/api/axiosInstance.js
 import axios from 'axios';
+import { getToken } from '@/utils/auth';
 
-// 创建axios实例
 const http = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api', // 适配vite环境变量
+    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json;charset=utf-8'
     }
 });
 
-// 请求拦截器
 http.interceptors.request.use(
     (config) => {
-        // 可添加token等请求头
+        const token = getToken();
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
         return config;
     },
-    (error) => {
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
 
-// 响应拦截器
 http.interceptors.response.use(
-    (response) => {
-        return response.data;
-    },
+    (response) => response.data,
     (error) => {
-        console.error('请求错误：', error);
-        return Promise.reject(error);
+        const message = error?.response?.data?.message || error.message || '请求出错';
+        console.error('请求错误：', message);
+        return Promise.reject(new Error(message));
     }
 );
 

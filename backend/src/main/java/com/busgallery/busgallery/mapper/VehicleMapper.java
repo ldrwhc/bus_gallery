@@ -24,12 +24,14 @@ public interface VehicleMapper {
                              @Param("regionId") Long regionId,
                              @Param("companyId") Long companyId,
                              @Param("brandId") Long brandId,
-                             @Param("modelId") Long modelId);
+                             @Param("modelId") Long modelId,
+                             @Param("keyword") String keyword);
 
     long count(@Param("regionId") Long regionId,
                @Param("companyId") Long companyId,
                @Param("brandId") Long brandId,
-               @Param("modelId") Long modelId);
+               @Param("modelId") Long modelId,
+               @Param("keyword") String keyword);
 
     int insert(Vehicle vehicle);
 

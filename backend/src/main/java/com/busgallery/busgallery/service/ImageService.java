@@ -13,7 +13,11 @@ public interface ImageService {
 
     List<Image> listLatest(int limit);
 
-    Image uploadAndSave(MultipartFile file, String uploadUser);
+    List<Image> listByUploader(Long uploaderId, int page, int size);
+
+    long countByUploader(Long uploaderId);
+
+    Image uploadAndSave(MultipartFile file, Image metadata);
 
     Image update(Image image);
 

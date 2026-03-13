@@ -1,13 +1,11 @@
-<template>
+﻿<template>
     <div class="page upload-view">
-        <AppHeader />
-
         <main class="upload-main constrained">
             <section class="intro">
                 <p class="eyebrow">Upload</p>
                 <h1>上传车辆图片并建档</h1>
                 <p class="subtitle">
-                    填写车辆信息并上传实拍图片，系统会自动补全品牌 / 车型 / 公司 / 地区。
+                    填写车辆信息并上传实拍图片，系统会自动补全品牌、车型、公司与地区信息。
                 </p>
             </section>
 
@@ -15,14 +13,10 @@
                 <ImageUpload />
             </section>
         </main>
-
-        <AppFooter />
     </div>
 </template>
 
 <script setup>
-import AppHeader from '@/components/Layout/AppHeader.vue';
-import AppFooter from '@/components/Layout/AppFooter.vue';
 import ImageUpload from '@/components/Upload/ImageUpload.vue';
 </script>
 

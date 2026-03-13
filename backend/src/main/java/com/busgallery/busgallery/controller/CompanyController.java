@@ -3,6 +3,7 @@ package com.busgallery.busgallery.controller;
 import com.busgallery.busgallery.entity.Company;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.Vehicle;
+import com.busgallery.busgallery.entity.VehicleConfig;
 import com.busgallery.busgallery.service.CompanyService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
@@ -39,8 +40,15 @@ public class CompanyController {
     }
 
     @GetMapping("/{id}/vehicles")
-    public List<Vehicle> listVehicles(@PathVariable Long id) {
-        return vehicleService.listByCompany(id);
+    public List<VehicleController.VehicleDetailResponse> listVehicles(@PathVariable Long id) {
+        List<Vehicle> vehicles = vehicleService.listByCompany(id);
+        List<VehicleController.VehicleDetailResponse> result = new ArrayList<>(vehicles.size());
+        for (Vehicle vehicle : vehicles) {
+            VehicleConfig config = vehicleService.findConfigByVehicleId(vehicle.getId());
+            List<Image> images = imageService.listByVehicle(vehicle.getId());
+            result.add(VehicleController.assembleDetail(vehicle, config, images));
+        }
+        return result;
     }
 
     /**

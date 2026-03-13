@@ -5,7 +5,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.busgallery.busgallery.util.ExifUtils;
+
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -18,7 +21,12 @@ public class ImageResponse {
     private String title;
     private String description;
     private String uploadUser;
+    private Long uploaderId;
+    private String uploaderUsername;
+    private String uploaderDisplayName;
     private LocalDateTime createTime;
+    private Long vehicleId;
+    private Map<String, String> exif;
 
     public static ImageResponse fromEntity(Image image) {
         if (image == null) {
@@ -31,7 +39,12 @@ public class ImageResponse {
                 image.getTitle(),
                 image.getDescription(),
                 image.getUploadUser(),
-                image.getCreateTime()
+                image.getUploaderId(),
+                image.getUploaderUsername(),
+                image.getUploaderDisplayName(),
+                image.getCreateTime(),
+                image.getVehicleId(),
+                ExifUtils.fromJson(image.getExifJson())
         );
     }
 }

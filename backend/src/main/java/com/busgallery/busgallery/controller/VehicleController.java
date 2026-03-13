@@ -3,6 +3,7 @@ package com.busgallery.busgallery.controller;
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
+import com.busgallery.busgallery.util.ExifUtils;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -35,9 +37,10 @@ public class VehicleController {
                                     @RequestParam(required = false) Long regionId,
                                     @RequestParam(required = false) Long companyId,
                                     @RequestParam(required = false) Long brandId,
-                                    @RequestParam(required = false) Long modelId) {
-        List<Vehicle> vehicles = vehicleService.queryPage(page, size, regionId, companyId, brandId, modelId);
-        long total = vehicleService.count(regionId, companyId, brandId, modelId);
+                                    @RequestParam(required = false) Long modelId,
+                                    @RequestParam(required = false) String keyword) {
+        List<Vehicle> vehicles = vehicleService.queryPage(page, size, regionId, companyId, brandId, modelId, keyword);
+        long total = vehicleService.count(regionId, companyId, brandId, modelId, keyword);
         List<VehicleSummary> summaries = vehicles.stream()
                 .map(vehicle -> new VehicleSummary(mapVehicle(vehicle), mapImages(imageService.listByVehicle(vehicle.getId()))))
                 .collect(Collectors.toList());
@@ -176,6 +179,7 @@ public class VehicleController {
         dto.setEngine(source.getEngine());
         dto.setFuelType(source.getFuelType());
         dto.setStepType(source.getStepType());
+        dto.setTransmissionSystem(source.getTransmissionSystem());
         dto.setSuspension(source.getSuspension());
         dto.setAxle(source.getAxle());
         dto.setOtherConfigs(source.getOtherConfigs());
@@ -206,7 +210,11 @@ public class VehicleController {
         dto.setMimeType(source.getMimeType());
         dto.setHash(source.getHash());
         dto.setUploadUser(source.getUploadUser());
+        dto.setUploaderId(source.getUploaderId());
+        dto.setUploaderUsername(source.getUploaderUsername());
+        dto.setUploaderDisplayName(source.getUploaderDisplayName());
         dto.setCreateTime(source.getCreateTime());
+        dto.setExif(ExifUtils.fromJson(source.getExifJson()));
         return dto;
     }
 
@@ -306,6 +314,7 @@ public class VehicleController {
             cfg.setEngine(config.getEngine());
             cfg.setFuelType(config.getFuelType());
             cfg.setStepType(config.getStepType());
+            cfg.setTransmissionSystem(config.getTransmissionSystem());
             cfg.setSuspension(config.getSuspension());
             cfg.setAxle(config.getAxle());
             cfg.setOtherConfigs(config.getOtherConfigs());
@@ -321,6 +330,7 @@ public class VehicleController {
         private String engine;
         private String fuelType;
         private String stepType;
+        private String transmissionSystem;
         private String suspension;
         private String axle;
         private String otherConfigs;
@@ -379,6 +389,7 @@ public class VehicleController {
         private String engine;
         private String fuelType;
         private String stepType;
+        private String transmissionSystem;
         private String suspension;
         private String axle;
         private String otherConfigs;
@@ -398,6 +409,10 @@ public class VehicleController {
         private String mimeType;
         private String hash;
         private String uploadUser;
+        private Long uploaderId;
+        private String uploaderUsername;
+        private String uploaderDisplayName;
         private java.time.LocalDateTime createTime;
+        private Map<String, String> exif;
     }
 }

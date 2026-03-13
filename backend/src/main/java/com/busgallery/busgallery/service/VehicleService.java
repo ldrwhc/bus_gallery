@@ -17,9 +17,9 @@ public interface VehicleService {
 
     List<Vehicle> listByModel(Long modelId);
 
-    List<Vehicle> queryPage(int page, int size, Long regionId, Long companyId, Long brandId, Long modelId);
+    List<Vehicle> queryPage(int page, int size, Long regionId, Long companyId, Long brandId, Long modelId, String keyword);
 
-    long count(Long regionId, Long companyId, Long brandId, Long modelId);
+    long count(Long regionId, Long companyId, Long brandId, Long modelId, String keyword);
 
     VehicleConfig findConfigByVehicleId(Long vehicleId);
 

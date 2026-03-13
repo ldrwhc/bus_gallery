@@ -1,14 +1,14 @@
 <template>
     <footer class="app-footer">
         <div class="app-footer__inner">
-            <div>
+            <div class="app-footer__brand">
                 <strong>Bus Gallery</strong>
-                <p>以数据与图片记录中国公交发展。</p>
+                <p>用数据与影像记录中国公交发展。</p>
             </div>
 
             <div class="app-footer__meta">
                 <span>© {{ year }} Bus Gallery</span>
-                <span>Made with ❤️ by Web Team</span>
+                <span>Made with ❤️ by the community</span>
             </div>
         </div>
     </footer>
@@ -21,21 +21,32 @@ const year = new Date().getFullYear();
 <style scoped lang="scss">
 .app-footer {
     background: #0f172a;
-    color: rgba(255, 255, 255, 0.7);
-    padding: 28px 0;
-    margin-top: auto;
+    color: rgba(255, 255, 255, 0.75);
+    padding: 16px 0;
+    width: 100%;
 
     &__inner {
         width: min(1200px, 100%);
         margin: 0 auto;
-        padding: 0 24px;
+        padding: 0 clamp(16px, 4vw, 32px);
+        box-sizing: border-box;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 24px;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
 
+    &__brand {
         strong {
             color: #fff;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        p {
+            margin: 0;
+            font-size: 0.9rem;
         }
     }
 
@@ -43,6 +54,10 @@ const year = new Date().getFullYear();
         display: flex;
         gap: 12px;
         font-size: 0.85rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        margin-left: auto;
+        text-align: right;
     }
 }
 </style>

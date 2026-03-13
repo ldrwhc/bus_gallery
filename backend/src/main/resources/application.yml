@@ -22,6 +22,17 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
+  data:
+    redis:
+      host: ${REDIS_HOST:192.144.227.251}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:12345678}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:10000}
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
 
 mybatis:
   mapper-locations: classpath*:mapper/*.xml
@@ -37,6 +48,10 @@ minio:
   secret-key: 12345678
   # 对外可访问的统一地址，例如 http://localhost/bus-gallery 或 https://your-domain.com/bus-gallery
   cdn-host: http://localhost/bus-gallery
+
+auth:
+  session:
+    ttl-seconds: ${AUTH_SESSION_TTL_SECONDS:86400}
 
 logging:
   level:

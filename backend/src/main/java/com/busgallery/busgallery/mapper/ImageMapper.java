@@ -15,6 +15,12 @@ public interface ImageMapper {
 
     List<Image> selectLatest(@Param("limit") int limit);
 
+    List<Image> selectByUploader(@Param("uploaderId") Long uploaderId,
+                                 @Param("offset") int offset,
+                                 @Param("limit") int limit);
+
+    long countByUploader(@Param("uploaderId") Long uploaderId);
+
     int insert(Image image);
 
     int update(Image image);

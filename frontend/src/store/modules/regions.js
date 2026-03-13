@@ -75,7 +75,7 @@ const actions = {
             commit('SET_REGION_CATALOG', Array.isArray(catalog) ? catalog : []);
             return catalog;
         } catch (error) {
-            commit('SET_ERROR', error.message || '加载地区分类失败');
+            commit('SET_ERROR', error.message || '加载地区目录失败');
             throw error;
         } finally {
             commit('SET_CATALOG_LOADING', false);

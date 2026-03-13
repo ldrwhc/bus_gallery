@@ -112,7 +112,7 @@ const actions = {
             commit('SET_COMPANY_CATALOG', Array.isArray(catalog) ? catalog : []);
             return catalog;
         } catch (error) {
-            commit('SET_ERROR', error.message || '加载公司分类失败');
+            commit('SET_ERROR', error.message || '加载公司目录失败');
             throw error;
         } finally {
             commit('SET_CATALOG_LOADING', false);

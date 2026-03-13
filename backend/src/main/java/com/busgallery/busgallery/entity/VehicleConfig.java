@@ -50,6 +50,10 @@ public class VehicleConfig {
     @Column(name = "step_type", length = 64)
     private String stepType;
 
+    /** 变速系统 */
+    @Column(name = "transmission_system", length = 128)
+    private String transmissionSystem;
+
     /** 悬挂形式 */
     @Column(length = 128) // 修正长度：100 → 128（匹配SQL）
     private String suspension;

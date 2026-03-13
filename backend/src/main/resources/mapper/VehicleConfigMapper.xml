@@ -11,6 +11,7 @@
         <result property="engine" column="engine"/>
         <result property="fuelType" column="fuel_type"/>
         <result property="stepType" column="step_type"/>
+        <result property="transmissionSystem" column="transmission_system"/>
         <result property="suspension" column="suspension"/>
         <result property="axle" column="axle"/>
         <result property="otherConfigs" column="other_configs"/>
@@ -30,6 +31,7 @@
     <sql id="BaseColumnList">
         id, vehicle_id, brand_id, model_id,
         motor, engine, fuel_type, step_type,
+        transmission_system,
         suspension, axle, other_configs,
         created_at, updated_at
     </sql>
@@ -51,10 +53,12 @@
         INSERT INTO vehicle_config (
         vehicle_id, brand_id, model_id,
         motor, engine, fuel_type, step_type,
+        transmission_system,
         suspension, axle, other_configs
         ) VALUES (
         #{vehicle.id}, #{brand.id}, #{model.id},
         #{motor}, #{engine}, #{fuelType}, #{stepType},
+        #{transmissionSystem},
         #{suspension}, #{axle}, #{otherConfigs}
         )
     </insert>
@@ -68,6 +72,7 @@
         engine        = #{engine},
         fuel_type     = #{fuelType},
         step_type     = #{stepType},
+        transmission_system = #{transmissionSystem},
         suspension    = #{suspension},
         axle          = #{axle},
         other_configs = #{otherConfigs}

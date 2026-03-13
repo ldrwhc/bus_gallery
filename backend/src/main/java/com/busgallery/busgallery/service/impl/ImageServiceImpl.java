@@ -12,20 +12,21 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+
+import com.busgallery.busgallery.util.ExifExtractor;
+import com.busgallery.busgallery.util.ExifUtils;
 
 @Service
 @RequiredArgsConstructor
 public class ImageServiceImpl implements ImageService {
 
-    private static final DateTimeFormatter DATE_FOLDER_FORMATTER =
-            DateTimeFormatter.BASIC_ISO_DATE;
+    private static final DateTimeFormatter DATE_FOLDER_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
 
     private final ImageMapper imageMapper;
     private final VehicleImageMapper vehicleImageMapper;
@@ -48,26 +49,56 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
+    public List<Image> listByUploader(Long uploaderId, int page, int size) {
+        if (uploaderId == null) {
+            return Collections.emptyList();
+        }
+        int pageNo = Math.max(page, 1);
+        int pageSize = Math.max(size, 1);
+        int offset = (pageNo - 1) * pageSize;
+        return imageMapper.selectByUploader(uploaderId, offset, pageSize);
+    }
+
+    @Override
+    public long countByUploader(Long uploaderId) {
+        if (uploaderId == null) {
+            return 0L;
+        }
+        return imageMapper.countByUploader(uploaderId);
+    }
+
+    @Override
     @Transactional
-    public Image uploadAndSave(MultipartFile file, String uploadUser) {
+    public Image uploadAndSave(MultipartFile file, Image metadata) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("上传文件不能为空");
         }
+        Image meta = metadata != null ? metadata : new Image();
         String objectName = buildObjectName(file.getOriginalFilename());
-        try (InputStream inputStream = file.getInputStream()) {
-            StorageObject storageObject = storageService.upload(
-                    objectName, inputStream, file.getSize(), file.getContentType()
-            );
-            Image image = new Image();
-            image.setObjectName(storageObject.getObjectName());
-            image.setUrl(storageObject.getUrl());
-            image.setThumbnailUrl(storageObject.getThumbnailUrl());
-            image.setSizeBytes(file.getSize());
-            image.setMimeType(file.getContentType());
-            image.setUploadUser(uploadUser);
-            image.setCreateTime(LocalDateTime.now());
-            imageMapper.insert(image);
-            return imageMapper.selectById(image.getId());
+        try {
+            byte[] data = file.getBytes();
+            Map<String, String> exif = ExifExtractor.extract(data);
+            String exifJson = ExifUtils.toJson(exif);
+
+            try (ByteArrayInputStream inputStream = new ByteArrayInputStream(data)) {
+                StorageObject storageObject = storageService.upload(
+                        objectName, inputStream, file.getSize(), file.getContentType()
+                );
+                Image image = new Image();
+                image.setObjectName(storageObject.getObjectName());
+                image.setUrl(storageObject.getUrl());
+                image.setThumbnailUrl(storageObject.getThumbnailUrl());
+                image.setSizeBytes(file.getSize());
+                image.setMimeType(file.getContentType());
+                image.setUploadUser(meta.getUploadUser());
+                image.setUploaderId(meta.getUploaderId());
+                image.setUploaderUsername(meta.getUploaderUsername());
+                image.setUploaderDisplayName(meta.getUploaderDisplayName());
+                image.setCreateTime(LocalDateTime.now());
+                image.setExifJson(exifJson);
+                imageMapper.insert(image);
+                return imageMapper.selectById(image.getId());
+            }
         } catch (IOException e) {
             throw new RuntimeException("图片上传失败", e);
         }

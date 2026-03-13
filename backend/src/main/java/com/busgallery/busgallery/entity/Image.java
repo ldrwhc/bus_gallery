@@ -41,11 +41,29 @@ public class Image {
     @Column(name = "uploader", length = 128)
     private String uploadUser;
 
+    @Column(name = "uploader_id")
+    private Long uploaderId;
+
+    @Column(name = "uploader_username", length = 64)
+    private String uploaderUsername;
+
+    @Column(name = "uploader_display_name", length = 128)
+    private String uploaderDisplayName;
+
+    @Column(name = "exif_json", columnDefinition = "TEXT")
+    private String exifJson;
+
+    @Transient
+    private Long vehicleId;
+
     @Transient
     private String title;
 
     @Transient
     private String description;
+
+    @Transient
+    private java.util.Map<String, String> exif;
 
     // 核心修正2：保留原 createTime 属性，映射到数据库的 created_at 字段
     @Column(name = "created_at", insertable = false, updatable = false)

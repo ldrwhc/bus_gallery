@@ -76,42 +76,98 @@
 
         <select id="selectPage" resultMap="VehicleResultMap">
                 SELECT <include refid="BaseColumnList"/>
-                FROM vehicle
+                FROM vehicle v
                 WHERE 1 = 1
                 <if test="regionId != null">
-                        AND region_id = #{regionId}
+                        AND v.region_id = #{regionId}
                 </if>
                 <if test="companyId != null">
-                        AND company_id = #{companyId}
+                        AND v.company_id = #{companyId}
                 </if>
                 <if test="modelId != null">
-                        AND model_id = #{modelId}
+                        AND v.model_id = #{modelId}
                 </if>
                 <if test="brandId != null">
-                        AND model_id IN (SELECT id FROM model WHERE brand_id = #{brandId})
+                        AND v.model_id IN (SELECT id FROM model WHERE brand_id = #{brandId})
+                </if>
+                <if test="keyword != null and keyword != ''">
+                        AND (
+                                v.plate_number LIKE CONCAT('%', #{keyword}, '%')
+                                OR v.custom_number LIKE CONCAT('%', #{keyword}, '%')
+                                OR EXISTS (
+                                        SELECT 1 FROM company c
+                                        WHERE c.id = v.company_id
+                                          AND c.name LIKE CONCAT('%', #{keyword}, '%')
+                                )
+                                OR EXISTS (
+                                        SELECT 1 FROM region r
+                                        WHERE r.id = v.region_id
+                                          AND r.name LIKE CONCAT('%', #{keyword}, '%')
+                                )
+                                OR EXISTS (
+                                        SELECT 1 FROM model m
+                                        WHERE m.id = v.model_id
+                                          AND (
+                                                m.name LIKE CONCAT('%', #{keyword}, '%')
+                                                OR EXISTS (
+                                                        SELECT 1 FROM brand b
+                                                        WHERE b.id = m.brand_id
+                                                          AND b.name LIKE CONCAT('%', #{keyword}, '%')
+                                                )
+                                          )
+                                )
+                        )
                 </if>
                 ORDER BY
-                CASE WHEN launch_date IS NULL THEN 1 ELSE 0 END ASC,
-                launch_date DESC,
-                id DESC
+                CASE WHEN v.launch_date IS NULL THEN 1 ELSE 0 END ASC,
+                v.launch_date DESC,
+                v.id DESC
                 LIMIT #{limit} OFFSET #{offset}
         </select>
 
         <select id="count" resultType="long">
                 SELECT COUNT(1)
-                FROM vehicle
+                FROM vehicle v
                 WHERE 1 = 1
                 <if test="regionId != null">
-                        AND region_id = #{regionId}
+                        AND v.region_id = #{regionId}
                 </if>
                 <if test="companyId != null">
-                        AND company_id = #{companyId}
+                        AND v.company_id = #{companyId}
                 </if>
                 <if test="modelId != null">
-                        AND model_id = #{modelId}
+                        AND v.model_id = #{modelId}
                 </if>
                 <if test="brandId != null">
-                        AND model_id IN (SELECT id FROM model WHERE brand_id = #{brandId})
+                        AND v.model_id IN (SELECT id FROM model WHERE brand_id = #{brandId})
+                </if>
+                <if test="keyword != null and keyword != ''">
+                        AND (
+                                v.plate_number LIKE CONCAT('%', #{keyword}, '%')
+                                OR v.custom_number LIKE CONCAT('%', #{keyword}, '%')
+                                OR EXISTS (
+                                        SELECT 1 FROM company c
+                                        WHERE c.id = v.company_id
+                                          AND c.name LIKE CONCAT('%', #{keyword}, '%')
+                                )
+                                OR EXISTS (
+                                        SELECT 1 FROM region r
+                                        WHERE r.id = v.region_id
+                                          AND r.name LIKE CONCAT('%', #{keyword}, '%')
+                                )
+                                OR EXISTS (
+                                        SELECT 1 FROM model m
+                                        WHERE m.id = v.model_id
+                                          AND (
+                                                m.name LIKE CONCAT('%', #{keyword}, '%')
+                                                OR EXISTS (
+                                                        SELECT 1 FROM brand b
+                                                        WHERE b.id = m.brand_id
+                                                          AND b.name LIKE CONCAT('%', #{keyword}, '%')
+                                                )
+                                          )
+                                )
+                        )
                 </if>
         </select>
 

@@ -24,13 +24,10 @@
                 </li>
                 <li>
                     <span class="label">投运时间：</span>
-                    <span>{{ vehicle?.launchDate || '—' }}</span>
+                    <span>{{ formattedLaunchDate }}</span>
                 </li>
             </ul>
 
-            <p class="remark" v-if="vehicle?.remark">
-                {{ vehicle.remark }}
-            </p>
         </div>
     </div>
 </template>
@@ -38,6 +35,7 @@
 <script setup>
 import { computed } from 'vue';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
+import { formatYearMonth } from '@/utils/formatters';
 
 const props = defineProps({
     vehicle: {
@@ -56,6 +54,10 @@ const coverUrl = computed(() => {
     const img = props.images?.[0];
     return img?.thumbnailUrl || img?.url || placeholderBus;
 });
+
+const formattedLaunchDate = computed(() =>
+    formatYearMonth(props.vehicle?.launchDate)
+);
 
 const resolveRegionName = computed(() => {
     if (props.vehicle?.remark) {
@@ -133,16 +135,5 @@ const resolveRegionName = computed(() => {
         }
     }
 
-    .remark {
-        margin: 0;
-        font-size: 13px;
-        color: #6b7280;
-        line-height: 1.6;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-    }
 }
 </style>

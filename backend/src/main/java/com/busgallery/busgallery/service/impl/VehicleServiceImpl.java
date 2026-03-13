@@ -61,18 +61,18 @@ public class VehicleServiceImpl implements VehicleService {
     }
 
     @Override
-    public List<Vehicle> queryPage(int page, int size, Long regionId, Long companyId, Long brandId, Long modelId) {
+    public List<Vehicle> queryPage(int page, int size, Long regionId, Long companyId, Long brandId, Long modelId, String keyword) {
         int pageNo = Math.max(page, 1);
         int pageSize = Math.max(size, 1);
         int offset = (pageNo - 1) * pageSize;
-        List<Vehicle> list = vehicleMapper.selectPage(offset, pageSize, regionId, companyId, brandId, modelId);
+        List<Vehicle> list = vehicleMapper.selectPage(offset, pageSize, regionId, companyId, brandId, modelId, keyword);
         list.forEach(this::populateVehicleRelations);
         return list;
     }
 
     @Override
-    public long count(Long regionId, Long companyId, Long brandId, Long modelId) {
-        return vehicleMapper.count(regionId, companyId, brandId, modelId);
+    public long count(Long regionId, Long companyId, Long brandId, Long modelId, String keyword) {
+        return vehicleMapper.count(regionId, companyId, brandId, modelId, keyword);
     }
 
     @Override
@@ -140,10 +140,15 @@ public class VehicleServiceImpl implements VehicleService {
         }
         if (vehicle.getModel() != null && vehicle.getModel().getId() != null) {
             Model fullModel = modelMapper.selectById(vehicle.getModel().getId());
+            if (fullModel != null && fullModel.getBrand() != null && fullModel.getBrand().getId() != null) {
+                Brand brand = brandMapper.selectById(fullModel.getBrand().getId());
+                fullModel.setBrand(brand);
+            }
             vehicle.setModel(fullModel);
         }
         if (vehicle.getCompany() != null && vehicle.getCompany().getId() != null) {
             Company fullCompany = companyMapper.selectById(vehicle.getCompany().getId());
+            populateCompanyRegion(fullCompany);
             vehicle.setCompany(fullCompany);
         }
         if (vehicle.getRegion() != null && vehicle.getRegion().getId() != null) {
@@ -162,7 +167,21 @@ public class VehicleServiceImpl implements VehicleService {
         }
         if (config.getModel() != null && config.getModel().getId() != null) {
             Model model = modelMapper.selectById(config.getModel().getId());
+            if (model != null && model.getBrand() != null && model.getBrand().getId() != null) {
+                Brand brand = brandMapper.selectById(model.getBrand().getId());
+                model.setBrand(brand);
+            }
             config.setModel(model);
+        }
+    }
+
+    private void populateCompanyRegion(Company company) {
+        if (company == null) {
+            return;
+        }
+        if (company.getRegion() != null && company.getRegion().getId() != null) {
+            Region region = regionMapper.selectById(company.getRegion().getId());
+            company.setRegion(region);
         }
     }
 

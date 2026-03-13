@@ -1,0 +1,25 @@
+﻿主要技术难点
+
+  - 大文件上传与归档：前端一次性表单 + 后端同步写 MinIO/MySQL 易造成瓶颈和重复提交，需要引入预签名上传、任务队列和回调机制保证弹性与可追踪性。
+  - 多级缓存一致性：Nginx/Redis/Caffeine 共同缓存查询结果，必须统一驱逐策略，否则车辆、图片等热点数据会出现过期/脏读。
+  - 资源隔离与安全：上传来源仅依赖业务校验，缺少病毒扫描、EXIF 信息脱敏等步骤，容易引入风险资源。
+  - 处理耗时任务：缩略图生成、EXIF 提取在请求线程内执行导致接口耗时且易超时，需要异步化并支持失败重试。
+  - 日志与监控：缺乏对上传任务的状态跟踪，用户无法得知后台处理进度，也无法重试失败任务。
+
+改进建议/实践
+
+  1. 高并发上传与分片续传
+      - 使用 MinIO/S3 预签名直传，后端只负责发放签名与登记任务，避免 Web 服务器阻塞。
+      - 结合 Kafka + 数据库任务表，将“签名 → 上传 → 处理 → 归档”拆分为可监控的阶段，前端通过任务 ID 轮询或订阅进度。
+  2. 权限隔离与内容安全
+      - 上传凭证写入 Redis 并绑定用户信息，凭证一次性使用，过期自动删除，避免越权写对象。
+      - MediaProcessingService 在消费 Kafka 时串联 ClamAV 和 EXIF 敏感字段检验，发现病毒或 GPS/序列号等敏感信息直接隔离并记录原因。
+  3. 缓存一致性
+      - 所有车辆/图片写操作由统一的 `VehicleService/ImageService` 汇流，更新后通过 `CacheConfig` 的 CompositeCacheManager 同步驱逐 Caffeine/Redis/Nginx。
+      - 读操作统一走缓存抽象，避免多处拼接 Key；缓存键引入版本号，便于批量失效。
+  4. 异步缩略图与状态补偿
+      - MediaProcessingService 负责 EXIF 提取、多规格缩略图生成、Redis/Kafka 状态更新；失败会写入 `media_ingest_job` 并暴露重试接口。
+      - 千级缩略图通过 Thumbnailator + MinIO 上传，结果 JSON 存回 `image.thumbnail_variants`，前端即可按需选择尺寸。
+  5. 文件安全
+      - 预签名 URL 时限短且仅允许 PUT，上传完成后仅暴露处理过的 CDN/缩略图地址，原图受控。
+      - 处理链路全程记录 `processing_status / scan_status / quarantine_reason`，任何异常都会阻止图片出现在前台。

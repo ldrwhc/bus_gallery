@@ -15,7 +15,12 @@
         <result property="mimeType" column="content_type"/>
         <result property="hash" column="hash"/>
         <result property="uploadUser" column="uploader"/>
+        <result property="uploaderId" column="uploader_id"/>
+        <result property="uploaderUsername" column="uploader_username"/>
+        <result property="uploaderDisplayName" column="uploader_display_name"/>
+        <result property="exifJson" column="exif_json"/>
         <result property="createTime" column="created_at"/>
+        <result property="vehicleId" column="vehicle_id"/>
     </resultMap>
 
     <!-- 无别名列清单 -->
@@ -23,7 +28,10 @@
         id, object_name, url, thumbnail_url,
         size_bytes, width, height,
         content_type, hash, uploader,
-        created_at
+        uploader_id, uploader_username, uploader_display_name,
+        exif_json,
+        created_at,
+        NULL AS vehicle_id
     </sql>
 
     <!-- 带别名（i.）的列清单 -->
@@ -31,7 +39,20 @@
         i.id, i.object_name, i.url, i.thumbnail_url,
         i.size_bytes, i.width, i.height,
         i.content_type, i.hash, i.uploader,
-        i.created_at
+        i.uploader_id, i.uploader_username, i.uploader_display_name,
+        i.exif_json,
+        i.created_at,
+        NULL AS vehicle_id
+    </sql>
+
+    <sql id="AliasedWithVehicleColumnList">
+        i.id, i.object_name, i.url, i.thumbnail_url,
+        i.size_bytes, i.width, i.height,
+        i.content_type, i.hash, i.uploader,
+        i.uploader_id, i.uploader_username, i.uploader_display_name,
+        i.exif_json,
+        i.created_at,
+        vi.vehicle_id AS vehicle_id
     </sql>
 
     <select id="selectById" parameterType="long" resultMap="ImageResultMap">
@@ -41,7 +62,7 @@
     </select>
 
     <select id="selectByVehicleId" parameterType="long" resultMap="ImageResultMap">
-        SELECT <include refid="AliasedColumnList"/>
+        SELECT <include refid="AliasedWithVehicleColumnList"/>
         FROM image i
         INNER JOIN vehicle_image vi ON vi.image_id = i.id
         WHERE vi.vehicle_id = #{vehicleId}
@@ -60,11 +81,15 @@
         INSERT INTO image (
         object_name, url, thumbnail_url,
         size_bytes, width, height,
-        content_type, hash, uploader
+        content_type, hash, uploader,
+        uploader_id, uploader_username, uploader_display_name,
+        exif_json
         ) VALUES (
         #{objectName}, #{url}, #{thumbnailUrl},
         #{sizeBytes}, #{width}, #{height},
-        #{mimeType}, #{hash}, #{uploadUser}
+        #{mimeType}, #{hash}, #{uploadUser},
+        #{uploaderId}, #{uploaderUsername}, #{uploaderDisplayName},
+        #{exifJson}
         )
     </insert>
 
@@ -78,9 +103,37 @@
         height        = #{height},
         content_type  = #{mimeType},
         hash          = #{hash},
-        uploader      = #{uploadUser}
+        uploader      = #{uploadUser},
+        uploader_id   = #{uploaderId},
+        uploader_username = #{uploaderUsername},
+        uploader_display_name = #{uploaderDisplayName},
+        exif_json      = #{exifJson}
         WHERE id = #{id}
     </update>
+
+    <select id="selectByUploader" resultMap="ImageResultMap">
+        SELECT <include refid="AliasedWithVehicleColumnList"/>
+        FROM image i
+        LEFT JOIN (
+            SELECT
+                image_id,
+                COALESCE(
+                    MAX(CASE WHEN is_cover = 1 THEN vehicle_id END),
+                    MAX(vehicle_id)
+                ) AS vehicle_id
+            FROM vehicle_image
+            GROUP BY image_id
+        ) vi ON vi.image_id = i.id
+        WHERE i.uploader_id = #{uploaderId}
+        ORDER BY i.created_at DESC, i.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByUploader" resultType="long">
+        SELECT COUNT(1)
+        FROM image
+        WHERE uploader_id = #{uploaderId}
+    </select>
 
     <delete id="delete" parameterType="long">
         DELETE FROM image WHERE id = #{id}

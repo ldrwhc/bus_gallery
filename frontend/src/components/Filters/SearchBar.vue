@@ -45,10 +45,12 @@ const triggerSearch = () => {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
     background: rgba(255, 255, 255, 0.15);
     border-radius: 999px;
     padding: 8px 8px 8px 16px;
     backdrop-filter: blur(6px);
+    width: 100%;
 }
 
 .icon {
@@ -83,6 +85,12 @@ const triggerSearch = () => {
 
     &:hover {
         background: #f1f5f9;
+    }
+}
+
+@media (max-width: 640px) {
+    .primary-btn {
+        width: 100%;
     }
 }
 </style>

@@ -1,65 +1,85 @@
 <template>
-    <div class="basic-layout">
-        <el-container>
-            <el-header class="bg-header">
-                <div class="logo">Bus Gallery</div>
-                <el-menu class="nav-menu" mode="horizontal" :default-active="active">
-                    <el-menu-item v-for="item in menus" :key="item.path" :index="item.path" @click="go(item.path)">
-                        {{ item.label }}
-                    </el-menu-item>
-                </el-menu>
-            </el-header>
-
-            <el-main>
-                <slot />
-            </el-main>
-
-            <footer-bar />
-        </el-container>
+    <div class="app-shell">
+        <AppHeader class="app-shell__header" @toggle-search="openSearch" />
+        <main class="app-shell__main">
+            <slot />
+        </main>
+        <AppFooter class="app-shell__footer" />
+        <SearchOverlay :visible="searchVisible" @close="closeSearch" @search="handleSearch" />
     </div>
 </template>
 
 <script setup>
-import { useRoute, useRouter } from 'vue-router';
-import FooterBar from './Footer.vue';
-import { computed } from 'vue';
+import { ref, watch, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
+import AppHeader from '@/components/Layout/AppHeader.vue';
+import AppFooter from '@/components/Layout/AppFooter.vue';
+import SearchOverlay from '@/components/Search/SearchOverlay.vue';
 
-const route = useRoute();
+const searchVisible = ref(false);
 const router = useRouter();
 
-const menus = [
-    { path: '/', label: '首页' },
-    { path: '/regions', label: '按地区' },
-    { path: '/companies', label: '按公司' },
-    { path: '/brands', label: '按品牌' },
-    { path: '/models', label: '按型号' },
-    { path: '/upload', label: '上传' },
-    { path: '/about', label: '关于' }
-];
+const lockBody = (locked) => {
+    document.body.style.overflow = locked ? 'hidden' : '';
+};
 
-const active = computed(() => route.path);
-const go = (path) => router.push(path);
+const openSearch = () => {
+    searchVisible.value = true;
+};
+
+const closeSearch = () => {
+    searchVisible.value = false;
+};
+
+const handleSearch = (keyword) => {
+    const query = keyword ? { keyword } : {};
+    router.push({ name: 'Home', query });
+    closeSearch();
+};
+
+watch(searchVisible, (visible) => lockBody(visible));
+onBeforeUnmount(() => lockBody(false));
 </script>
 
 <style scoped>
-.basic-layout {
+.app-shell {
     min-height: 100vh;
-    background: #f5f7fa;
-}
-
-.bg-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    background: #f5f7fb;
+    max-width: 100vw;
+    overflow-x: hidden;
 }
 
-.logo {
-    font-size: 24px;
-    font-weight: 600;
-    color: #fff;
+.app-shell__header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 100;
 }
 
-.nav-menu {
-    background: transparent;
+.app-shell__footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 90;
+}
+
+.app-shell__main {
+    flex: 1;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    padding-top: 96px;
+    padding-bottom: 96px;
+}
+
+@media (max-width: 768px) {
+    .app-shell__main {
+        padding-top: 120px;
+        padding-bottom: 120px;
+    }
 }
 </style>

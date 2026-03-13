@@ -1,10 +1,14 @@
 package com.busgallery.busgallery.controller;
 
+import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.RequireLogin;
+import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.service.ImageService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,9 +37,18 @@ public class ImageController {
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequireLogin
     public Image upload(@RequestPart("file") MultipartFile file,
                         @RequestParam(value = "uploadUser", required = false) String uploadUser) {
-        return imageService.uploadAndSave(file, uploadUser);
+        UserSession session = AuthContextHolder.requireUser();
+        Image metadata = new Image();
+        metadata.setUploadUser(StringUtils.hasText(uploadUser)
+                ? uploadUser
+                : (StringUtils.hasText(session.getDisplayName()) ? session.getDisplayName() : session.getUsername()));
+        metadata.setUploaderId(session.getUserId());
+        metadata.setUploaderUsername(session.getUsername());
+        metadata.setUploaderDisplayName(session.getDisplayName());
+        return imageService.uploadAndSave(file, metadata);
     }
 
     @PutMapping("/{id}")
@@ -45,6 +58,9 @@ public class ImageController {
             return null;
         }
         image.setUploadUser(request.getUploadUser());
+        if (request.getUploaderDisplayName() != null) {
+            image.setUploaderDisplayName(request.getUploaderDisplayName());
+        }
         return imageService.update(image);
     }
 
@@ -56,5 +72,6 @@ public class ImageController {
     @Data
     public static class ImageUpdateRequest {
         private String uploadUser;
+        private String uploaderDisplayName;
     }
 }

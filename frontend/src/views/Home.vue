@@ -1,39 +1,29 @@
-<template>
+﻿<template>
     <div class="page home-view">
-        <AppHeader />
-
         <main class="home-main constrained">
             <section class="hero">
                 <div class="hero__text">
                     <p class="eyebrow">Bus Gallery</p>
-                    <h1>全国公交车辆图鉴</h1>
+                    <h1>中国公交车辆图库</h1>
                     <p class="description">
-                        汇聚中国各地公交车辆的车牌、配置、运营信息与实拍照片，支持按地区、公司、品牌、型号随心筛选。
+                        收录全国公交车辆的车牌、配置与上线资料。打开页面即可按地区、公司、品牌或车型快速检索。
                     </p>
-
-                    <SearchBar placeholder="输入车型 / 车牌 / 公司搜索" :value="filters.keyword" @search="handleKeywordSearch" />
                 </div>
 
                 <div class="hero__visual">
                     <div class="visual-card">
                         <p class="visual-title">图库收录</p>
                         <p class="visual-number">{{ pagination.total || '--' }}</p>
-                        <p class="visual-caption">辆车辆档案</p>
+                        <p class="visual-caption">条车辆记录</p>
                     </div>
                 </div>
-            </section>
-
-            <section class="filter-section">
-                <FilterPanel :filters="filters" :regions="regionOptions" :companies="companyOptions"
-                    :brands="brandOptions" :models="modelOptions" @change="handleFilterChange"
-                    @reset="handleResetFilters" />
             </section>
 
             <section class="gallery-section">
                 <header class="section-header">
                     <div>
                         <h2>车辆图库</h2>
-                        <p class="subtitle">当前筛选下共 {{ pagination.total }} 辆</p>
+                        <p class="subtitle">当前筛选下共 {{ pagination.total }} 条</p>
                     </div>
                     <button class="ghost-btn" type="button" @click="handleResetFilters">
                         重置筛选
@@ -59,31 +49,38 @@
                 </div>
 
                 <div v-else class="gallery-grid">
-                    <VehicleCard v-for="item in gallery" :key="item?.vehicle?.id || item.vehicleId"
-                        :vehicle="item.vehicle" :config="item.config" :images="item.images"
-                        @view-detail="openVehicleDetail(item?.vehicle?.id)" />
+                    <VehicleCard
+                        v-for="item in gallery"
+                        :key="item?.vehicle?.id || item.vehicleId"
+                        :vehicle="item.vehicle"
+                        :config="item.config"
+                        :images="item.images"
+                        @view-detail="openVehicleDetail(item?.vehicle?.id)"
+                    />
                 </div>
             </section>
         </main>
 
-        <VehicleDetailModal v-if="isDetailVisible" :visible="isDetailVisible" :detail="activeVehicleDetail"
-            :loading="activeVehicleLoading" @close="closeDetail" />
-
-        <AppFooter />
+        <VehicleDetailModal
+            v-if="isDetailVisible"
+            :visible="isDetailVisible"
+            :detail="activeVehicleDetail"
+            :loading="activeVehicleLoading"
+            @close="closeDetail"
+        />
     </div>
 </template>
 
 <script setup>
-import { computed, reactive, ref, onMounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted } from 'vue';
 import { useStore } from 'vuex';
-import AppHeader from '@/components/Layout/AppHeader.vue';
-import AppFooter from '@/components/Layout/AppFooter.vue';
-import FilterPanel from '@/components/Filters/FilterPanel.vue';
-import SearchBar from '@/components/Filters/SearchBar.vue';
+import { useRoute, useRouter } from 'vue-router';
 import VehicleCard from '@/components/Gallery/VehicleCard.vue';
 import VehicleDetailModal from '@/components/Gallery/VehicleDetailModal.vue';
 
 const store = useStore();
+const route = useRoute();
+const router = useRouter();
 
 const filters = reactive({
     regionId: null,
@@ -98,21 +95,13 @@ const galleryLoading = computed(() => store.state.vehicles.galleryLoading);
 const galleryError = computed(() => store.state.vehicles.galleryError);
 const pagination = computed(() => store.state.vehicles.pagination);
 
-const regionOptions = computed(() => store.getters['regions/regionOptions'] || []);
-const companyOptions = computed(() => store.getters['companies/companyOptions'] || []);
-const brandOptions = computed(() => store.getters['brands/brandOptions'] || []);
-const modelOptions = computed(() => store.getters['models/modelOptions'] || []);
-
 const activeVehicleId = ref(null);
 const activeVehicleDetail = computed(() =>
-    activeVehicleId.value
-        ? store.state.vehicles.detailMap[activeVehicleId.value] || null
-        : null
+    activeVehicleId.value ? store.state.vehicles.detailMap[activeVehicleId.value] || null : null
 );
 const activeVehicleLoading = computed(
     () =>
-        (activeVehicleId.value &&
-            store.state.vehicles.detailLoadingMap[activeVehicleId.value]) ||
+        (activeVehicleId.value && store.state.vehicles.detailLoadingMap[activeVehicleId.value]) ||
         false
 );
 const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
@@ -135,14 +124,6 @@ const fetchGallery = (override = {}) => {
 
 const refreshGallery = () => fetchGallery({ page: 1 });
 
-const handleFilterChange = (payload) => {
-    fetchGallery({ ...payload, page: 1 });
-};
-
-const handleKeywordSearch = (keyword) => {
-    fetchGallery({ keyword, page: 1 });
-};
-
 const handleResetFilters = () => {
     Object.assign(filters, {
         regionId: null,
@@ -152,6 +133,7 @@ const handleResetFilters = () => {
         keyword: ''
     });
     store.dispatch('vehicles/resetGalleryFilters');
+    router.replace({ name: 'Home' });
 };
 
 const openVehicleDetail = async (vehicleId) => {
@@ -172,12 +154,24 @@ const handleRetry = () => {
     fetchGallery({ page: pagination.value.page || 1 });
 };
 
+const syncKeywordFromRoute = () => {
+    const keyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+    filters.keyword = keyword;
+    return keyword;
+};
+
+watch(
+    () => route.query.keyword,
+    (value) => {
+        const keyword = typeof value === 'string' ? value : '';
+        if (keyword === filters.keyword) return;
+        fetchGallery({ keyword, page: 1 });
+    }
+);
+
 onMounted(() => {
-    store.dispatch('regions/loadRegions');
-    store.dispatch('companies/loadCompanies');
-    store.dispatch('brands/loadBrands');
-    store.dispatch('models/loadModels');
-    fetchGallery({ page: 1 });
+    const initialKeyword = syncKeywordFromRoute();
+    fetchGallery({ page: 1, keyword: initialKeyword });
 });
 </script>
 
@@ -193,7 +187,8 @@ onMounted(() => {
     width: min(1200px, 100%);
     margin: 0 auto;
     flex: 1;
-    padding: 32px 24px 72px;
+    padding: clamp(32px, 5vw, 72px) clamp(16px, 4vw, 32px) clamp(96px, 8vw, 120px);
+    box-sizing: border-box;
 }
 
 .hero {
@@ -214,6 +209,31 @@ onMounted(() => {
         flex: 0 0 280px;
         display: flex;
         justify-content: center;
+    }
+}
+
+@media (max-width: 900px) {
+    .hero {
+        flex-direction: column;
+        padding: 32px;
+    }
+
+    .visual-card {
+        margin-top: 12px;
+    }
+
+    .gallery-section {
+        padding: 24px;
+    }
+}
+
+@media (max-width: 600px) {
+    .hero {
+        padding: 24px;
+    }
+
+    .gallery-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -252,8 +272,9 @@ onMounted(() => {
     margin: 0;
 }
 
-.filter-section {
-    margin-bottom: 24px;
+.visual-caption {
+    margin-top: 8px;
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .gallery-section {

@@ -98,6 +98,7 @@ CREATE TABLE `vehicle_config` (
   `engine`        VARCHAR(128)    DEFAULT NULL,
   `fuel_type`     VARCHAR(64)     DEFAULT NULL,
   `step_type`     VARCHAR(64)     DEFAULT NULL,
+  `transmission_system` VARCHAR(128) DEFAULT NULL,
   `suspension`    VARCHAR(128)    DEFAULT NULL,
   `axle`          VARCHAR(128)    DEFAULT NULL,
   `other_configs` TEXT            DEFAULT NULL,
@@ -128,9 +129,14 @@ CREATE TABLE `image` (
   `content_type`   VARCHAR(128)    DEFAULT NULL,
   `hash`           VARCHAR(128)    DEFAULT NULL COMMENT '文件哈希',
   `uploader`       VARCHAR(128)    DEFAULT NULL,
+  `uploader_id`    BIGINT UNSIGNED DEFAULT NULL,
+  `uploader_username` VARCHAR(64)  DEFAULT NULL,
+  `uploader_display_name` VARCHAR(128) DEFAULT NULL,
+  `exif_json`      TEXT            DEFAULT NULL COMMENT 'EXIF 元数据',
   `created_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_image_object` (`object_name`)
+  KEY `idx_image_object` (`object_name`),
+  KEY `idx_image_uploader` (`uploader_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='图片文件信息';
 
 -- 车辆与图片关联
@@ -149,3 +155,17 @@ CREATE TABLE `vehicle_image` (
     ON DELETE CASCADE
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='车辆图片关联表';
+
+-- 用户信息
+CREATE TABLE `app_user` (
+  `id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `username`        VARCHAR(64)     NOT NULL COMMENT '登录账号',
+  `password_hash`   VARCHAR(255)    NOT NULL COMMENT '加密后的密码',
+  `display_name`    VARCHAR(128)    NOT NULL COMMENT '展示名称',
+  `avatar_url`      VARCHAR(512)    DEFAULT NULL COMMENT '头像',
+  `bio`             VARCHAR(512)    DEFAULT NULL COMMENT '个人简介',
+  `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_app_user_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户账户';
