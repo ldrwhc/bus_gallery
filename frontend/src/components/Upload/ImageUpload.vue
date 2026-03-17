@@ -459,6 +459,7 @@ const showEngineField = computed(() => {
     return value.includes('diesel') || value.includes('gasoline') || value.includes('lng') || value.includes('cng');
 });
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const fileList = ref([]);
 const selectedFile = ref(null);
 const previewUrl = ref('');
@@ -484,9 +485,18 @@ const updatePreview = (file) => {
 };
 
 const handleFileChange = (file, files) => {
+    const latestFile = file.raw;
+    if (latestFile?.size > MAX_FILE_SIZE) {
+        ElMessage.warning('文件大小超过 20MB， 请压缩后再上传');
+        fileList.value = [];
+        selectedFile.value = null;
+        updatePreview(null);
+        return;
+    }
+
     fileList.value = files.slice(-1);
-    selectedFile.value = file.raw;
-    updatePreview(file.raw);
+    selectedFile.value = latestFile;
+    updatePreview(latestFile);
 };
 
 const normalizeMonth = (value) => (value ? `${value}-01` : null);

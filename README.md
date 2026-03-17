@@ -67,6 +67,12 @@ bus-gallery/
    - 修改 `docker-compose.yml` 中的数据库、MinIO帐号或端口映射。
    - 如需自定义前端访问域名，可调整 `docker/nginx` 下配置。
 
+
+   **Localhost/服务器切换**
+   - 复制 docker/.env.example 为 docker/.env，将 MINIO_CDN_HOST 改成 http://localhost/bus-gallery（本地）或 http://192.144.227.251/bus-gallery（服务器），然后运行 docker compose up -d backend 让新外链生效。
+   - 前端接口地址由 rontend/.env.production 的 VITE_API_BASE_URL 控制；留空自动使用当前站点 + /api，本地构建想直连后端则填 http://localhost:8080/api，开发模式可在 rontend/.env.development 中调整。
+   - 如果切换域名后旧图片不可用，可在数据库 image 表的 url/thumbnail_url 中批量替换域名或重新上传。
+
 3. **一键启动**
 
 ```bash
@@ -121,6 +127,17 @@ npm run dev   # 默认 http://localhost:5173
 ```
 
 如需连接 Docker Compose 中的后端，请在 `.env.development` 中将 `VITE_API_BASE_URL` 指向 `http://localhost:8080`.
+
+---
+
+## Localhost/服务器地址切换配置
+
+- **Docker 后端/MinIO**：复制 docker/.env.example 为 docker/.env，将其中的 MINIO_CDN_HOST 改成需要的主机地址（如 http://localhost/bus-gallery 或 http://192.144.227.251/bus-gallery），然后执行 docker compose up -d backend 让新的外链配置生效。
+- **前端 API 地址**：rontend/.env.production 中的 VITE_API_BASE_URL 会在构建时注入；留空时前端会自动使用当前访问页面的域名拼接 /api，如需本地构建调试可改成 http://localhost:8080/api。开发模式下也可以在 rontend/.env.development 调整。
+- **图片访问 URL**：后端会将 MINIO_CDN_HOST 写入 image 表与接口响应，切换主机后需要重新上传或通过 SQL 批量替换旧地址，确保前端指向新的可访问域名。
+
+调整完这些配置后，重新启动相关容器（docker compose up -d backend frontend）或本地服务（
+pm run dev）即可在 localhost 与服务器 IP 之间切换。
 
 ---
 

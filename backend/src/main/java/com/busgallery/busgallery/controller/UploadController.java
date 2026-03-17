@@ -17,6 +17,9 @@ import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * UploadController类用于封装UploadController相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+ */
 @RestController
 @RequestMapping("/api/upload")
 @RequiredArgsConstructor
@@ -62,6 +65,9 @@ public class UploadController {
         return VehicleController.assembleDetail(detailVehicle, detailConfig, detailImages);
     }
 
+    /**
+     * UploadPayload类用于封装UploadPayload相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     public static class UploadPayload {
         private String plateNumber;
@@ -89,6 +95,10 @@ public class UploadController {
         private VehicleConfigPayload config;
         private String uploadUser;
 
+        /**
+         * validate方法用于处理validate相关的业务逻辑。
+         * @return 无返回值。
+         */
         void validate() {
             if (!StringUtils.hasText(plateNumber)) {
                 throw new IllegalArgumentException("车牌号不能为空");
@@ -104,6 +114,10 @@ public class UploadController {
             }
         }
 
+        /**
+         * toVehicle方法用于处理toVehicle相关的业务逻辑。
+         * @return 返回Vehicle类型结果。
+         */
         Vehicle toVehicle() {
             Vehicle vehicle = new Vehicle();
             vehicle.setPlateNumber(plateNumber);
@@ -132,6 +146,10 @@ public class UploadController {
             return vehicle;
         }
 
+        /**
+         * toVehicleConfig方法用于处理toVehicleConfig相关的业务逻辑。
+         * @return 返回VehicleConfig类型结果。
+         */
         VehicleConfig toVehicleConfig() {
             if (config == null) {
                 return null;
@@ -159,6 +177,9 @@ public class UploadController {
         }
     }
 
+    /**
+     * VehicleConfigPayload类用于封装VehicleConfigPayload相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     public static class VehicleConfigPayload {
         private Long brandId;

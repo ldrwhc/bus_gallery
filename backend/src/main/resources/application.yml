@@ -14,8 +14,8 @@ spring:
       minimum-idle: 2
   servlet:
     multipart:
-      max-file-size: 10MB  # 单文件最大大小
-      max-request-size: 10MB # 单次请求最大大小
+      max-file-size: 20MB  # 单文件最大大小
+      max-request-size: 20MB # 单次请求最大大小
   jpa:
     hibernate:
       ddl-auto: none
@@ -47,7 +47,7 @@ minio:
   access-key: admin
   secret-key: 12345678
   # 对外可访问的统一地址，例如 http://localhost/bus-gallery 或 https://your-domain.com/bus-gallery
-  cdn-host: http://localhost/bus-gallery
+  cdn-host: 
 
 auth:
   session:

@@ -9,6 +9,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * VehicleResponse类用于封装VehicleResponse相关的领域职责（所在包：com.busgallery.busgallery.dto.response）。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -31,6 +34,13 @@ public class VehicleResponse {
     private VehicleConfigResponse config;
     private List<ImageResponse> images;
 
+    /**
+     * from方法用于处理from相关的业务逻辑。
+     * @param vehicle vehicle参数，详见调用方上下文。
+     * @param config config参数，详见调用方上下文。
+     * @param imageList imageList参数，详见调用方上下文。
+     * @return 返回VehicleResponse类型结果。
+     */
     public static VehicleResponse from(Vehicle vehicle, VehicleConfig config, List<Image> imageList) {
         if (vehicle == null) {
             return null;

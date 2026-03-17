@@ -13,6 +13,9 @@ import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
 
+/**
+ * MinioStorageService类用于封装MinioStorageService相关的领域职责（所在包：com.busgallery.busgallery.service.storage）。
+ */
 @Service
 @Profile("!test")
 @RequiredArgsConstructor
@@ -21,6 +24,10 @@ public class MinioStorageService implements StorageService {
     private final MinioClient minioClient;
     private final StorageProperties properties;
 
+    /**
+     * ensureBucket方法用于处理ensureBucket相关的业务逻辑。
+     * @return 无返回值。
+     */
     @PostConstruct
     public void ensureBucket() {
         try {
@@ -34,6 +41,14 @@ public class MinioStorageService implements StorageService {
         }
     }
 
+    /**
+     * upload方法用于处理upload相关的业务逻辑。
+     * @param objectName objectName参数，详见调用方上下文。
+     * @param inputStream inputStream参数，详见调用方上下文。
+     * @param size size参数，详见调用方上下文。
+     * @param contentType contentType参数，详见调用方上下文。
+     * @return 返回StorageObject类型结果。
+     */
     @Override
     public StorageObject upload(String objectName, InputStream inputStream, long size, String contentType) {
         try {
@@ -52,6 +67,11 @@ public class MinioStorageService implements StorageService {
         }
     }
 
+    /**
+     * remove方法用于处理remove相关的业务逻辑。
+     * @param objectUrl objectUrl参数，详见调用方上下文。
+     * @return 无返回值。
+     */
     @Override
     public void remove(String objectUrl) {
         String objectName = extractObjectName(objectUrl);
@@ -65,14 +85,34 @@ public class MinioStorageService implements StorageService {
         }
     }
 
+    /**
+     * buildUrl方法用于处理buildUrl相关的业务逻辑。
+     * @param objectName objectName参数，详见调用方上下文。
+     * @return 返回String类型结果。
+     */
     @Override
     public String buildUrl(String objectName) {
         String base = StringUtils.hasText(properties.getCdnHost())
+                /**
+                 * stripTrailingSlash方法用于处理stripTrailingSlash相关的业务逻辑。
+                 * @param properties.getBucket( properties.getBucket(参数，详见调用方上下文。
+                 * @return 返回?类型结果。
+                 */
                 ? stripTrailingSlash(properties.getCdnHost())
+                /**
+                 * stripTrailingSlash方法用于处理stripTrailingSlash相关的业务逻辑。
+                 * @param properties.getBucket( properties.getBucket(参数，详见调用方上下文。
+                 * @return 返回:类型结果。
+                 */
                 : stripTrailingSlash(properties.getEndpoint()) + "/" + properties.getBucket();
         return base + "/" + objectName;
     }
 
+    /**
+     * extractObjectName方法用于处理extractObjectName相关的业务逻辑。
+     * @param objectUrl objectUrl参数，详见调用方上下文。
+     * @return 返回String类型结果。
+     */
     private String extractObjectName(String objectUrl) {
         if (!StringUtils.hasText(objectUrl)) {
             throw new IllegalArgumentException("objectUrl 不能为空");
@@ -81,12 +121,27 @@ public class MinioStorageService implements StorageService {
             return objectUrl.replaceFirst("^/", "");
         }
         String base = StringUtils.hasText(properties.getCdnHost())
+                /**
+                 * stripTrailingSlash方法用于处理stripTrailingSlash相关的业务逻辑。
+                 * @param properties.getBucket( properties.getBucket(参数，详见调用方上下文。
+                 * @return 返回?类型结果。
+                 */
                 ? stripTrailingSlash(properties.getCdnHost())
+                /**
+                 * stripTrailingSlash方法用于处理stripTrailingSlash相关的业务逻辑。
+                 * @param properties.getBucket( properties.getBucket(参数，详见调用方上下文。
+                 * @return 返回:类型结果。
+                 */
                 : stripTrailingSlash(properties.getEndpoint()) + "/" + properties.getBucket();
         String normalized = objectUrl.replaceFirst("^" + base, "");
         return normalized.replaceFirst("^/", "");
     }
 
+    /**
+     * stripTrailingSlash方法用于处理stripTrailingSlash相关的业务逻辑。
+     * @param value value参数，详见调用方上下文。
+     * @return 返回String类型结果。
+     */
     private String stripTrailingSlash(String value) {
         if (!StringUtils.hasText(value)) {
             return "";

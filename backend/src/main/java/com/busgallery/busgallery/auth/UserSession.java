@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * UserSession类用于封装UserSession相关的领域职责（所在包：com.busgallery.busgallery.auth）。
+ */
 @Data
 @Builder
 @NoArgsConstructor

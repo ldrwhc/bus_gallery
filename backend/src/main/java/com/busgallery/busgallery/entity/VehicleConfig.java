@@ -5,6 +5,9 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+/**
+ * VehicleConfig类用于封装VehicleConfig相关的领域职责（所在包：com.busgallery.busgallery.entity）。
+ */
 @Getter
 @Setter
 @Builder

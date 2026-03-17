@@ -4,6 +4,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+/**
+ * StorageProperties类用于封装StorageProperties相关的领域职责（所在包：com.busgallery.busgallery.service.storage）。
+ */
 @Data
 @Component
 @ConfigurationProperties(prefix = "minio")

@@ -7,6 +7,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Company类用于封装Company相关的领域职责（所在包：com.busgallery.busgallery.entity）。
+ */
 @Getter
 @Setter
 @Builder

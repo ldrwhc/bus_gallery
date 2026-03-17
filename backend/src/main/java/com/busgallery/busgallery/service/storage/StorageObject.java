@@ -4,6 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * StorageObject类用于封装StorageObject相关的领域职责（所在包：com.busgallery.busgallery.service.storage）。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

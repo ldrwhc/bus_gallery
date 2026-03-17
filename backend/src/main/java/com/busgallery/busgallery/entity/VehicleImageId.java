@@ -6,6 +6,9 @@ import lombok.*;
 
 import java.io.Serializable;
 
+/**
+ * VehicleImageId类用于封装VehicleImageId相关的领域职责（所在包：com.busgallery.busgallery.entity）。
+ */
 @Getter
 @Setter
 @Builder

@@ -6,6 +6,9 @@ import lombok.Data;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * VehicleRequest类用于封装VehicleRequest相关的领域职责（所在包：com.busgallery.busgallery.dto.request）。
+ */
 @Data
 public class VehicleRequest {
 
@@ -22,6 +25,10 @@ public class VehicleRequest {
     private VehicleConfigRequest config;
     private List<Long> imageIds;
 
+    /**
+     * toVehicle方法用于处理toVehicle相关的业务逻辑。
+     * @return 返回Vehicle类型结果。
+     */
     public Vehicle toVehicle() {
         Vehicle vehicle = new Vehicle();
         vehicle.setPlateNumber(plateNumber);
@@ -50,6 +57,10 @@ public class VehicleRequest {
         return vehicle;
     }
 
+    /**
+     * toVehicleConfig方法用于处理toVehicleConfig相关的业务逻辑。
+     * @return 返回VehicleConfig类型结果。
+     */
     public VehicleConfig toVehicleConfig() {
         if (config == null) {
             return null;
@@ -75,6 +86,9 @@ public class VehicleRequest {
         return cfg;
     }
 
+    /**
+     * VehicleConfigRequest类用于封装VehicleConfigRequest相关的领域职责（所在包：com.busgallery.busgallery.dto.request）。
+     */
     @Data
     public static class VehicleConfigRequest {
         private Long brandId;

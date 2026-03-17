@@ -5,6 +5,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * VehicleConfigResponse类用于封装VehicleConfigResponse相关的领域职责（所在包：com.busgallery.busgallery.dto.response）。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -22,6 +25,11 @@ public class VehicleConfigResponse {
     private String axle;
     private String otherConfigs;
 
+    /**
+     * fromEntity方法用于处理fromEntity相关的业务逻辑。
+     * @param config config参数，详见调用方上下文。
+     * @return 返回VehicleConfigResponse类型结果。
+     */
     public static VehicleConfigResponse fromEntity(VehicleConfig config) {
         if (config == null) {
             return null;

@@ -3,6 +3,9 @@ package com.busgallery.busgallery.exception;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+/**
+ * ErrorCode枚举用于封装ErrorCode相关的领域职责（所在包：com.busgallery.busgallery.exception）。
+ */
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {

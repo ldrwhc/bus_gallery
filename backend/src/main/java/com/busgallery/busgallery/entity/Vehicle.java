@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Vehicle类用于封装Vehicle相关的领域职责（所在包：com.busgallery.busgallery.entity）。
+ */
 @Getter
 @Setter
 @Builder
@@ -54,6 +57,11 @@ public class Vehicle {
     @Column(name = "launch_date")
     private LocalDate launchDate;
 
+    /**
+     * 是否空调车（匹配SQL的TINYINT方法用于处理是否空调车（匹配SQL的TINYINT相关的业务逻辑。
+     * @param "air_conditioned" "air_conditioned"参数，详见调用方上下文。
+     * @return 返回/**类型结果。
+     */
     /** 是否空调车（匹配SQL的TINYINT(1)类型） */
     @Column(name = "air_conditioned")
     private Boolean airConditioned = Boolean.FALSE;

@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * UserController类用于封装UserController相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+ */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -24,6 +27,10 @@ public class UserController {
 
     private final UserService userService;
 
+    /**
+     * currentUser方法用于处理currentUser相关的业务逻辑。
+     * @return 返回UserProfileResponse类型结果。
+     */
     @GetMapping("/me")
     @RequireLogin
     public UserProfileResponse currentUser() {
@@ -36,6 +43,12 @@ public class UserController {
         return userService.buildProfile(user, uploads);
     }
 
+    /**
+     * myImages方法用于处理myImages相关的业务逻辑。
+     * @param page page参数，详见调用方上下文。
+     * @param size size参数，详见调用方上下文。
+     * @return 返回PageResponse<ImageResponse>类型结果。
+     */
     @GetMapping("/me/images")
     @RequireLogin
     public PageResponse<ImageResponse> myImages(
@@ -57,6 +70,11 @@ public class UserController {
         return PageResponse.of(records, total, pageNo, pageSize);
     }
 
+    /**
+     * getUserProfile方法用于处理getUserProfile相关的业务逻辑。
+     * @param userId userId参数，详见调用方上下文。
+     * @return 返回UserProfileResponse类型结果。
+     */
     @GetMapping("/{userId}")
     public UserProfileResponse getUserProfile(@PathVariable Long userId) {
         User user = userService.findById(userId);
@@ -67,6 +85,13 @@ public class UserController {
         return userService.buildProfile(user, uploads);
     }
 
+    /**
+     * getUserImages方法用于处理getUserImages相关的业务逻辑。
+     * @param userId userId参数，详见调用方上下文。
+     * @param page page参数，详见调用方上下文。
+     * @param size size参数，详见调用方上下文。
+     * @return 返回PageResponse<ImageResponse>类型结果。
+     */
     @GetMapping("/{userId}/images")
     public PageResponse<ImageResponse> getUserImages(
             @PathVariable Long userId,

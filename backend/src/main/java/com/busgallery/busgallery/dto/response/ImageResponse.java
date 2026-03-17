@@ -10,6 +10,9 @@ import com.busgallery.busgallery.util.ExifUtils;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+/**
+ * ImageResponse类用于封装ImageResponse相关的领域职责（所在包：com.busgallery.busgallery.dto.response）。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -28,6 +31,11 @@ public class ImageResponse {
     private Long vehicleId;
     private Map<String, String> exif;
 
+    /**
+     * fromEntity方法用于处理fromEntity相关的业务逻辑。
+     * @param image image参数，详见调用方上下文。
+     * @return 返回ImageResponse类型结果。
+     */
     public static ImageResponse fromEntity(Image image) {
         if (image == null) {
             return null;

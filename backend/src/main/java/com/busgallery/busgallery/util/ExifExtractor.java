@@ -14,14 +14,26 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * ExifExtractor类用于封装ExifExtractor相关的领域职责（所在包：com.busgallery.busgallery.util）。
+ */
 public final class ExifExtractor {
 
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.CHINA);
 
+    /**
+     * ExifExtractor构造器用于初始化对象状态。
+     * @return 构造器无返回值。
+     */
     private ExifExtractor() {
     }
 
+    /**
+     * extract方法用于处理extract相关的业务逻辑。
+     * @param data data参数，详见调用方上下文。
+     * @return 返回String>类型结果。
+     */
     public static Map<String, String> extract(byte[] data) {
         if (data == null || data.length == 0) {
             return Map.of();
@@ -52,6 +64,14 @@ public final class ExifExtractor {
         }
     }
 
+    /**
+     * addIfPresent方法用于处理addIfPresent相关的业务逻辑。
+     * @param exif exif参数，详见调用方上下文。
+     * @param label label参数，详见调用方上下文。
+     * @param dir dir参数，详见调用方上下文。
+     * @param tag tag参数，详见调用方上下文。
+     * @return 无返回值。
+     */
     private static void addIfPresent(Map<String, String> exif, String label, Directory dir, int tag) {
         if (dir == null || !dir.containsTag(tag)) {
             return;

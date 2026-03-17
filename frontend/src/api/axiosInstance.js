@@ -1,8 +1,15 @@
 import axios from 'axios';
 import { getToken } from '@/utils/auth';
 
+const configuredBase = (import.meta.env.VITE_API_BASE_URL || '').trim();
+const fallbackOrigin =
+    typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : 'http://localhost:8080';
+const normalizedBase = configuredBase || `${fallbackOrigin.replace(/\/$/, '')}/api`;
+
 const http = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
+    baseURL: normalizedBase,
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json;charset=utf-8'

@@ -17,6 +17,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+/**
+ * AuthServiceImpl类用于封装AuthServiceImpl相关的领域职责（所在包：com.busgallery.busgallery.service.impl）。
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -25,6 +28,11 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final UserSessionService userSessionService;
 
+    /**
+     * register方法用于处理register相关的业务逻辑。
+     * @param request request参数，详见调用方上下文。
+     * @return 返回LoginResponse类型结果。
+     */
     @Override
     public LoginResponse register(RegisterRequest request) {
         String username = request.getUsername().trim().toLowerCase();
@@ -47,6 +55,11 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResponse(token, profile);
     }
 
+    /**
+     * login方法用于处理login相关的业务逻辑。
+     * @param request request参数，详见调用方上下文。
+     * @return 返回LoginResponse类型结果。
+     */
     @Override
     public LoginResponse login(LoginRequest request) {
         String username = request.getUsername().trim().toLowerCase();
@@ -60,11 +73,20 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResponse(token, profile);
     }
 
+    /**
+     * logout方法用于处理logout相关的业务逻辑。
+     * @param token token参数，详见调用方上下文。
+     * @return 无返回值。
+     */
     @Override
     public void logout(String token) {
         userSessionService.deleteSession(token);
     }
 
+    /**
+     * currentSession方法用于处理currentSession相关的业务逻辑。
+     * @return 返回UserSession类型结果。
+     */
     @Override
     public UserSession currentSession() {
         return AuthContextHolder.get();

@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * CatalogController类用于封装CatalogController相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+ */
 @RestController
 @RequestMapping("/api/catalog")
 @RequiredArgsConstructor
@@ -27,6 +30,10 @@ public class CatalogController {
     private final VehicleService vehicleService;
     private final ImageService imageService;
 
+    /**
+     * regions方法用于处理regions相关的业务逻辑。
+     * @return 返回List<RegionCatalogItem>类型结果。
+     */
     @GetMapping("/regions")
     public List<RegionCatalogItem> regions() {
         List<Region> regions = regionService.findAll();
@@ -50,6 +57,10 @@ public class CatalogController {
         return result;
     }
 
+    /**
+     * companies方法用于处理companies相关的业务逻辑。
+     * @return 返回List<CompanyCatalogItem>类型结果。
+     */
     @GetMapping("/companies")
     public List<CompanyCatalogItem> companies() {
         List<Company> companies = companyService.findAll();
@@ -90,6 +101,10 @@ public class CatalogController {
         return result;
     }
 
+    /**
+     * brands方法用于处理brands相关的业务逻辑。
+     * @return 返回List<BrandCatalogItem>类型结果。
+     */
     @GetMapping("/brands")
     public List<BrandCatalogItem> brands() {
         List<Brand> brands = brandService.findAll();
@@ -107,6 +122,10 @@ public class CatalogController {
         return result;
     }
 
+    /**
+     * models方法用于处理models相关的业务逻辑。
+     * @return 返回List<ModelCatalogItem>类型结果。
+     */
     @GetMapping("/models")
     public List<ModelCatalogItem> models() {
         List<Model> models = modelService.findAll();
@@ -142,6 +161,12 @@ public class CatalogController {
         return result;
     }
 
+    /**
+     * buildCompanySummary方法用于处理buildCompanySummary相关的业务逻辑。
+     * @param company company参数，详见调用方上下文。
+     * @param regionName regionName参数，详见调用方上下文。
+     * @return 返回RegionCompanySummary类型结果。
+     */
     private RegionCompanySummary buildCompanySummary(Company company, String regionName) {
         List<Vehicle> vehicles = vehicleService.listByCompany(company.getId());
         Set<Long> modelIds = new LinkedHashSet<>();
@@ -160,6 +185,11 @@ public class CatalogController {
         );
     }
 
+    /**
+     * resolveThumbnail方法用于处理resolveThumbnail相关的业务逻辑。
+     * @param vehicles vehicles参数，详见调用方上下文。
+     * @return 返回String类型结果。
+     */
     private String resolveThumbnail(List<Vehicle> vehicles) {
         if (CollectionUtils.isEmpty(vehicles)) {
             return null;
@@ -179,6 +209,9 @@ public class CatalogController {
         return null;
     }
 
+    /**
+     * RegionCatalogItem类用于封装RegionCatalogItem相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -188,6 +221,9 @@ public class CatalogController {
         private List<RegionCompanySummary> companies;
     }
 
+    /**
+     * RegionCompanySummary类用于封装RegionCompanySummary相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -199,6 +235,9 @@ public class CatalogController {
         private int modelsCount;
     }
 
+    /**
+     * CompanyCatalogItem类用于封装CompanyCatalogItem相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -209,6 +248,9 @@ public class CatalogController {
         private List<CompanyModelSummary> models;
     }
 
+    /**
+     * CompanyModelSummary类用于封装CompanyModelSummary相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -219,6 +261,9 @@ public class CatalogController {
         private String thumbnailUrl;
     }
 
+    /**
+     * BrandCatalogItem类用于封装BrandCatalogItem相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -228,6 +273,9 @@ public class CatalogController {
         private List<ModelSummary> models;
     }
 
+    /**
+     * ModelSummary类用于封装ModelSummary相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -237,6 +285,9 @@ public class CatalogController {
         private String thumbnailUrl;
     }
 
+    /**
+     * ModelCatalogItem类用于封装ModelCatalogItem相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -247,6 +298,9 @@ public class CatalogController {
         private List<ModelCompanySummary> companies;
     }
 
+    /**
+     * ModelCompanySummary类用于封装ModelCompanySummary相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor

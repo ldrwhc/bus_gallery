@@ -6,6 +6,9 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * User类用于封装User相关的领域职责（所在包：com.busgallery.busgallery.entity）。
+ */
 @Getter
 @Setter
 @Entity

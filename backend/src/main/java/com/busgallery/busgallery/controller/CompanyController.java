@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
+/**
+ * CompanyController类用于封装CompanyController相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+ */
 @RestController
 @RequestMapping("/api/companies")
 @RequiredArgsConstructor
@@ -26,6 +29,11 @@ public class CompanyController {
     private final VehicleService vehicleService;
     private final ImageService imageService;
 
+    /**
+     * list方法用于处理list相关的业务逻辑。
+     * @param regionId regionId参数，详见调用方上下文。
+     * @return 返回List<Company>类型结果。
+     */
     @GetMapping
     public List<Company> list(@RequestParam(value = "regionId", required = false) Long regionId) {
         if (regionId == null) {
@@ -34,6 +42,11 @@ public class CompanyController {
         return companyService.findByRegion(regionId);
     }
 
+    /**
+     * detail方法用于处理detail相关的业务逻辑。
+     * @param id id参数，详见调用方上下文。
+     * @return 返回Company类型结果。
+     */
     @GetMapping("/{id}")
     public Company detail(@PathVariable Long id) {
         return companyService.findById(id);
@@ -53,6 +66,11 @@ public class CompanyController {
 
     /**
      * 公司分类：展示该公司所有车型（附缩略图）
+     */
+    /**
+     * listModelSummaries方法用于处理listModelSummaries相关的业务逻辑。
+     * @param id id参数，详见调用方上下文。
+     * @return 返回List<ModelSummary>类型结果。
      */
     @GetMapping("/{id}/model-summaries")
     public List<ModelSummary> listModelSummaries(@PathVariable Long id) {
@@ -76,22 +94,41 @@ public class CompanyController {
         return new ArrayList<>(summaryMap.values());
     }
 
+    /**
+     * create方法用于处理create相关的业务逻辑。
+     * @param company company参数，详见调用方上下文。
+     * @return 返回Company类型结果。
+     */
     @PostMapping
     public Company create(@RequestBody Company company) {
         return companyService.create(company);
     }
 
+    /**
+     * update方法用于处理update相关的业务逻辑。
+     * @param id id参数，详见调用方上下文。
+     * @param company company参数，详见调用方上下文。
+     * @return 返回Company类型结果。
+     */
     @PutMapping("/{id}")
     public Company update(@PathVariable Long id, @RequestBody Company company) {
         company.setId(id);
         return companyService.update(company);
     }
 
+    /**
+     * delete方法用于处理delete相关的业务逻辑。
+     * @param id id参数，详见调用方上下文。
+     * @return 无返回值。
+     */
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         companyService.delete(id);
     }
 
+    /**
+     * ModelSummary类用于封装ModelSummary相关的领域职责（所在包：com.busgallery.busgallery.controller）。
+     */
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

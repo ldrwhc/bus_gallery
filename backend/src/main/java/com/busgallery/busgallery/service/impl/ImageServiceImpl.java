@@ -22,6 +22,9 @@ import java.util.*;
 import com.busgallery.busgallery.util.ExifExtractor;
 import com.busgallery.busgallery.util.ExifUtils;
 
+/**
+ * ImageServiceImpl类用于封装ImageServiceImpl相关的领域职责（所在包：com.busgallery.busgallery.service.impl）。
+ */
 @Service
 @RequiredArgsConstructor
 public class ImageServiceImpl implements ImageService {
@@ -32,22 +35,44 @@ public class ImageServiceImpl implements ImageService {
     private final VehicleImageMapper vehicleImageMapper;
     private final StorageService storageService;
 
+    /**
+     * findById方法用于处理findById相关的业务逻辑。
+     * @param id id参数，详见调用方上下文。
+     * @return 返回Image类型结果。
+     */
     @Override
     public Image findById(Long id) {
         return imageMapper.selectById(id);
     }
 
+    /**
+     * listByVehicle方法用于处理listByVehicle相关的业务逻辑。
+     * @param vehicleId vehicleId参数，详见调用方上下文。
+     * @return 返回List<Image>类型结果。
+     */
     @Override
     public List<Image> listByVehicle(Long vehicleId) {
         return imageMapper.selectByVehicleId(vehicleId);
     }
 
+    /**
+     * listLatest方法用于处理listLatest相关的业务逻辑。
+     * @param limit limit参数，详见调用方上下文。
+     * @return 返回List<Image>类型结果。
+     */
     @Override
     public List<Image> listLatest(int limit) {
         int actual = limit <= 0 ? 10 : limit;
         return imageMapper.selectLatest(actual);
     }
 
+    /**
+     * listByUploader方法用于处理listByUploader相关的业务逻辑。
+     * @param uploaderId uploaderId参数，详见调用方上下文。
+     * @param page page参数，详见调用方上下文。
+     * @param size size参数，详见调用方上下文。
+     * @return 返回List<Image>类型结果。
+     */
     @Override
     public List<Image> listByUploader(Long uploaderId, int page, int size) {
         if (uploaderId == null) {
@@ -59,6 +84,11 @@ public class ImageServiceImpl implements ImageService {
         return imageMapper.selectByUploader(uploaderId, offset, pageSize);
     }
 
+    /**
+     * countByUploader方法用于处理countByUploader相关的业务逻辑。
+     * @param uploaderId uploaderId参数，详见调用方上下文。
+     * @return 返回long类型结果。
+     */
     @Override
     public long countByUploader(Long uploaderId) {
         if (uploaderId == null) {
@@ -67,6 +97,12 @@ public class ImageServiceImpl implements ImageService {
         return imageMapper.countByUploader(uploaderId);
     }
 
+    /**
+     * uploadAndSave方法用于处理uploadAndSave相关的业务逻辑。
+     * @param file file参数，详见调用方上下文。
+     * @param metadata metadata参数，详见调用方上下文。
+     * @return 返回Image类型结果。
+     */
     @Override
     @Transactional
     public Image uploadAndSave(MultipartFile file, Image metadata) {
@@ -104,6 +140,11 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
+    /**
+     * update方法用于处理update相关的业务逻辑。
+     * @param image image参数，详见调用方上下文。
+     * @return 返回Image类型结果。
+     */
     @Override
     @Transactional
     public Image update(Image image) {
@@ -111,6 +152,11 @@ public class ImageServiceImpl implements ImageService {
         return imageMapper.selectById(image.getId());
     }
 
+    /**
+     * delete方法用于处理delete相关的业务逻辑。
+     * @param id id参数，详见调用方上下文。
+     * @return 无返回值。
+     */
     @Override
     @Transactional
     public void delete(Long id) {
@@ -123,6 +169,11 @@ public class ImageServiceImpl implements ImageService {
         imageMapper.delete(id);
     }
 
+    /**
+     * buildObjectName方法用于处理buildObjectName相关的业务逻辑。
+     * @param originalFilename originalFilename参数，详见调用方上下文。
+     * @return 返回String类型结果。
+     */
     private String buildObjectName(String originalFilename) {
         String extension = "";
         if (StringUtils.hasText(originalFilename) && originalFilename.contains(".")) {
