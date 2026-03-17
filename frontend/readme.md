@@ -1,83 +1,107 @@
-# Bus Gallery Frontend
+﻿# Bus Gallery Frontend
 
-基于 **Vue 3 + Vue CLI + Element Plus + Vuex + axios** 的公交车图库前端，负责展示地区/公司/品牌/车型分类、车辆详情、图片上传等功能。
+前端基于 Vue 3 + Vite + Vuex + Element Plus，负责车辆图库、筛选、详情弹窗、评论与收藏、上传与个人中心等页面展示。
+
+---
 
 ## 技术栈
 
-- **Vue 3**（Composition API）
-- **Vue CLI 5**
-- **Element Plus**
-- **Vue Router 4**
-- **Vuex 4**
-- **axios**
-- **SCSS / dayjs**
+- Vue 3（Composition API）
+- Vite
+- Vue Router 4
+- Vuex 4
+- Element Plus
+- Axios
+- SCSS
+
+---
 
 ## 目录结构
 
 ```
 frontend/
-├── package.json
-├── vue.config.js
-├── public/
-│   └── index.html
-└── src/
-    ├── main.js
-    ├── App.vue
-    ├── api/
-    ├── components/
-    ├── layout/
-    ├── router/
-    ├── store/
-    ├── styles/
-    ├── utils/
-    └── views/
+├─ src/
+│  ├─ api/          # axios 封装与接口
+│  ├─ components/   # UI 组件
+│  ├─ views/        # 页面
+│  ├─ store/        # Vuex 模块
+│  ├─ router/       # 路由
+│  └─ utils/        # 工具
 ```
 
-## 依赖安装
+---
 
-确保已安装 Node.js（建议 16+）。执行：
+## 运行与构建
 
 ```bash
 cd frontend
 npm install
+npm run dev
 ```
 
-> 若使用 `yarn` 或 `pnpm`，可自行调整命令。
-
-## 启动与构建
-
-### 开发模式
-
-```bash
-npm run serve
-```
-
-默认在 `http://localhost:8081` 启动，同时 `vue.config.js` 将 API 请求代理到 `http://localhost:8080`（Spring Boot 后端），确保后端服务已启动。
-
-### 生产构建
+生产构建：
 
 ```bash
 npm run build
 ```
 
-编译生成的静态文件位于 `dist/`，可配合 Nginx 或 Docker 部署。
+---
 
-### 代码检查（可选）
+## 关键设计点（面试高频）
 
-```bash
-npm run lint
-```
+1. 快照驱动详情渲染
+- 车辆详情优先使用 `/api/snapshots/plate/{plate}` 快照
+- 快照包含变体、评论、收藏摘要
+- 详情渲染仅一次请求，显著降低接口拼装复杂度
 
-## 接口对接
+2. 车辆变体合并策略
+- 前端按 `plateNumber` 去空格归一化聚合
+- 变体在卡片与详情页统一展示
 
-- 后端 API 基于 `/api` 前缀，前端通过 `src/api/*.js` 与 Vuex 模块调用。
-- 若后端部署地址变化，可在 `vue.config.js` 中调整 `devServer.proxy`；
-- 生产环境下可在部署服务器/Nginx 中配置反向代理到 `/api`。
+3. 收藏按钮去抖 + 最终态同步
+- 连续点击仅提交一次请求
+- UI 先乐观更新，最终态与服务端对齐
 
-## 常见问题
+4. 缩略图优先策略
+- 列表页优先使用 `thumbnailUrl`
+- 详情页再异步加载原图
 
-1. **跨域问题**：开发模式通过代理解决，生产部署需在 Nginx/网关配置好反向代理。
-2. **样式冲突**：Element Plus 样式可在 `src/styles/global.scss` 中统一覆盖。
-3. **接口异常**：`src/api/axios.js` 中配置了响应拦截器，会弹出 `ElMessage` 提示。可根据需要调整错误处理。
+5. 前端状态管理
+- 车辆详情缓存存放于 Vuex `detailMap`
+- 收藏摘要写回 `detailMap`，弹窗重复打开时直接读取
 
-如需进一步扩展页面或功能，可在 `src/views`、`src/components` 中按业务划分组件，Vuex 模块和 API 封装也可按需新增。
+---
+
+## 面试追问点（可直接回答）
+
+- 为什么详情用快照：减少 N+1 请求与链路复杂度
+- 为什么合并车牌：同牌多变体统一入口，降低用户认知成本
+- 缓存如何失效：快照 TTL + 列表版本号失效
+- 收藏为何去抖：防止高频点击打爆 DB
+
+---
+
+## 环境变量
+
+- `VITE_API_BASE_URL`：后端 API 地址
+  - 留空则默认使用当前域名 + `/api`
+  - 示例：`VITE_API_BASE_URL=http://localhost:8080/api`
+
+---
+
+## 典型页面
+
+- 首页：热门快照、入口导航
+- 图库：`/gallery` 按筛选组合展示车辆卡片
+- 车辆详情：图片轮播、变体切换、评论、收藏
+- 上传：车辆与图片信息一次性提交
+- 用户中心：我的图片、我的喜爱
+
+---
+
+## API 约定
+
+- 所有接口默认前缀 `/api`
+- 登录后使用 `Authorization: Bearer <token>`
+
+完整接口文档见项目根目录：`API_DOCS.md`

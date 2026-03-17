@@ -33,6 +33,8 @@ public interface ImageMapper {
      */
     List<Image> selectLatest(@Param("limit") int limit);
 
+    List<Image> selectAll();
+
     /**
      * selectByUploader方法用于处理selectByUploader相关的业务逻辑。
      * @param uploaderId uploaderId参数，详见调用方上下文。

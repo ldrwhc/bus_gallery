@@ -4,54 +4,47 @@
             <section class="hero">
                 <div class="hero__text">
                     <p class="eyebrow">Bus Gallery</p>
-                    <h1>公交车辆图库</h1>
-                    <p class="description">
-                        收录全国公交车辆的车牌、配置与上线资料。
-                    </p>
+                    <h1>公交车辆热点速览</h1>
+                    <p class="description">热门车牌一键秒开：先取 Redis 快照，再拉增量数据，低带宽也能快。</p>
+                    <div class="hero__actions">
+                        <router-link class="primary-btn" to="/gallery">进入图库</router-link>
+                        <button class="ghost-btn" type="button" @click="refreshHot">刷新热门</button>
+                    </div>
                 </div>
-
                 <div class="hero__visual">
                     <div class="visual-card">
-                        <p class="visual-title">图库收录</p>
-                        <p class="visual-number">{{ pagination.total || '--' }}</p>
-                        <p class="visual-caption">条车辆记录</p>
+                        <p class="visual-title">今日快照</p>
+                        <p class="visual-number">{{ hotSnapshots.length || '--' }}</p>
+                        <p class="visual-caption">热门车牌</p>
                     </div>
                 </div>
             </section>
 
-            <section class="gallery-section">
+            <section class="hot-section">
                 <header class="section-header">
                     <div>
-                        <h2>车辆图库</h2>
-                        <p class="subtitle">当前筛选下共 {{ pagination.total }} 条</p>
+                        <h2>热门图片 / 车牌快照</h2>
+                        <p class="subtitle">来自 Redis big key 的预渲染快照，点击立即打开详情</p>
                     </div>
-                    <button class="ghost-btn" type="button" @click="handleResetFilters">
-                        重置筛选
-                    </button>
+                    <router-link class="ghost-btn" to="/gallery">查看全部图库</router-link>
                 </header>
 
-                <div v-if="galleryLoading" class="state state--loading">
-                    正在加载车辆信息...
-                </div>
+                <div v-if="hotLoading" class="state state--loading">正在拉取热门快照...</div>
+                <div v-else-if="hotError" class="state state--error">{{ hotError }}</div>
+                <div v-else-if="!hotSnapshots.length" class="state state--empty">暂无热门车牌，稍后再试</div>
 
-                <div v-else-if="galleryError" class="state state--error">
-                    <p>{{ galleryError }}</p>
-                    <button class="primary-btn" type="button" @click="handleRetry">
-                        重新加载
-                    </button>
-                </div>
-
-                <div v-else-if="!gallery.length" class="state state--empty">
-                    <p>暂无符合条件的车辆</p>
-                    <button class="ghost-btn" type="button" @click="handleResetFilters">
-                        查看全部
-                    </button>
-                </div>
-
-                <div v-else class="gallery-grid">
-                    <VehicleCard v-for="item in gallery" :key="item?.vehicle?.id || item.vehicleId"
-                        :vehicle="item.vehicle" :config="item.config" :images="item.images"
-                        @view-detail="openVehicleDetail(item?.vehicle?.id)" />
+                <div v-else class="hot-grid">
+                    <article v-for="item in hotSnapshots" :key="item.plateNumber" class="hot-card" @click="openSnapshot(item)">
+                        <div class="hot-card__cover">
+                            <img :src="firstImage(item)?.thumbnailUrl || firstImage(item)?.url || fallback" :alt="item.plateNumber" />
+                            <span class="badge">{{ item.plateNumber }}</span>
+                        </div>
+                        <div class="hot-card__body">
+                            <p class="plate">{{ item.plateNumber }}</p>
+                            <p class="meta">变体 {{ item.variants?.length || 0 }} · 评论 {{ item.comments?.length || 0 }} · 收藏 {{ item.favoriteSummary?.total || 0 }}</p>
+                            <p class="recommend" v-if="item.recommendations?.length">同公司推荐：{{ item.recommendations.length }}</p>
+                        </div>
+                    </article>
                 </div>
             </section>
         </main>
@@ -62,28 +55,17 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
-import { useRoute, useRouter } from 'vue-router';
-import VehicleCard from '@/components/Gallery/VehicleCard.vue';
 import VehicleDetailModal from '@/components/Gallery/VehicleDetailModal.vue';
+import { fetchHotSnapshots } from '@/api/snapshots';
+import { FALLBACK_IMAGE } from '@/utils/constants';
 
 const store = useStore();
-const route = useRoute();
-const router = useRouter();
-
-const filters = reactive({
-    regionId: null,
-    companyId: null,
-    brandId: null,
-    modelId: null,
-    keyword: ''
-});
-
-const gallery = computed(() => store.state.vehicles.gallery);
-const galleryLoading = computed(() => store.state.vehicles.galleryLoading);
-const galleryError = computed(() => store.state.vehicles.galleryError);
-const pagination = computed(() => store.state.vehicles.pagination);
+const hotSnapshots = ref([]);
+const hotLoading = ref(false);
+const hotError = ref('');
+const fallback = FALLBACK_IMAGE;
 
 const activeVehicleId = ref(null);
 const activeVehicleDetail = computed(() =>
@@ -96,43 +78,32 @@ const activeVehicleLoading = computed(
 );
 const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
 
-const mergeFilters = (payload = {}) => {
-    Object.keys(filters).forEach((key) => {
-        if (Object.prototype.hasOwnProperty.call(payload, key)) {
-            filters[key] = payload[key];
-        }
-    });
-};
+const firstImage = (snapshot) => snapshot?.variants?.[0]?.images?.[0] || null;
+const firstVehicleId = (snapshot) => snapshot?.variants?.[0]?.vehicle?.id || null;
 
-const fetchGallery = (override = {}) => {
-    mergeFilters(override);
-    return store.dispatch('vehicles/loadVehicleGallery', {
-        ...filters,
-        ...override
-    });
-};
-
-const refreshGallery = () => fetchGallery({ page: 1 });
-
-const handleResetFilters = () => {
-    Object.assign(filters, {
-        regionId: null,
-        companyId: null,
-        brandId: null,
-        modelId: null,
-        keyword: ''
-    });
-    store.dispatch('vehicles/resetGalleryFilters');
-    router.replace({ name: 'Home' });
-};
-
-const openVehicleDetail = async (vehicleId) => {
-    if (!vehicleId) return;
-    activeVehicleId.value = vehicleId;
+const loadHot = async () => {
+    hotLoading.value = true;
+    hotError.value = '';
     try {
-        await store.dispatch('vehicles/loadVehicleDetail', vehicleId);
-    } catch (error) {
-        console.error(error);
+        const res = await fetchHotSnapshots(6);
+        hotSnapshots.value = Array.isArray(res) ? res : res?.data || [];
+    } catch (e) {
+        hotError.value = '获取热门快照失败，请稍后再试';
+    } finally {
+        hotLoading.value = false;
+    }
+};
+
+const refreshHot = () => loadHot();
+
+const openSnapshot = async (snapshot) => {
+    const vid = firstVehicleId(snapshot);
+    if (!vid) return;
+    activeVehicleId.value = vid;
+    try {
+        await store.dispatch('vehicles/loadVehicleDetail', vid);
+    } catch (err) {
+        console.error(err);
     }
 };
 
@@ -140,28 +111,8 @@ const closeDetail = () => {
     activeVehicleId.value = null;
 };
 
-const handleRetry = () => {
-    fetchGallery({ page: pagination.value.page || 1 });
-};
-
-const syncKeywordFromRoute = () => {
-    const keyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
-    filters.keyword = keyword;
-    return keyword;
-};
-
-watch(
-    () => route.query.keyword,
-    (value) => {
-        const keyword = typeof value === 'string' ? value : '';
-        if (keyword === filters.keyword) return;
-        fetchGallery({ keyword, page: 1 });
-    }
-);
-
 onMounted(() => {
-    const initialKeyword = syncKeywordFromRoute();
-    fetchGallery({ page: 1, keyword: initialKeyword });
+    loadHot();
 });
 </script>
 
@@ -200,75 +151,16 @@ onMounted(() => {
         display: flex;
         justify-content: center;
     }
-}
 
-@media (max-width: 900px) {
-    .hero {
-        flex-direction: column;
-        padding: 24px;
-        gap: 20px;
-    }
-
-    .visual-card {
-        display: none;
-    }
-
-    .gallery-section {
-        padding: 24px;
+    &__actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+        flex-wrap: wrap;
     }
 }
 
-@media (max-width: 600px) {
-    .hero {
-        padding: 24px;
-    }
-
-    .gallery-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-.eyebrow {
-    letter-spacing: 0.2em;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    opacity: 0.8;
-    margin-bottom: 8px;
-}
-
-.description {
-    margin: 12px 0 20px;
-    color: rgba(255, 255, 255, 0.8);
-}
-
-.visual-card {
-    width: 100%;
-    border-radius: 24px;
-    padding: 32px;
-    background: rgba(15, 23, 42, 0.3);
-    text-align: center;
-    backdrop-filter: blur(4px);
-}
-
-.visual-title {
-    letter-spacing: 0.2em;
-    font-size: 0.75rem;
-    margin-bottom: 12px;
-    opacity: 0.85;
-}
-
-.visual-number {
-    font-size: 3.5rem;
-    font-weight: 700;
-    margin: 0;
-}
-
-.visual-caption {
-    margin-top: 8px;
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.gallery-section {
+.hot-section {
     background: #fff;
     border-radius: 24px;
     padding: 32px;
@@ -287,15 +179,75 @@ onMounted(() => {
     }
 }
 
-.gallery-grid {
+.hot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.hot-card {
+    border-radius: 16px;
+    background: #f8fafc;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+    }
+
+    &__cover {
+        position: relative;
+        aspect-ratio: 4 / 3;
+        background: #e2e8f0;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .badge {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            background: rgba(15, 23, 42, 0.8);
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+        }
+    }
+
+    &__body {
+        padding: 12px 14px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+}
+
+.plate {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.meta {
+    color: #475569;
+    font-size: 0.9rem;
+}
+
+.recommend {
+    color: #1d4ed8;
+    font-size: 0.9rem;
 }
 
 .state {
     border-radius: 18px;
-    padding: 48px;
+    padding: 32px;
     text-align: center;
     background: #f8fafc;
     color: #475569;
@@ -307,14 +259,6 @@ onMounted(() => {
     &--error {
         background: #fee2e2;
         color: #b91c1c;
-    }
-
-    &--empty {
-        color: #475569;
-    }
-
-    button {
-        margin-top: 16px;
     }
 }
 
@@ -343,6 +287,18 @@ onMounted(() => {
 
     &:hover {
         background: rgba(37, 99, 235, 0.2);
+    }
+}
+
+@media (max-width: 900px) {
+    .hero {
+        flex-direction: column;
+        padding: 24px;
+        gap: 20px;
+    }
+
+    .hot-section {
+        padding: 24px;
     }
 }
 </style>

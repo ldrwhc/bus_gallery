@@ -76,6 +76,12 @@
         LIMIT #{limit}
     </select>
 
+    <select id="selectAll" resultMap="ImageResultMap">
+        SELECT <include refid="AliasedColumnList"/>
+        FROM image i
+        ORDER BY i.id ASC
+    </select>
+
     <insert id="insert" parameterType="com.busgallery.busgallery.entity.Image"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO image (

@@ -4,13 +4,16 @@ import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
 import com.busgallery.busgallery.util.ExifUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
@@ -25,6 +28,8 @@ public class VehicleController {
 
     private final VehicleService vehicleService;
     private final ImageService imageService;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
 
     @GetMapping("/{id}")
     public VehicleDetailResponse detail(@PathVariable Long id) {
@@ -42,19 +47,67 @@ public class VehicleController {
     }
 
     @GetMapping
-    public VehiclePageResponse page(@RequestParam(defaultValue = "1") int page,
-                                    @RequestParam(defaultValue = "20") int size,
+    public VehiclePageResponse page(@RequestParam(defaultValue = "20") int size,
                                     @RequestParam(required = false) Long regionId,
                                     @RequestParam(required = false) Long companyId,
                                     @RequestParam(required = false) Long brandId,
                                     @RequestParam(required = false) Long modelId,
-                                    @RequestParam(required = false) String keyword) {
-        List<Vehicle> vehicles = vehicleService.queryPage(page, size, regionId, companyId, brandId, modelId, keyword);
+                                    @RequestParam(required = false) String keyword,
+                                    @RequestParam(required = false) LocalDate lastLaunch,
+                                    @RequestParam(required = false) Long lastId) {
+        String cacheKey = buildPageCacheKey(size, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
+        try {
+            String cached = stringRedisTemplate.opsForValue().get(cacheKey);
+            if (cached != null && !cached.isEmpty()) {
+                return objectMapper.readValue(cached, VehiclePageResponse.class);
+            }
+        } catch (Exception ignore) {
+        }
+        List<Vehicle> vehicles = vehicleService.queryPage(size, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         long total = vehicleService.count(regionId, companyId, brandId, modelId, keyword);
         List<VehicleSummary> summaries = vehicles.stream()
                 .map(vehicle -> new VehicleSummary(mapVehicle(vehicle), mapImages(imageService.listByVehicle(vehicle.getId()))))
                 .collect(Collectors.toList());
-        return new VehiclePageResponse(summaries, total, page, size);
+        java.time.LocalDate nextLaunch = vehicles.isEmpty() ? null : vehicles.get(vehicles.size() - 1).getLaunchDate();
+        Long nextCursorId = vehicles.isEmpty() ? null : vehicles.get(vehicles.size() - 1).getId();
+        VehiclePageResponse response = new VehiclePageResponse(summaries, total, 1, size, nextLaunch, nextCursorId);
+        try {
+            String payload = objectMapper.writeValueAsString(response);
+            stringRedisTemplate.opsForValue().set(cacheKey, payload, Duration.ofSeconds(60));
+        } catch (Exception ignore) {
+        }
+        return response;
+    }
+
+    private String buildPageCacheKey(int size,
+                                     Long regionId,
+                                     Long companyId,
+                                     Long brandId,
+                                     Long modelId,
+                                     String keyword,
+                                     java.time.LocalDate lastLaunch,
+                                     Long lastId) {
+        String version = "1";
+        try {
+            String v = stringRedisTemplate.opsForValue().get("bg:vehicle:page:version");
+            if (v != null && !v.isBlank()) {
+                version = v;
+            }
+        } catch (Exception ignore) {
+        }
+        String kw = keyword == null ? "" : keyword.trim().toLowerCase();
+        return String.format(
+                "bg:vehicle:page:v%s:s%d:r%s:c%s:b%s:m%s:k%s:l%s:i%s",
+                version,
+                size,
+                regionId == null ? "0" : regionId,
+                companyId == null ? "0" : companyId,
+                brandId == null ? "0" : brandId,
+                modelId == null ? "0" : modelId,
+                kw.isEmpty() ? "-" : kw,
+                lastLaunch == null ? "-" : lastLaunch,
+                lastId == null ? "-" : lastId
+        );
     }
 
     @PostMapping
@@ -233,8 +286,10 @@ public class VehicleController {
     public static class VehiclePageResponse {
         private List<VehicleSummary> records = Collections.emptyList();
         private long total;
-        private int page;
+        private int page = 1;
         private int size;
+        private java.time.LocalDate nextLaunch;
+        private Long nextId;
     }
 
     @Data

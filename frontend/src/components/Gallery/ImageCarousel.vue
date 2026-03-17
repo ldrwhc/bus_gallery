@@ -1,17 +1,16 @@
 ﻿<template>
     <div class="carousel">
         <div class="carousel__main">
-            <button
-                v-if="showNav"
-                class="nav-btn nav-btn--prev"
-                type="button"
-                :disabled="!hasPrev"
-                @click="prev"
-            >
-                ‹
-            </button>
-
             <div class="carousel__stage">
+                <button
+                    v-if="showNav"
+                    class="nav-btn nav-btn--prev nav-btn--overlay"
+                    type="button"
+                    :disabled="!hasPrev"
+                    @click="prev"
+                >
+                    ‹
+                </button>
                 <img :src="activeImageUrl" :alt="activeImageAlt" />
                 <div v-if="activeImage" class="carousel__meta carousel__meta--top">
                     <router-link
@@ -25,17 +24,16 @@
                     <span v-else class="carousel__user-label">{{ uploaderLabel }}</span>
                     <span class="carousel__time">上传于 {{ timestampLabel }}</span>
                 </div>
+                <button
+                    v-if="showNav"
+                    class="nav-btn nav-btn--next nav-btn--overlay"
+                    type="button"
+                    :disabled="!hasNext"
+                    @click="next"
+                >
+                    ›
+                </button>
             </div>
-
-            <button
-                v-if="showNav"
-                class="nav-btn nav-btn--next"
-                type="button"
-                :disabled="!hasNext"
-                @click="next"
-            >
-                ›
-            </button>
         </div>
 
         <div v-if="images.length > 1" class="carousel__thumbs">
@@ -96,9 +94,18 @@ watch(
 const images = computed(() => props.images || []);
 
 const activeImage = computed(() => images.value[currentIndex.value] || null);
-const activeImageUrl = computed(
-    () => activeImage.value?.url || activeImage.value?.thumbnailUrl || FALLBACK_IMAGE
-);
+const loadedOriginal = ref(new Set());
+
+const activeImageUrl = computed(() => {
+    const img = activeImage.value;
+    if (!img) return FALLBACK_IMAGE;
+    const key = img.id ?? currentIndex.value;
+    const thumb = img.thumbnailUrl || img.url || FALLBACK_IMAGE;
+    if (loadedOriginal.value.has(key)) {
+        return img.url || thumb;
+    }
+    return thumb;
+});
 const activeImageAlt = computed(() => activeImage.value?.description || '车辆图片');
 const uploaderLabel = computed(() => {
     if (!activeImage.value) return '匿名用户';
@@ -139,6 +146,29 @@ const go = (index) => {
     currentIndex.value = index;
     emit('change', currentIndex.value);
 };
+
+const markLoaded = (key) => {
+    const next = new Set(loadedOriginal.value);
+    next.add(key);
+    loadedOriginal.value = next;
+};
+
+const preloadOriginal = () => {
+    const img = activeImage.value;
+    if (!img?.url) return;
+    const key = img.id ?? currentIndex.value;
+    if (loadedOriginal.value.has(key)) return;
+    if (img.url === (img.thumbnailUrl || img.url)) {
+        markLoaded(key);
+        return;
+    }
+    const loader = new Image();
+    loader.onload = () => markLoaded(key);
+    loader.onerror = () => markLoaded(key);
+    loader.src = img.url;
+};
+
+watch(activeImage, preloadOriginal, { immediate: true });
 </script>
 
 <style scoped lang="scss">
@@ -226,6 +256,11 @@ const go = (index) => {
         display: flex;
         gap: 8px;
     }
+}
+
+.nav-btn--overlay {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .nav-btn {

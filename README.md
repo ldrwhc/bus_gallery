@@ -1,158 +1,124 @@
-# Bus Gallery
+﻿# Bus Gallery
 
-> 一套面向客运 / 公交车辆资料的全栈解决方案，包含车辆档案管理、图片管理、品牌/车型/公司/地区维度查询及上传建档功能。项目采用 Spring Boot + MyBatis + MySQL + MinIO（后端）和 Vite + Vue 3 + Element Plus（前端），并通过 Docker Compose 提供一键化部署。
-
----
-
-## 功能亮点
-
-- **车辆档案管理**：支持按地区、公司、品牌、车型分页查询与详情查看。
-- **图片上传与存储**：前端支持拖拽上传，后端结合 MinIO 统一管理图片资源。
-- **数据字典维护**：品牌、车型、公司、地区等基础信息的增删改查。
-- **RESTful API**：统一的 DTO + Service + Mapper 架构，方便扩展。
-- **Docker Compose 启动**：内置 MySQL、MinIO、后端、前端容器，一条命令即可运行。
+Bus Gallery 是面向公交车辆资料的全栈系统，覆盖车辆档案、图片管理、评论与收藏、车辆快照（Redis big key）与缩略图生成，支持按地区 / 公司 / 品牌 / 车型多维筛选与变体合并展示。
 
 ---
 
-## 目录结构
+## 功能总览
 
-```
-bus-gallery/
-├─ docker/
-│  ├─ init/          # MySQL 初始化脚本（init.sql）
-│  ├─ nginx/         # 前端 Nginx 配置
-│  └─ src/           # Dockerfile 等构建所需上下文
-├─ backend/
-│  └─ com.busgallery/
-│     └─ busgallery/
-│        ├─ BusGalleryApplication.java          # Spring Boot 入口
-│        ├─ config/                             # Swagger、MinIO、CORS、Web MVC配置
-│        ├─ controller/                         # Region / Company / Brand / Model / Vehicle / Image / Upload 控制器
-│        ├─ dto/                                # 请求/响应 DTO
-│        ├─ entity/                             # JPA / MyBatis 实体
-│        ├─ repository/                         # Spring Data Repository
-│        ├─ service/                            # Service 接口与实现（含 Storage 子模块）
-│        ├─ mapper/                             # MapStruct / MyBatis Mapper
-│        ├─ exception/                          # 全局异常处理
-│        └─ util/                               # 常用工具类
-├─ bus-gallery-frontend/
-│  ├─ package.json
-│  ├─ vite.config.js
-│  ├─ .env.development / .env.production
-│  └─ src/                                      # Vue 3 应用（视图、组件、API 封装、状态管理等）
-└─ docker-compose.yml
+- 车辆图库：筛选、分页、按车牌合并变体
+- 车辆详情：图片轮播、配置展示、评论、收藏
+- 上传与存储：图片 + 车辆信息一次性上传，自动生成缩略图
+- 快照：Redis big key 保存“车牌级详情快照”
+- 缓存：列表请求 Redis 缓存 + 版本号一致性
+- 部署：Docker Compose 一键启动
+
+---
+
+## 架构概览
+
+```mermaid
+flowchart LR
+    A[前端 Vue3/Vite] --> B[/API 网关 /api/]
+    B --> C[Spring Boot 服务]
+    C --> D[(MySQL)]
+    C --> E[(Redis)]
+    C --> F[(MinIO)]
 ```
 
 ---
 
-## 运行要求
+## 关键设计点（面试高频）
 
-- Docker 20+
-- Docker Compose v2+（或 `docker compose` CLI）
-- 若需源码开发：JDK 17、Node.js 18、pnpm/npm 等
+1. 车辆详情快照（big key）
+- 车牌维度快照：`/api/snapshots/plate/{plate}`
+- Redis key：`bg:snapshot:plate:{plate}:latest` + `...:v{version}`
+- 快照内容：变体、图片元数据、评论、收藏摘要、推荐
+- 优势：详情页一次请求完成渲染，减少多接口拼装与瀑布请求
+
+2. 列表缓存 + 一致性
+- `/api/vehicles` 缓存进 Redis（TTL 60s）
+- key 由筛选参数 + 游标 + `bg:vehicle:page:version` 组合
+- 车辆增删改触发版本号自增 → 旧缓存自然失效
+
+3. 上传幂等与缩略图
+- 上传支持 `Idempotency-Key`
+- 上传时自动生成缩略图并回写 `thumbnail_url`
+- 历史图片可通过 `rebuild.thumbnails=true` 重建
+
+4. 收藏/评论的高频交互优化
+- 收藏按钮做去抖与最终态同步，避免“多次点击”造成 DB 压力
+- 评论/收藏均受 `@RequireLogin` 保护
+
+5. 分页策略
+- 车辆列表采用游标分页（`lastLaunch` + `lastId`），避免偏移分页在大量数据下的性能退化
 
 ---
 
-## 快速启动（推荐）
+## 面试追问点（可直接回答）
 
-1. **克隆仓库**
+- 一致性：列表缓存依赖版本号失效，快照缓存依赖 TTL + 最新版本指针
+- 性能：缩略图优先、详情快照合并请求、收藏去抖、游标分页
+- 事务边界：上传接口事务覆盖车辆/配置/图片关系写入
+- 幂等：`Idempotency-Key` 防重提交，避免重复入库
+- 安全：`@RequireLogin` + Redis Session，Authorization Bearer 校验
+- 可扩展：快照机制可扩展为热门预热、写路径异步刷新
+
+---
+
+## 快速启动（Docker）
 
 ```bash
-   git clone https://github.com/ldrwhc/bus_gallery.git
-   cd bus_gallery/docker
-```
-
-2. **（可选）检查/修改配置**
-
-   - 修改 `docker-compose.yml` 中的数据库、MinIO帐号或端口映射。
-   - 如需自定义前端访问域名，可调整 `docker/nginx` 下配置。
-
-
-   **Localhost/服务器切换**
-   - 复制 docker/.env.example 为 docker/.env，将 MINIO_CDN_HOST 改成 http://localhost/bus-gallery（本地）或 http://192.144.227.251/bus-gallery（服务器），然后运行 docker compose up -d backend 让新外链生效。
-   - 前端接口地址由 rontend/.env.production 的 VITE_API_BASE_URL 控制；留空自动使用当前站点 + /api，本地构建想直连后端则填 http://localhost:8080/api，开发模式可在 rontend/.env.development 中调整。
-   - 如果切换域名后旧图片不可用，可在数据库 image 表的 url/thumbnail_url 中批量替换域名或重新上传。
-
-3. **一键启动**
-
-```bash
+cd docker
 docker compose up -d
 ```
 
-4. **访问**
-   - 前端：`http://localhost/`
-   - 后端 API：`http://localhost:8080`（示例：`/api/vehicles`）
-   - MySQL：`localhost:13306`（root / 123456）
-   - MinIO 控制台：`http://localhost:9001`（admin / 12345678）
-   
-5. **停止并清理**
+服务地址：
 
-```bash
-docker compose down
-# 如果需要清空数据卷：
-docker compose down -v
-```
+- 前端：`http://localhost/`
+- 后端 API：`http://localhost:8080/api`
+- MySQL：`localhost:13306`（root / 123456）
+- MinIO 控制台：`http://localhost:9001`（admin / 12345678）
 
 ---
 
-## 服务说明（docker-compose）
+## 本地开发
 
-| 服务       | 说明                              | 关键环境变量/端口 |
-|------------|-----------------------------------|-------------------|
-| `mysql`    | 车辆库数据存储（初始化 init.sql）  | `13306:3306`，root/123456 |
-| `minio`    | 图片对象存储                      | `9000` / `9001`，admin/12345678 |
-| `backend`  | Spring Boot 后端 API              | `8080:8080`，使用上面 MySQL/MinIO |
-| `frontend` | Vue 3 前端（Nginx 托管打包结果）  | `80:80` |
-
----
-
-## 开发模式（可选）
-
-### 后端本地运行
+后端：
 
 ```bash
 cd backend
-./mvnw spring-boot:run \
-  -Dspring-boot.run.profiles=dev
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-确保本地 MySQL / MinIO 配置与 `application-dev.yml` 一致，或通过 `SPRING_PROFILES_ACTIVE`、`DB_URL` 等环境变量覆盖。
-
-### 前端本地运行
+前端：
 
 ```bash
-cd bus-gallery-frontend
-npm install   # 或 pnpm install / yarn
-npm run dev   # 默认 http://localhost:5173
+cd frontend
+npm install
+npm run dev
 ```
 
-如需连接 Docker Compose 中的后端，请在 `.env.development` 中将 `VITE_API_BASE_URL` 指向 `http://localhost:8080`.
+---
+
+## 文档入口
+
+- 业务流程：`BUSINESS_FLOWS.md`
+- 上传流程：`UPLOAD_MODULE_FLOWS.md`
+- 接口文档：`API_DOCS.md`
+- Swagger 静态文档：`docs/swagger/`
 
 ---
 
-## Localhost/服务器地址切换配置
+## 目录结构（摘要）
 
-- **Docker 后端/MinIO**：复制 docker/.env.example 为 docker/.env，将其中的 MINIO_CDN_HOST 改成需要的主机地址（如 http://localhost/bus-gallery 或 http://192.144.227.251/bus-gallery），然后执行 docker compose up -d backend 让新的外链配置生效。
-- **前端 API 地址**：rontend/.env.production 中的 VITE_API_BASE_URL 会在构建时注入；留空时前端会自动使用当前访问页面的域名拼接 /api，如需本地构建调试可改成 http://localhost:8080/api。开发模式下也可以在 rontend/.env.development 调整。
-- **图片访问 URL**：后端会将 MINIO_CDN_HOST 写入 image 表与接口响应，切换主机后需要重新上传或通过 SQL 批量替换旧地址，确保前端指向新的可访问域名。
-
-调整完这些配置后，重新启动相关容器（docker compose up -d backend frontend）或本地服务（
-pm run dev）即可在 localhost 与服务器 IP 之间切换。
-
----
-
-## 贡献指南
-
-1. Fork 本项目，创建新分支（命名建议 `feature/xxx` 或 `fix/xxx`）。
-2. 提交前运行对应的单元测试 / lint。
-3. 提交 PR 时请说明变更内容与动机。
-
-欢迎提交 Issue 或 PR 反馈问题、贡献功能！
-
----
-
-## 许可证
-
-本项目采用 [MIT License](./LICENSE)（如无 LICENSE 文件可自行选择合适的开源许可）。使用前请阅读协议条款。
-
----
+```
+bus-gallery/
+├─ backend/     # Spring Boot 后端
+├─ frontend/    # Vue 3 前端
+├─ docker/      # Docker Compose 与部署文件
+├─ docs/swagger/ # Swagger 静态文档输出
+├─ BUSINESS_FLOWS.md
+├─ UPLOAD_MODULE_FLOWS.md
+├─ API_DOCS.md
+```

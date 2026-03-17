@@ -4,6 +4,7 @@ import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.mapper.*;
 import com.busgallery.busgallery.service.VehicleService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -13,9 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * VehicleServiceImpl类用于封装VehicleServiceImpl相关的领域职责（所在包：com.busgallery.busgallery.service.impl）。
- */
 @Service
 @RequiredArgsConstructor
 public class VehicleServiceImpl implements VehicleService {
@@ -27,32 +25,20 @@ public class VehicleServiceImpl implements VehicleService {
     private final ModelMapper modelMapper;
     private final CompanyMapper companyMapper;
     private final RegionMapper regionMapper;
+    private final StringRedisTemplate stringRedisTemplate;
 
-    /**
-     * findById方法用于处理findById相关的业务逻辑。
-     * @param id id参数，详见调用方上下文。
-     * @return 返回Vehicle类型结果。
-     */
-    @Override
     public Vehicle findById(Long id) {
         Vehicle vehicle = vehicleMapper.selectById(id);
         populateVehicleRelations(vehicle);
         return vehicle;
     }
 
-    /**
-     * findByPlateNumber方法用于处理findByPlateNumber相关的业务逻辑。
-     * @param plateNumber plateNumber参数，详见调用方上下文。
-     * @return 返回Vehicle类型结果。
-     */
-    @Override
     public Vehicle findByPlateNumber(String plateNumber) {
         Vehicle vehicle = vehicleMapper.selectByPlateNumber(plateNumber);
         populateVehicleRelations(vehicle);
         return vehicle;
     }
 
-    @Override
     public List<Vehicle> listByPlateNumber(String plateNumber) {
         List<Vehicle> vehicles = vehicleMapper.selectAllByPlateNumber(plateNumber);
         if (vehicles != null) {
@@ -61,104 +47,41 @@ public class VehicleServiceImpl implements VehicleService {
         return vehicles;
     }
 
-    /**
-     * listByRegion方法用于处理listByRegion相关的业务逻辑。
-     * @param regionId regionId参数，详见调用方上下文。
-     * @return 返回List<Vehicle>类型结果。
-     */
-    @Override
     public List<Vehicle> listByRegion(Long regionId) {
         List<Vehicle> list = vehicleMapper.selectByRegionId(regionId);
         list.forEach(this::populateVehicleRelations);
         return list;
     }
 
-    /**
-     * listByCompany方法用于处理listByCompany相关的业务逻辑。
-     * @param companyId companyId参数，详见调用方上下文。
-     * @return 返回List<Vehicle>类型结果。
-     */
-    @Override
     public List<Vehicle> listByCompany(Long companyId) {
         List<Vehicle> list = vehicleMapper.selectByCompanyId(companyId);
         list.forEach(this::populateVehicleRelations);
         return list;
     }
 
-    /**
-     * listByModel方法用于处理listByModel相关的业务逻辑。
-     * @param modelId modelId参数，详见调用方上下文。
-     * @return 返回List<Vehicle>类型结果。
-     */
-    @Override
     public List<Vehicle> listByModel(Long modelId) {
         List<Vehicle> list = vehicleMapper.selectByModelId(modelId);
         list.forEach(this::populateVehicleRelations);
         return list;
     }
 
-    /**
-     * queryPage方法用于处理queryPage相关的业务逻辑。
-     * @param page page参数，详见调用方上下文。
-     * @param size size参数，详见调用方上下文。
-     * @param regionId regionId参数，详见调用方上下文。
-     * @param companyId companyId参数，详见调用方上下文。
-     * @param brandId brandId参数，详见调用方上下文。
-     * @param modelId modelId参数，详见调用方上下文。
-     * @param keyword keyword参数，详见调用方上下文。
-     * @return 返回List<Vehicle>类型结果。
-     */
-    @Override
-    public List<Vehicle> queryPage(int page, int size, Long regionId, Long companyId, Long brandId, Long modelId, String keyword) {
-        int pageNo = Math.max(page, 1);
+    public List<Vehicle> queryPage(int size, Long regionId, Long companyId, Long brandId, Long modelId, String keyword, java.time.LocalDate lastLaunch, Long lastId) {
         int pageSize = Math.max(size, 1);
-        int offset = (pageNo - 1) * pageSize;
-        List<Vehicle> list = vehicleMapper.selectPage(offset, pageSize, regionId, companyId, brandId, modelId, keyword);
+        List<Vehicle> list = vehicleMapper.selectPageByCursor(pageSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         list.forEach(this::populateVehicleRelations);
         return list;
     }
 
-    /**
-     * count方法用于处理count相关的业务逻辑。
-     * @param regionId regionId参数，详见调用方上下文。
-     * @param companyId companyId参数，详见调用方上下文。
-     * @param brandId brandId参数，详见调用方上下文。
-     * @param modelId modelId参数，详见调用方上下文。
-     * @param keyword keyword参数，详见调用方上下文。
-     * @return 返回long类型结果。
-     */
-    @Override
     public long count(Long regionId, Long companyId, Long brandId, Long modelId, String keyword) {
         return vehicleMapper.count(regionId, companyId, brandId, modelId, keyword);
     }
 
-    /**
-     * findConfigByVehicleId方法用于处理findConfigByVehicleId相关的业务逻辑。
-     * @param vehicleId vehicleId参数，详见调用方上下文。
-     * @return 返回VehicleConfig类型结果。
-     */
-    @Override
     public VehicleConfig findConfigByVehicleId(Long vehicleId) {
         VehicleConfig config = vehicleConfigMapper.selectByVehicleId(vehicleId);
         populateVehicleConfigRelations(config);
         return config;
     }
 
-    /**
-     * create方法用于处理create相关的业务逻辑。
-     * @param vehicle vehicle参数，详见调用方上下文。
-     * @param config config参数，详见调用方上下文。
-     * @param imageIds imageIds参数，详见调用方上下文。
-     * @param brandId brandId参数，详见调用方上下文。
-     * @param brandName brandName参数，详见调用方上下文。
-     * @param modelName modelName参数，详见调用方上下文。
-     * @param companyName companyName参数，详见调用方上下文。
-     * @param regionProvince regionProvince参数，详见调用方上下文。
-     * @param regionCity regionCity参数，详见调用方上下文。
-     * @return 返回Vehicle类型结果。
-     */
-    @Override
-    @Transactional
     public Vehicle create(Vehicle vehicle,
                           VehicleConfig config,
                           List<Long> imageIds,
@@ -176,24 +99,10 @@ public class VehicleServiceImpl implements VehicleService {
         saveVehicleImages(vehicle.getId(), imageIds);
         Vehicle saved = vehicleMapper.selectById(vehicle.getId());
         populateVehicleRelations(saved);
+        bumpVehiclePageVersion();
         return saved;
     }
 
-    /**
-     * update方法用于处理update相关的业务逻辑。
-     * @param vehicle vehicle参数，详见调用方上下文。
-     * @param config config参数，详见调用方上下文。
-     * @param imageIds imageIds参数，详见调用方上下文。
-     * @param brandId brandId参数，详见调用方上下文。
-     * @param brandName brandName参数，详见调用方上下文。
-     * @param modelName modelName参数，详见调用方上下文。
-     * @param companyName companyName参数，详见调用方上下文。
-     * @param regionProvince regionProvince参数，详见调用方上下文。
-     * @param regionCity regionCity参数，详见调用方上下文。
-     * @return 返回Vehicle类型结果。
-     */
-    @Override
-    @Transactional
     public Vehicle update(Vehicle vehicle,
                           VehicleConfig config,
                           List<Long> imageIds,
@@ -211,27 +120,24 @@ public class VehicleServiceImpl implements VehicleService {
         saveVehicleImages(vehicle.getId(), imageIds);
         Vehicle saved = vehicleMapper.selectById(vehicle.getId());
         populateVehicleRelations(saved);
+        bumpVehiclePageVersion();
         return saved;
     }
 
-    /**
-     * delete方法用于处理delete相关的业务逻辑。
-     * @param id id参数，详见调用方上下文。
-     * @return 无返回值。
-     */
-    @Override
-    @Transactional
     public void delete(Long id) {
         vehicleImageMapper.deleteByVehicleId(id);
         vehicleConfigMapper.deleteByVehicleId(id);
         vehicleMapper.delete(id);
+        bumpVehiclePageVersion();
     }
 
-    /**
-     * populateVehicleRelations方法用于处理populateVehicleRelations相关的业务逻辑。
-     * @param vehicle vehicle参数，详见调用方上下文。
-     * @return 无返回值。
-     */
+    private void bumpVehiclePageVersion() {
+        try {
+            stringRedisTemplate.opsForValue().increment("bg:vehicle:page:version");
+        } catch (Exception ignore) {
+        }
+    }
+
     private void populateVehicleRelations(Vehicle vehicle) {
         if (vehicle == null) {
             return;
@@ -255,11 +161,6 @@ public class VehicleServiceImpl implements VehicleService {
         }
     }
 
-    /**
-     * populateVehicleConfigRelations方法用于处理populateVehicleConfigRelations相关的业务逻辑。
-     * @param config config参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     private void populateVehicleConfigRelations(VehicleConfig config) {
         if (config == null) {
             return;
@@ -278,11 +179,6 @@ public class VehicleServiceImpl implements VehicleService {
         }
     }
 
-    /**
-     * populateCompanyRegion方法用于处理populateCompanyRegion相关的业务逻辑。
-     * @param company company参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     private void populateCompanyRegion(Company company) {
         if (company == null) {
             return;
@@ -293,19 +189,12 @@ public class VehicleServiceImpl implements VehicleService {
         }
     }
 
-    /**
-     * ensureRegionExists方法用于处理ensureRegionExists相关的业务逻辑。
-     * @param vehicle vehicle参数，详见调用方上下文。
-     * @param provinceName provinceName参数，详见调用方上下文。
-     * @param cityName cityName参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     private void ensureRegionExists(Vehicle vehicle, String provinceName, String cityName) {
         if (vehicle.getRegion() != null && vehicle.getRegion().getId() != null) {
             return;
         }
         if (!StringUtils.hasText(cityName)) {
-            throw new IllegalArgumentException("请选择城市或填写地区信息");
+            throw new IllegalArgumentException("城市名称不能为空");
         }
         Long regionId = findOrCreateRegion(provinceName, cityName.trim());
         Region region = new Region();
@@ -313,14 +202,6 @@ public class VehicleServiceImpl implements VehicleService {
         vehicle.setRegion(region);
     }
 
-    /**
-     * ensureModelExists方法用于处理ensureModelExists相关的业务逻辑。
-     * @param vehicle vehicle参数，详见调用方上下文。
-     * @param brandId brandId参数，详见调用方上下文。
-     * @param brandName brandName参数，详见调用方上下文。
-     * @param modelName modelName参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     private void ensureModelExists(Vehicle vehicle,
                                    Long brandId,
                                    String brandName,
@@ -335,7 +216,7 @@ public class VehicleServiceImpl implements VehicleService {
         }
 
         if (!StringUtils.hasText(modelName)) {
-            throw new IllegalArgumentException("请选择或填写车型名称");
+            throw new IllegalArgumentException("车型名称不能为空");
         }
 
         Long resolvedBrandId = resolveBrandId(brandId, brandName);
@@ -345,12 +226,6 @@ public class VehicleServiceImpl implements VehicleService {
         vehicle.setModel(model);
     }
 
-    /**
-     * resolveBrandId方法用于处理resolveBrandId相关的业务逻辑。
-     * @param brandId brandId参数，详见调用方上下文。
-     * @param brandName brandName参数，详见调用方上下文。
-     * @return 返回Long类型结果。
-     */
     private Long resolveBrandId(Long brandId, String brandName) {
         if (brandId != null) {
             Brand brand = brandMapper.selectById(brandId);
@@ -358,21 +233,15 @@ public class VehicleServiceImpl implements VehicleService {
                 return brandId;
             }
             if (!StringUtils.hasText(brandName)) {
-                throw new IllegalArgumentException("原有品牌不存在，请重新选择或填写品牌名称");
+                throw new IllegalArgumentException("品牌不存在，且未提供品牌名称");
             }
         }
         if (!StringUtils.hasText(brandName)) {
-            throw new IllegalArgumentException("请提供品牌信息");
+            throw new IllegalArgumentException("品牌名称不能为空");
         }
         return findOrCreateBrand(brandName.trim());
     }
 
-    /**
-     * ensureCompanyExists方法用于处理ensureCompanyExists相关的业务逻辑。
-     * @param vehicle vehicle参数，详见调用方上下文。
-     * @param companyName companyName参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     private void ensureCompanyExists(Vehicle vehicle, String companyName) {
         if (vehicle.getCompany() != null && vehicle.getCompany().getId() != null) {
             Company existing = companyMapper.selectById(vehicle.getCompany().getId());
@@ -382,11 +251,11 @@ public class VehicleServiceImpl implements VehicleService {
             vehicle.setCompany(null);
         }
         if (!StringUtils.hasText(companyName)) {
-            throw new IllegalArgumentException("公司ID或公司名称至少需要提供一个");
+            throw new IllegalArgumentException("运营公司名称不能为空");
         }
         Long regionId = vehicle.getRegion() != null ? vehicle.getRegion().getId() : null;
         if (regionId == null) {
-            throw new IllegalArgumentException("创建新公司时必须选择地区");
+            throw new IllegalArgumentException("请先填写所属地区");
         }
         Long companyId = findOrCreateCompany(companyName.trim(), regionId);
         Company company = new Company();
@@ -394,11 +263,6 @@ public class VehicleServiceImpl implements VehicleService {
         vehicle.setCompany(company);
     }
 
-    /**
-     * findOrCreateBrand方法用于处理findOrCreateBrand相关的业务逻辑。
-     * @param brandName brandName参数，详见调用方上下文。
-     * @return 返回Long类型结果。
-     */
     private Long findOrCreateBrand(String brandName) {
         Brand existing = brandMapper.selectByName(brandName);
         if (existing != null) {
@@ -410,12 +274,6 @@ public class VehicleServiceImpl implements VehicleService {
         return brand.getId();
     }
 
-    /**
-     * findOrCreateModel方法用于处理findOrCreateModel相关的业务逻辑。
-     * @param brandId brandId参数，详见调用方上下文。
-     * @param modelName modelName参数，详见调用方上下文。
-     * @return 返回Long类型结果。
-     */
     private Long findOrCreateModel(Long brandId, String modelName) {
         Model existing = modelMapper.selectByBrandAndName(brandId, modelName);
         if (existing != null) {
@@ -430,12 +288,6 @@ public class VehicleServiceImpl implements VehicleService {
         return model.getId();
     }
 
-    /**
-     * findOrCreateCompany方法用于处理findOrCreateCompany相关的业务逻辑。
-     * @param companyName companyName参数，详见调用方上下文。
-     * @param regionId regionId参数，详见调用方上下文。
-     * @return 返回Long类型结果。
-     */
     private Long findOrCreateCompany(String companyName, Long regionId) {
         Company existing = companyMapper.selectByName(companyName);
         if (existing != null) {
@@ -450,12 +302,6 @@ public class VehicleServiceImpl implements VehicleService {
         return company.getId();
     }
 
-    /**
-     * findOrCreateRegion方法用于处理findOrCreateRegion相关的业务逻辑。
-     * @param provinceName provinceName参数，详见调用方上下文。
-     * @param cityName cityName参数，详见调用方上下文。
-     * @return 返回Long类型结果。
-     */
     private Long findOrCreateRegion(String provinceName, String cityName) {
         String cityTrim = cityName.trim();
         Region existingByName = regionMapper.selectByName(cityTrim);
@@ -504,12 +350,6 @@ public class VehicleServiceImpl implements VehicleService {
         return city.getId();
     }
 
-    /**
-     * upsertVehicleConfig方法用于处理upsertVehicleConfig相关的业务逻辑。
-     * @param vehicle vehicle参数，详见调用方上下文。
-     * @param config config参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     private void upsertVehicleConfig(Vehicle vehicle, VehicleConfig config) {
         if (config == null) {
             vehicleConfigMapper.deleteByVehicleId(vehicle.getId());
@@ -528,12 +368,6 @@ public class VehicleServiceImpl implements VehicleService {
         }
     }
 
-    /**
-     * saveVehicleImages方法用于处理saveVehicleImages相关的业务逻辑。
-     * @param vehicleId vehicleId参数，详见调用方上下文。
-     * @param imageIds imageIds参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     private void saveVehicleImages(Long vehicleId, List<Long> imageIds) {
         vehicleImageMapper.deleteByVehicleId(vehicleId);
         if (CollectionUtils.isEmpty(imageIds)) {

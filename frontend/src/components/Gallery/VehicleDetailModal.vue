@@ -37,7 +37,28 @@
                     <section v-else class="modal__body">
                         <div class="image-section">
                             <div v-if="hasImages" class="image-section__viewer">
-                                <ImageCarousel :images="images" :show-nav="false" />
+                                <button
+                                    v-if="variants.length > 1"
+                                    class="variant-nav nav-btn nav-btn--prev variant-nav--prev"
+                                    type="button"
+                                    @click="prevVariant"
+                                >
+                                    ‹
+                                </button>
+                                <ImageCarousel
+                                    :images="images"
+                                    :active-index="currentImageIndex"
+                                    :show-nav="false"
+                                    @change="handleImageChange"
+                                />
+                                <button
+                                    v-if="variants.length > 1"
+                                    class="variant-nav nav-btn nav-btn--next variant-nav--next"
+                                    type="button"
+                                    @click="nextVariant"
+                                >
+                                    ›
+                                </button>
                             </div>
                             <p v-else class="image-section__empty">暂无图片</p>
                             <div class="favorite-users" v-if="likeTotal">
@@ -162,7 +183,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onBeforeUnmount, reactive } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import ImageCarousel from './ImageCarousel.vue';
@@ -192,9 +213,55 @@ const toggleBodyScroll = (shouldLock) => {
 
 onBeforeUnmount(() => toggleBodyScroll(false));
 
-const vehicle = computed(() => props.detail?.vehicle || null);
-const config = computed(() => props.detail?.vehicleConfig || {});
-const images = computed(() => props.detail?.images || []);
+const variants = computed(() => {
+    // 兼容多种后端字段：variants / groupedVariants / plateVariants
+    const candidate =
+        props.detail?.variants ||
+        props.detail?.groupedVariants ||
+        props.detail?.plateVariants ||
+        (props.detail?.plateGroup ? props.detail.plateGroup.variants : null);
+    if (candidate && candidate.length) return candidate;
+    if (props.detail?.vehicle) {
+        return [{ vehicle: props.detail.vehicle, images: props.detail.images || [] }];
+    }
+    return [];
+});
+
+const images = computed(() => {
+    const list = [];
+    variants.value.forEach((v, idx) => {
+        (v.images || []).forEach((img) => list.push({ ...img, __variantIndex: idx }));
+    });
+    return list;
+});
+
+const findFirstImageIndexForVariant = (variantIdx) =>
+    images.value.findIndex((img) => img.__variantIndex === variantIdx);
+
+const currentImageIndex = ref(0);
+const currentVariantIndex = ref(0);
+
+const vehicle = computed(() => variants.value[currentVariantIndex.value]?.vehicle || null);
+const config = computed(
+    () => variants.value[currentVariantIndex.value]?.vehicleConfig || props.detail?.vehicleConfig || {}
+);
+
+watch(
+    () => props.detail,
+    () => {
+        currentVariantIndex.value = 0;
+        const firstIdx = findFirstImageIndexForVariant(0);
+        currentImageIndex.value = firstIdx >= 0 ? firstIdx : 0;
+    }
+);
+
+watch(currentVariantIndex, (idx) => {
+    const firstIdx = findFirstImageIndexForVariant(idx);
+    if (firstIdx >= 0 && firstIdx !== currentImageIndex.value) {
+        currentImageIndex.value = firstIdx;
+    }
+});
+
 const hasImages = computed(() => (images.value?.length || 0) > 0);
 
 const vehicleTitle = computed(
@@ -205,6 +272,26 @@ const exifSource = computed(() => {
     if (!images.value?.length) return null;
     return images.value.find((item) => item?.exif && Object.keys(item.exif).length);
 });
+
+const handleImageChange = (nextIndex) => {
+    currentImageIndex.value = nextIndex;
+    const targetVariant = images.value[nextIndex]?.__variantIndex;
+    if (typeof targetVariant === 'number' && targetVariant !== currentVariantIndex.value) {
+        currentVariantIndex.value = targetVariant;
+    }
+};
+
+const prevVariant = () => {
+    const total = variants.value.length;
+    if (total < 2) return;
+    currentVariantIndex.value = (currentVariantIndex.value - 1 + total) % total;
+};
+
+const nextVariant = () => {
+    const total = variants.value.length;
+    if (total < 2) return;
+    currentVariantIndex.value = (currentVariantIndex.value + 1) % total;
+};
 
 const hasExif = computed(() => Boolean(exifSource.value));
 const exifEntries = computed(() => {
@@ -217,6 +304,11 @@ const likes = ref([]);
 const likeTotal = ref(0);
 const liked = ref(false);
 const likeLoading = ref(false);
+const syncedLiked = ref(false);
+let likeDebounceTimer = null;
+let pendingLikeSync = false;
+const favoriteCache = reactive({});
+const favoriteLoadingIds = reactive(new Set());
 
 const mapUsers = (list = []) =>
     list.map((u) => ({
@@ -227,15 +319,95 @@ const mapUsers = (list = []) =>
 
 async function loadFavoriteSummary() {
     if (!vehicle.value?.id) return;
+    const vid = vehicle.value.id;
+    // 先用 props.detail 携带的数据（若有）
+    if (props.detail?.favoriteSummary && !favoriteCache[vid]) {
+        favoriteCache[vid] = props.detail.favoriteSummary;
+    }
+    const storeFavorite = store.state.vehicles?.detailMap?.[vid]?.favorite;
+    if (storeFavorite && !favoriteCache[vid]) {
+        favoriteCache[vid] = {
+            liked: storeFavorite.liked,
+            total: storeFavorite.likeTotal,
+            topUsers: storeFavorite.likes
+        };
+    }
+    // 优先使用前端缓存，避免重复请求
+    if (favoriteCache[vid]) {
+        const cached = favoriteCache[vid];
+        liked.value = cached.liked || false;
+        likeTotal.value = cached.total || 0;
+        likes.value = mapUsers(cached.topUsers || []).slice(0, 2);
+        syncedLiked.value = liked.value;
+        return;
+    }
+    if (favoriteLoadingIds.has(vid)) return;
+    favoriteLoadingIds.add(vid);
     try {
-        const resp = await fetchFavoriteSummary(vehicle.value.id);
+        const resp = await fetchFavoriteSummary(vid);
+        favoriteCache[vid] = resp || {};
         liked.value = resp?.liked || false;
         likeTotal.value = resp?.total || 0;
         likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);
+        syncedLiked.value = liked.value;
+        store.commit('vehicles/SET_VEHICLE_FAVORITE_STATE', {
+            vehicleId: vid,
+            liked: liked.value,
+            likeTotal: likeTotal.value,
+            likes: likes.value
+        });
     } catch (e) {
         // ignore
+    } finally {
+        favoriteLoadingIds.delete(vid);
     }
 }
+
+const syncLike = async (id) => {
+    if (!id) return;
+    if (likeLoading.value) {
+        pendingLikeSync = true;
+        return;
+    }
+    if (liked.value === syncedLiked.value) return;
+    likeLoading.value = true;
+    try {
+        const resp = await toggleFavorite(id);
+        liked.value = resp?.liked || false;
+        likeTotal.value = resp?.total || 0;
+        likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);
+        syncedLiked.value = liked.value;
+        favoriteCache[id] = resp || {};
+        store.commit('vehicles/SET_VEHICLE_FAVORITE_STATE', {
+            vehicleId: id,
+            liked: liked.value,
+            likeTotal: likeTotal.value,
+            likes: likes.value
+        });
+    } catch (error) {
+        const fallback = favoriteCache[id];
+        if (fallback) {
+            liked.value = fallback.liked || false;
+            likeTotal.value = fallback.total || 0;
+            likes.value = mapUsers(fallback.topUsers || []).slice(0, 2);
+            syncedLiked.value = liked.value;
+        }
+        ElMessage.error(error?.message || '收藏操作失败');
+    } finally {
+        likeLoading.value = false;
+        if (pendingLikeSync) {
+            pendingLikeSync = false;
+            scheduleLikeSync(id);
+        }
+    }
+};
+
+const scheduleLikeSync = (id) => {
+    if (likeDebounceTimer) {
+        clearTimeout(likeDebounceTimer);
+    }
+    likeDebounceTimer = setTimeout(() => syncLike(id), 250);
+};
 
 async function toggleFavoriteAction() {
     if (!vehicle.value?.id) return;
@@ -243,24 +415,28 @@ async function toggleFavoriteAction() {
         ElMessage.info('请先登录再收藏');
         return;
     }
-    if (likeLoading.value) return;
-    likeLoading.value = true;
-    try {
-        const resp = await toggleFavorite(vehicle.value.id);
-        liked.value = resp?.liked || false;
-        likeTotal.value = resp?.total || 0;
-        likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);
-        store.commit('vehicles/SET_VEHICLE_FAVORITE_STATE', {
-            vehicleId: vehicle.value.id,
-            liked: liked.value,
-            likeTotal: likeTotal.value,
-            likes: likes.value
-        });
-    } catch (error) {
-        ElMessage.error(error?.message || '收藏操作失败');
-    } finally {
-        likeLoading.value = false;
+    const id = vehicle.value.id;
+    const nextLiked = !liked.value;
+    liked.value = nextLiked;
+    likeTotal.value = Math.max(0, likeTotal.value + (nextLiked ? 1 : -1));
+    if (nextLiked && currentUser.value) {
+        const exists = likes.value.some((u) => u.id === currentUser.value.id);
+        if (!exists) {
+            likes.value = [
+                {
+                    id: currentUser.value.id,
+                    name: currentUser.value.displayName || currentUser.value.username || '我',
+                    isSelf: true
+                },
+                ...likes.value
+            ].slice(0, 2);
+        }
     }
+    if (!nextLiked && currentUser.value) {
+        likes.value = likes.value.filter((u) => u.id !== currentUser.value.id);
+    }
+
+    scheduleLikeSync(id);
 }
 const exifVisible = ref(false);
 
@@ -330,27 +506,27 @@ watch(
     () => props.visible,
     async (val) => {
         toggleBodyScroll(val);
-        if (val) {
-            likes.value = [];
-            likeTotal.value = 0;
-            liked.value = false;
-            await loadFavoriteSummary();
-            if (commentsOpen.value && isAuthenticated.value) {
-                await loadComments();
-            }
+        if (val && commentsOpen.value && isAuthenticated.value) {
+            await loadComments();
+        }
+        if (!val) {
+            commentsOpen.value = false;
+            exifVisible.value = false;
         }
     },
     { immediate: true }
 );
 
 watch(
-    () => props.detail?.vehicle?.id,
+    () => vehicle.value?.id,
     async () => {
         likes.value = [];
         likeTotal.value = 0;
         liked.value = false;
-        await loadFavoriteSummary();
-        if (commentsOpen.value && isAuthenticated.value) {
+        if (props.visible) {
+            await loadFavoriteSummary();
+        }
+        if (props.visible && commentsOpen.value && isAuthenticated.value) {
             await loadComments();
         }
     },
@@ -363,8 +539,10 @@ watch(
         likes.value = [];
         likeTotal.value = 0;
         liked.value = false;
-        await loadFavoriteSummary();
-        if (authed && commentsOpen.value) {
+        if (props.visible) {
+            await loadFavoriteSummary();
+        }
+        if (authed && commentsOpen.value && props.visible) {
             await loadComments();
         }
         if (!authed) {
@@ -823,6 +1001,7 @@ const handleClose = () => {
     padding: clamp(12px, 2vw, 20px);
     min-height: clamp(240px, 40vh, 480px);
     box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.15);
+    position: relative;
 }
 
 .image-section__empty {
@@ -858,6 +1037,30 @@ const handleClose = () => {
 
 .favorite-more {
     color: #94a3b8;
+}
+
+.variant-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(15, 23, 42, 0.75);
+    color: #fff;
+    font-size: 1.6rem;
+    cursor: pointer;
+    z-index: 6;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+}
+
+.variant-nav--prev {
+    left: 12px;
+}
+
+.variant-nav--next {
+    right: 12px;
 }
 
 .info-section h3 {

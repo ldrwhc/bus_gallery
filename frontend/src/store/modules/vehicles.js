@@ -2,6 +2,7 @@ import {
     fetchVehicleGallery,
     fetchVehicleGalleryDetail
 } from '@/api/vehicles';
+import { fetchSnapshotByPlate } from '@/api/snapshots';
 
 const defaultFilters = () => ({
     regionId: null,
@@ -140,9 +141,46 @@ const actions = {
     },
     async loadVehicleDetail({ state, commit }, vehicleId) {
         if (!vehicleId) return null;
+        if (state.detailLoadingMap[vehicleId]) return state.detailMap[vehicleId] || null;
         if (state.detailMap[vehicleId]) return state.detailMap[vehicleId];
         commit('SET_DETAIL_LOADING', { vehicleId, loading: true });
         try {
+            const findPlateByVehicleId = () => {
+                const direct = state.detailMap[vehicleId]?.vehicle?.plateNumber;
+                if (direct) return direct;
+                for (const item of state.gallery || []) {
+                    const vid = item?.vehicle?.id || item?.vehicleId;
+                    if (vid === vehicleId) {
+                        return item?.vehicle?.plateNumber || item?.plateNumber || null;
+                    }
+                }
+                return null;
+            };
+
+            const plate = findPlateByVehicleId();
+            if (plate) {
+                try {
+                    const snapshot = await fetchSnapshotByPlate(plate);
+                    if (snapshot && Array.isArray(snapshot.variants) && snapshot.variants.length) {
+                        snapshot.variants.forEach((variant) => {
+                            const id = variant?.vehicle?.id;
+                            if (!id) return;
+                            const detail = {
+                                ...snapshot,
+                                vehicle: variant.vehicle,
+                                vehicleConfig: variant.vehicleConfig,
+                                images: variant.images || [],
+                                variants: snapshot.variants
+                            };
+                            commit('SET_VEHICLE_DETAIL', { vehicleId: id, detail });
+                        });
+                        return state.detailMap[vehicleId] || null;
+                    }
+                } catch (e) {
+                    // fallback to normal detail endpoint
+                }
+            }
+
             const detail = await fetchVehicleGalleryDetail(vehicleId);
             commit('SET_VEHICLE_DETAIL', { vehicleId, detail });
             return detail;

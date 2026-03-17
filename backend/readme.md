@@ -1,116 +1,88 @@
+﻿# Bus Gallery Backend
 
-# Bus Gallery Backend
+后端基于 Spring Boot + MyBatis + MySQL + Redis + MinIO，提供车辆档案、图片、评论、收藏、快照、上传等接口，并支持 Redis 缓存与缩略图生成。
 
-基于 Spring Boot + MyBatis + MySQL + MinIO 的公交车图库管理系统后端，提供地区/公司/品牌/型号分类查询、车辆详情管理、图片上传等功能。
+---
 
 ## 技术栈
 
-- **Java 17**
-- **Spring Boot 3.x**
-- **MyBatis + MySQL 8**
-- **MinIO 对象存储**（可替换为 OSS/S3/COS 等）
-- **Lombok、MapStruct、Springdoc OpenAPI**
+- Java 17
+- Spring Boot 3
+- MyBatis + MySQL 8
+- Redis（会话、快照、列表缓存）
+- MinIO（对象存储）
 
-## 功能概览
+---
 
-- 地区、公司、品牌、型号、车辆、图片的 CRUD 接口。
-- 按地区/公司/品牌/型号分类展示车辆和图片。
-- 支持车辆详情：车辆信息、车型配置、图片列表。
-- 图片上传至对象存储（MinIO），自动生成访问 URL。
-- Swagger/OpenAPI 接口文档。
-- 完整的 Docker 化部署方案（MySQL、MinIO、后端、前端）。
-
-## 项目结构（后端部分）
-
-```
-bus-gallery/backend
-├── src/main/java/com/busgallery/busgallery
-│   ├── BusGalleryApplication.java
-│   ├── config/             # MinIO、Swagger、跨域等配置
-│   ├── controller/         # REST 控制器
-│   ├── dto/                # 请求/响应 DTO
-│   ├── entity/             # 实体定义
-│   ├── exception/          # 全局异常处理
-│   ├── mapper/             # MyBatis Mapper 接口
-│   ├── service/            # 业务服务 & 存储服务
-│   └── util/               # 工具类
-├── src/main/resources
-│   ├── application.yml     # 配置文件
-│   └── mapper/*.xml        # MyBatis XML 映射
-└── src/test/java/com/busgallery/busgallery
-    ├── BusGalleryApplicationTests.java
-    ├── controller/VehicleControllerTest.java
-    └── service/VehicleServiceImplTest.java
-```
-
-## 配置说明
-
-`application.yml` 核心配置：
-
-```yaml
-spring:
-  datasource: ...
-mybatis:
-  mapper-locations: classpath*:mapper/*.xml
-minio:
-  endpoint: http://minio:9000
-  bucket: bus-gallery
-  access-key: admin
-  secret-key: admin123
-```
-
-运行时可通过环境变量覆盖 `DB_URL`、`MINIO_ENDPOINT` 等配置。
-
-## 构建与运行
-
-### 本地 Maven 构建
+## 运行方式
 
 ```bash
-cd bus-gallery/backend
+cd backend
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+打包运行：
+
+```bash
 mvn clean package
 java -jar target/bus-gallery-backend-0.0.1-SNAPSHOT.jar
 ```
 
-### Docker Compose
+---
 
-在项目根目录执行：
+## 关键设计点（面试高频）
 
-```bash
-cd bus-gallery/docker
-docker compose up -d
-```
+1. Redis 列表缓存 + 版本号一致性
+- `/api/vehicles` 缓存进 Redis（TTL 60s）
+- key 组合：筛选参数 + 游标 + `bg:vehicle:page:version`
+- 新增/更新/删除车辆时版本号自增，自动失效旧缓存
 
-将启动以下服务：
+2. 车辆详情快照（big key）
+- `/api/snapshots/plate/{plate}` 直接返回车牌级详情快照
+- Redis key：`bg:snapshot:plate:{plate}:latest` + `...:v{version}`
+- 快照内容包含变体、评论、收藏摘要、推荐
 
-- `mysql` – 数据库，初始化脚本位于 `docker/init/init.sql`
-- `minio` – 对象存储
-- `backend` – Spring Boot 服务（映射 8080 端口）
-- `frontend` – Vue 静态站点（映射 80 端口）
+3. 幂等上传
+- `/api/upload` 支持 `Idempotency-Key`
+- 避免重复提交造成脏数据
 
-## 接口文档
+4. 缩略图生成与重建
+- 上传时自动生成缩略图
+- 历史数据可通过 `rebuild.thumbnails=true` 重建
 
-启动后访问 `http://localhost:8080/swagger-ui.html` 或 `http://localhost:8080/swagger-ui/index.html` 查看 API 文档，支持在线调试。
+5. 统一错误码 + 全局异常
+- ErrorCode 枚举统一返回
+- GlobalExceptionHandler 保证响应格式一致
 
-## 测试
-
-```bash
-cd bus-gallery/backend
-mvn test
-```
-
-主要测试：
-
-- `BusGalleryApplicationTests`：Spring 容器启动测试。
-- `VehicleServiceImplTest`：Service 层单元测试。
-- `VehicleControllerTest`：MockMvc Controller 测试。
-
-## 注意事项
-
-- 首次运行需确保 MySQL 数据库创建成功、执行建表脚本。
-- MinIO 需提前配置存储桶，可以通过 `MinioStorageService` 在启动时自动创建。
-- 如需调整对象存储为其它服务（OSS/COS/S3等），实现 `StorageService` 接口即可。
-- 若不使用 Spring Data JPA，可去除 `repository` 目录及相关依赖。
+6. 会话与鉴权
+- Redis 存储 session
+- `AuthTokenInterceptor` 读取 token 并校验
+- `@RequireLogin` 注解统一鉴权入口
 
 ---
 
-欢迎根据业务需求继续扩展接口和前端展示。
+## 面试追问点（可直接回答）
+
+- 你如何保证缓存一致性：版本号失效 + TTL
+- big key 带来的代价：大 key 删除、持久化开销，用 TTL + lazyfree 缓解
+- 上传为什么要幂等：避免重复提交产生脏数据
+- 为什么不用偏移分页：大数据量下偏移会变慢
+
+---
+
+## Swagger 文档
+
+- 在线：`http://localhost:8080/swagger-ui/index.html`
+- 静态导出见：`docs/swagger/`
+
+---
+
+## 缩略图重建任务
+
+```bash
+java -jar target/bus-gallery-backend-0.0.1-SNAPSHOT.jar --rebuild.thumbnails=true
+```
+
+---
+
+完整接口说明请见项目根目录：`API_DOCS.md`

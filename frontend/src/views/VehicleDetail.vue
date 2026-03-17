@@ -6,7 +6,7 @@
                     <ImageCarousel
                         :images="imageList"
                         :active-index="currentImageIndex"
-                        :show-nav="imageList.length > 1 && variants.length > 1"
+                        :show-nav="imageList.length > 1 || variants.length > 1"
                         @change="handleImageChange"
                     />
                     <div class="hero-meta">
@@ -185,6 +185,10 @@ const liked = ref(false);
 const likeTotal = ref(0);
 const likeLoading = ref(false);
 let likeDebounceTimer = null;
+const syncedLiked = ref(false);
+let pendingLikeSync = false;
+const favoriteCache = new Map();
+const favoriteLoading = new Set();
 
 const isMobile = ref(false);
 const resizeHandler = () => {
@@ -224,13 +228,17 @@ const loadDetail = async (id) => {
     likeTotal.value = 0;
     likes.value = [];
     const detail = await store.dispatch('vehicles/loadVehicleDetail', id);
-    let grouped = [];
-    try {
-        const plate = (detail?.vehicle?.plateNumber || '').replace(/\s+/g, '');
-        const resp = await fetchVehiclesByPlate(plate);
-        grouped = resp?.variants || [];
-    } catch (e) {
-        grouped = [];
+    let grouped = Array.isArray(detail?.variants) ? detail.variants : [];
+    if (!grouped.length) {
+        try {
+            const plate = (detail?.vehicle?.plateNumber || '').replace(/\s+/g, '');
+            if (plate) {
+                const resp = await fetchVehiclesByPlate(plate);
+                grouped = resp?.variants || [];
+            }
+        } catch (e) {
+            grouped = [];
+        }
     }
     variants.value = grouped.length ? grouped : [detail];
     currentVariantIndex.value =
@@ -338,15 +346,75 @@ const applyOptimisticLike = (nextLiked) => {
 };
 
 const loadLikeSummary = async () => {
-    if (!vehicleData.value?.vehicle?.id) return;
+    const id = vehicleData.value?.vehicle?.id;
+    if (!id) return;
+    const detailFavorite = vehicleData.value?.favoriteSummary;
+    if (detailFavorite && !favoriteCache.has(id)) {
+        favoriteCache.set(id, detailFavorite);
+    }
+    if (favoriteCache.has(id)) {
+        const cached = favoriteCache.get(id);
+        liked.value = cached.liked || false;
+        likeTotal.value = cached.total || 0;
+        likes.value = mapUsers(cached.topUsers || []).slice(0, 2);
+        syncedLiked.value = liked.value;
+        return;
+    }
+    if (favoriteLoading.has(id)) return;
+    favoriteLoading.add(id);
     try {
-        const resp = await fetchFavoriteSummary(vehicleData.value.vehicle.id);
+        const resp = await fetchFavoriteSummary(id);
+        favoriteCache.set(id, resp || {});
         liked.value = resp?.liked || false;
         likeTotal.value = resp?.total || 0;
         likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);
+        syncedLiked.value = liked.value;
     } catch (error) {
         // ignore silently
+    } finally {
+        favoriteLoading.delete(id);
     }
+};
+
+const syncLike = async () => {
+    const id = vehicleData.value?.vehicle?.id;
+    if (!id) return;
+    if (likeLoading.value) {
+        pendingLikeSync = true;
+        return;
+    }
+    if (liked.value === syncedLiked.value) return;
+    likeLoading.value = true;
+    try {
+        const resp = await toggleFavorite(id);
+        liked.value = resp?.liked || false;
+        likeTotal.value = resp?.total || 0;
+        likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);
+        syncedLiked.value = liked.value;
+        favoriteCache.set(id, resp || {});
+    } catch (error) {
+        const fallback = favoriteCache.get(id);
+        if (fallback) {
+            liked.value = fallback.liked || false;
+            likeTotal.value = fallback.total || 0;
+            likes.value = mapUsers(fallback.topUsers || []).slice(0, 2);
+            syncedLiked.value = liked.value;
+        }
+        ElMessage.error(error?.message || '收藏操作失败');
+    } finally {
+        likeLoading.value = false;
+        if (pendingLikeSync) {
+            pendingLikeSync = false;
+            scheduleLikeSync();
+        }
+    }
+};
+
+const scheduleLikeSync = () => {
+    if (likeDebounceTimer) {
+        clearTimeout(likeDebounceTimer);
+    }
+    likeDebounceTimer = setTimeout(syncLike, 250);
 };
 
 const toggleLike = () => {
@@ -358,38 +426,12 @@ const toggleLike = () => {
     if (!vehicleData.value?.vehicle?.id) return;
     if (likeLoading.value) return;
 
-    const previous = {
-        liked: liked.value,
-        likeTotal: likeTotal.value,
-        likes: [...likes.value]
-    };
-
     const nextLiked = !liked.value;
     liked.value = nextLiked;
     likeTotal.value = Math.max(0, likeTotal.value + (nextLiked ? 1 : -1));
     applyOptimisticLike(nextLiked);
 
-    if (likeDebounceTimer) {
-        clearTimeout(likeDebounceTimer);
-    }
-
-    likeDebounceTimer = setTimeout(async () => {
-        likeLoading.value = true;
-        try {
-            const resp = await toggleFavorite(vehicleData.value.vehicle.id);
-            liked.value = resp?.liked || false;
-            likeTotal.value = resp?.total || 0;
-            likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);
-        } catch (error) {
-            liked.value = previous.liked;
-            likeTotal.value = previous.likeTotal;
-            likes.value = previous.likes;
-            ElMessage.error(error?.message || '收藏操作失败');
-        } finally {
-            likeLoading.value = false;
-            likeDebounceTimer = null;
-        }
-    }, 200);
+    scheduleLikeSync();
 };
 
 const openComments = async () => {

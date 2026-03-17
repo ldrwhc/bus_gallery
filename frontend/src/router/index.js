@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+﻿import { createRouter, createWebHistory } from 'vue-router';
 import store from '@/store';
 
 const defaultTitle = import.meta.env.VITE_APP_TITLE || 'Bus Gallery';
@@ -11,6 +11,12 @@ const router = createRouter({
             name: 'Home',
             component: () => import('@/views/Home.vue'),
             meta: { title: '首页' }
+        },
+        {
+            path: '/gallery',
+            name: 'Gallery',
+            component: () => import('@/views/Gallery.vue'),
+            meta: { title: '图库' }
         },
         {
             path: '/regions/:regionId?',

@@ -2,6 +2,7 @@
 
 export const NAV_LINKS = [
     { label: '首页', name: 'Home', path: '/' },
+    { label: '图库', name: 'Gallery', path: '/gallery' },
     { label: '按地区', name: 'RegionCatalog', path: '/regions' },
     { label: '按公司', name: 'CompanyCatalog', path: '/companies' },
     { label: '按品牌', name: 'BrandCatalog', path: '/brands' },

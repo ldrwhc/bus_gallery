@@ -47,7 +47,7 @@
     <select id="selectAllByPlateNumber" parameterType="string" resultMap="VehicleResultMap">
         SELECT <include refid="BaseColumnList"/>
         FROM vehicle
-        WHERE plate_number = #{plateNumber}
+        WHERE REPLACE(plate_number, ' ', '') = REPLACE(#{plateNumber}, ' ', '')
         ORDER BY id ASC
     </select>
 
@@ -81,7 +81,7 @@
                 id DESC
         </select>
 
-        <select id="selectPage" resultMap="VehicleResultMap">
+        <select id="selectPageByCursor" resultMap="VehicleResultMap">
                 SELECT <include refid="BaseColumnList"/>
                 FROM vehicle v
                 WHERE 1 = 1
@@ -125,11 +125,23 @@
                                 )
                         )
                 </if>
+                <if test="lastLaunch != null">
+                        AND (
+                                v.launch_date &lt; #{lastLaunch}
+                                <if test="lastId != null">
+                                        OR (v.launch_date = #{lastLaunch} AND v.id &lt; #{lastId})
+                                </if>
+                        )
+                </if>
+                <if test="lastLaunch == null and lastId != null">
+                        AND v.launch_date IS NULL
+                        AND v.id &lt; #{lastId}
+                </if>
                 ORDER BY
                 CASE WHEN v.launch_date IS NULL THEN 1 ELSE 0 END ASC,
                 v.launch_date DESC,
                 v.id DESC
-                LIMIT #{limit} OFFSET #{offset}
+                LIMIT #{limit}
         </select>
 
         <select id="count" resultType="long">
