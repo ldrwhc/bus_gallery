@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.VehicleCommentMapper">
+
+    <resultMap id="CommentResultMap" type="com.busgallery.busgallery.entity.VehicleComment">
+        <id property="id" column="id"/>
+        <result property="vehicleId" column="vehicle_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="username" column="username"/>
+        <result property="displayName" column="display_name"/>
+        <result property="content" column="content"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, vehicle_id, user_id, username, display_name, content, created_at
+    </sql>
+
+    <select id="selectByVehicleId" resultMap="CommentResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle_comment
+        WHERE vehicle_id = #{vehicleId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByVehicleId" resultType="long">
+        SELECT COUNT(1)
+        FROM vehicle_comment
+        WHERE vehicle_id = #{vehicleId}
+    </select>
+
+    <insert id="insert" parameterType="com.busgallery.busgallery.entity.VehicleComment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO vehicle_comment (
+            vehicle_id, user_id, username, display_name, content, created_at
+        ) VALUES (
+            #{vehicleId},
+            #{userId},
+            #{username},
+            #{displayName},
+            #{content},
+            NOW()
+        )
+    </insert>
+</mapper>

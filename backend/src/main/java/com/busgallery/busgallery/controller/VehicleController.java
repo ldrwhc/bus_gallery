@@ -18,9 +18,6 @@ import java.util.Objects;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * VehicleController类用于封装VehicleController相关的领域职责（所在包：com.busgallery.busgallery.controller）。
- */
 @RestController
 @RequestMapping("/api/vehicles")
 @RequiredArgsConstructor
@@ -29,27 +26,21 @@ public class VehicleController {
     private final VehicleService vehicleService;
     private final ImageService imageService;
 
-    /**
-     * detail方法用于处理detail相关的业务逻辑。
-     * @param id id参数，详见调用方上下文。
-     * @return 返回VehicleDetailResponse类型结果。
-     */
     @GetMapping("/{id}")
     public VehicleDetailResponse detail(@PathVariable Long id) {
         return buildVehicleDetail(id);
     }
 
-    /**
-     * page方法用于处理page相关的业务逻辑。
-     * @param page page参数，详见调用方上下文。
-     * @param size size参数，详见调用方上下文。
-     * @param regionId regionId参数，详见调用方上下文。
-     * @param companyId companyId参数，详见调用方上下文。
-     * @param brandId brandId参数，详见调用方上下文。
-     * @param modelId modelId参数，详见调用方上下文。
-     * @param keyword keyword参数，详见调用方上下文。
-     * @return 返回VehiclePageResponse类型结果。
-     */
+    @GetMapping("/plate/{plateNumber}")
+    public VehicleGroupResponse detailByPlate(@PathVariable String plateNumber) {
+        String normalized = plateNumber == null ? null : plateNumber.replaceAll("\\s+", "");
+        List<Vehicle> vehicles = vehicleService.listByPlateNumber(normalized);
+        List<VehicleDetailResponse> variants = vehicles.stream()
+                .map(v -> buildVehicleDetail(v.getId()))
+                .collect(Collectors.toList());
+        return new VehicleGroupResponse(plateNumber, variants);
+    }
+
     @GetMapping
     public VehiclePageResponse page(@RequestParam(defaultValue = "1") int page,
                                     @RequestParam(defaultValue = "20") int size,
@@ -66,11 +57,6 @@ public class VehicleController {
         return new VehiclePageResponse(summaries, total, page, size);
     }
 
-    /**
-     * create方法用于处理create相关的业务逻辑。
-     * @param request request参数，详见调用方上下文。
-     * @return 返回VehicleDetailResponse类型结果。
-     */
     @PostMapping
     public VehicleDetailResponse create(@Valid @RequestBody VehicleRequest request) {
         Vehicle vehicle = request.toVehicle();
@@ -89,12 +75,6 @@ public class VehicleController {
         return buildVehicleDetail(saved.getId());
     }
 
-    /**
-     * update方法用于处理update相关的业务逻辑。
-     * @param id id参数，详见调用方上下文。
-     * @param request request参数，详见调用方上下文。
-     * @return 返回VehicleDetailResponse类型结果。
-     */
     @PutMapping("/{id}")
     public VehicleDetailResponse update(@PathVariable Long id, @Valid @RequestBody VehicleRequest request) {
         Vehicle vehicle = request.toVehicle();
@@ -114,21 +94,11 @@ public class VehicleController {
         return buildVehicleDetail(updated.getId());
     }
 
-    /**
-     * delete方法用于处理delete相关的业务逻辑。
-     * @param id id参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         vehicleService.delete(id);
     }
 
-    /**
-     * buildVehicleDetail方法用于处理buildVehicleDetail相关的业务逻辑。
-     * @param vehicleId vehicleId参数，详见调用方上下文。
-     * @return 返回VehicleDetailResponse类型结果。
-     */
     private VehicleDetailResponse buildVehicleDetail(Long vehicleId) {
         Vehicle vehicle = vehicleService.findById(vehicleId);
         VehicleConfig config = vehicleService.findConfigByVehicleId(vehicleId);
@@ -136,7 +106,6 @@ public class VehicleController {
         return assembleDetail(vehicle, config, images);
     }
 
-    /** 提供给其它控制器复用的装配方法（如上传接口） */
     public static VehicleDetailResponse assembleDetail(Vehicle vehicle,
                                                        VehicleConfig config,
                                                        List<Image> images) {
@@ -147,11 +116,6 @@ public class VehicleController {
         );
     }
 
-    /**
-     * mapVehicle方法用于处理mapVehicle相关的业务逻辑。
-     * @param source source参数，详见调用方上下文。
-     * @return 返回VehicleDTO类型结果。
-     */
     private static VehicleDTO mapVehicle(Vehicle source) {
         if (source == null) {
             return null;
@@ -173,11 +137,6 @@ public class VehicleController {
         return dto;
     }
 
-    /**
-     * mapModel方法用于处理mapModel相关的业务逻辑。
-     * @param source source参数，详见调用方上下文。
-     * @return 返回ModelDTO类型结果。
-     */
     private static ModelDTO mapModel(Model source) {
         if (source == null) {
             return null;
@@ -190,11 +149,6 @@ public class VehicleController {
         return dto;
     }
 
-    /**
-     * mapCompany方法用于处理mapCompany相关的业务逻辑。
-     * @param source source参数，详见调用方上下文。
-     * @return 返回CompanyDTO类型结果。
-     */
     private static CompanyDTO mapCompany(Company source) {
         if (source == null) {
             return null;
@@ -207,11 +161,6 @@ public class VehicleController {
         return dto;
     }
 
-    /**
-     * mapRegion方法用于处理mapRegion相关的业务逻辑。
-     * @param source source参数，详见调用方上下文。
-     * @return 返回RegionDTO类型结果。
-     */
     private static RegionDTO mapRegion(Region source) {
         if (source == null) {
             return null;
@@ -224,11 +173,6 @@ public class VehicleController {
         return dto;
     }
 
-    /**
-     * mapVehicleConfig方法用于处理mapVehicleConfig相关的业务逻辑。
-     * @param source source参数，详见调用方上下文。
-     * @return 返回VehicleConfigDTO类型结果。
-     */
     private static VehicleConfigDTO mapVehicleConfig(VehicleConfig source) {
         if (source == null) {
             return null;
@@ -251,11 +195,6 @@ public class VehicleController {
         return dto;
     }
 
-    /**
-     * mapImages方法用于处理mapImages相关的业务逻辑。
-     * @param images images参数，详见调用方上下文。
-     * @return 返回List<ImageDTO>类型结果。
-     */
     private static List<ImageDTO> mapImages(List<Image> images) {
         if (Objects.isNull(images)) {
             return Collections.emptyList();
@@ -265,11 +204,6 @@ public class VehicleController {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * mapImage方法用于处理mapImage相关的业务逻辑。
-     * @param source source参数，详见调用方上下文。
-     * @return 返回ImageDTO类型结果。
-     */
     private static ImageDTO mapImage(Image source) {
         if (source == null) {
             return null;
@@ -293,10 +227,6 @@ public class VehicleController {
         return dto;
     }
 
-    /* --------- 以下 DTO / 请求类定义保持不变 --------- */
-    /**
-     * VehiclePageResponse类用于封装VehiclePageResponse相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -307,9 +237,6 @@ public class VehicleController {
         private int size;
     }
 
-    /**
-     * VehicleSummary类用于封装VehicleSummary相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -318,9 +245,6 @@ public class VehicleController {
         private List<ImageDTO> images;
     }
 
-    /**
-     * VehicleDetailResponse类用于封装VehicleDetailResponse相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -330,9 +254,14 @@ public class VehicleController {
         private List<ImageDTO> images;
     }
 
-    /**
-     * VehicleRequest类用于封装VehicleRequest相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class VehicleGroupResponse {
+        private String plateNumber;
+        private List<VehicleDetailResponse> variants;
+    }
+
     @Data
     public static class VehicleRequest {
         private String plateNumber;
@@ -354,10 +283,6 @@ public class VehicleController {
         private VehicleConfigRequest config;
         private List<Long> imageIds;
 
-        /**
-         * toVehicle方法用于处理toVehicle相关的业务逻辑。
-         * @return 返回Vehicle类型结果。
-         */
         public Vehicle toVehicle() {
             Vehicle vehicle = new Vehicle();
             vehicle.setPlateNumber(plateNumber);
@@ -376,7 +301,6 @@ public class VehicleController {
                 Company company = new Company();
                 company.setId(companyId);
                 vehicle.setCompany(company);
-
             }
             if (regionId != null) {
                 Region region = new Region();
@@ -386,10 +310,6 @@ public class VehicleController {
             return vehicle;
         }
 
-        /**
-         * toVehicleConfig方法用于处理toVehicleConfig相关的业务逻辑。
-         * @return 返回VehicleConfig类型结果。
-         */
         public VehicleConfig toVehicleConfig() {
             if (config == null) {
                 return null;
@@ -417,9 +337,6 @@ public class VehicleController {
         }
     }
 
-    /**
-     * VehicleConfigRequest类用于封装VehicleConfigRequest相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class VehicleConfigRequest {
         private Long brandId;
@@ -434,9 +351,6 @@ public class VehicleController {
         private String otherConfigs;
     }
 
-    /**
-     * VehicleDTO类用于封装VehicleDTO相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class VehicleDTO {
         private Long id;
@@ -454,9 +368,6 @@ public class VehicleController {
         private RegionDTO region;
     }
 
-    /**
-     * ModelDTO类用于封装ModelDTO相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class ModelDTO {
         private Long id;
@@ -465,9 +376,6 @@ public class VehicleController {
         private String brandName;
     }
 
-    /**
-     * CompanyDTO类用于封装CompanyDTO相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class CompanyDTO {
         private Long id;
@@ -476,9 +384,6 @@ public class VehicleController {
         private String regionName;
     }
 
-    /**
-     * RegionDTO类用于封装RegionDTO相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class RegionDTO {
         private Long id;
@@ -487,9 +392,6 @@ public class VehicleController {
         private Integer level;
     }
 
-    /**
-     * VehicleConfigDTO类用于封装VehicleConfigDTO相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class VehicleConfigDTO {
         private Long id;
@@ -510,9 +412,6 @@ public class VehicleController {
         private java.time.LocalDateTime updateTime;
     }
 
-    /**
-     * ImageDTO类用于封装ImageDTO相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class ImageDTO {
         private Long id;

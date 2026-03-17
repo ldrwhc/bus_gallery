@@ -4,18 +4,20 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * ErrorCode枚举用于封装ErrorCode相关的领域职责（所在包：com.busgallery.busgallery.exception）。
+ * Unified error codes aligned with HTTP-style semantics.
  */
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {
 
-    SUCCESS("00000", "成功"),
-    INVALID_PARAM("A0400", "请求参数错误"),
-    UNAUTHORIZED("A0401", "未登录或登录已过期"),
-    NOT_FOUND("A0404", "资源不存在"),
-    BUSINESS_ERROR("A0500", "业务异常"),
-    INTERNAL_ERROR("B0500", "服务器内部错误");
+    SUCCESS("00000", "success"),
+    INVALID_PARAM("A0400", "Invalid request parameter"),
+    UNAUTHORIZED("A0401", "Unauthorized or session expired"),
+    NOT_FOUND("A0404", "Resource not found"),
+    REQUEST_DUPLICATE("A0429", "Duplicate request, please do not resubmit"),
+    BUSINESS_ERROR("A0500", "Business error"),
+    INTERNAL_ERROR("B0500", "Internal server error"),
+    STORAGE_ERROR("B0501", "Storage service error");
 
     private final String code;
     private final String message;

@@ -62,8 +62,26 @@ const router = createRouter({
         {
             path: '/account',
             name: 'Account',
-            component: () => import('@/views/Account.vue'),
-            meta: { title: '我的账户', requiresAuth: true }
+            component: () => import('@/views/UserProfile.vue'),
+            meta: { title: '我的账户', requiresAuth: true },
+            beforeEnter: async (to) => {
+                const isAuthed = store.getters['auth/isAuthenticated'];
+                if (!isAuthed) {
+                    return { name: 'Login', query: { redirect: to.fullPath } };
+                }
+                if (!store.state.auth.profile) {
+                    try {
+                        await store.dispatch('auth/fetchProfile');
+                    } catch (e) {
+                        return { name: 'Login', query: { redirect: to.fullPath } };
+                    }
+                }
+                const id = store.state.auth.profile?.id;
+                if (id && to.params.userId !== id) {
+                    return { name: 'UserProfile', params: { userId: id } };
+                }
+                return true;
+            }
         },
         {
             path: '/login',

@@ -18,7 +18,16 @@
                             </button>
                         </div>
                     </div>
-                    <button class="close-btn" type="button" @click="handleClose">×</button>
+                    <div class="header-actions">
+                        <button class="favorite-btn" type="button" :disabled="likeLoading" @click="toggleFavoriteAction">
+                            {{ liked ? '★ 已收藏' : '☆ 收藏' }}
+                            <span v-if="likeTotal" class="favorite-count">({{ likeTotal }})</span>
+                        </button>
+                        <button class="comment-entry" type="button" @click="toggleComments">
+                            💬 评论
+                        </button>
+                        <button class="close-btn" type="button" @click="handleClose">×</button>
+                    </div>
                 </header>
 
                 <div class="modal__content">
@@ -28,9 +37,16 @@
                     <section v-else class="modal__body">
                         <div class="image-section">
                             <div v-if="hasImages" class="image-section__viewer">
-                                <ImageCarousel :images="images" />
+                                <ImageCarousel :images="images" :show-nav="false" />
                             </div>
                             <p v-else class="image-section__empty">暂无图片</p>
+                            <div class="favorite-users" v-if="likeTotal">
+                                <span class="favorite-label">喜欢：</span>
+                                <span v-for="(user, idx) in likes" :key="user.id || idx" class="favorite-user">
+                                    {{ user.name }}
+                                </span>
+                                <span v-if="likeTotal > likes.length" class="favorite-more">等{{ likeTotal - likes.length }}人</span>
+                            </div>
                         </div>
 
                         <div class="info-section" v-if="vehicleInfoCards.length">
@@ -72,6 +88,50 @@
                         </div>
                     </section>
                 </div>
+
+                <transition name="slide">
+                    <aside v-if="commentsOpen" class="comment-drawer">
+                        <header class="comment-drawer__header">
+                            <div>
+                                <p class="comment-drawer__eyebrow">评论</p>
+                                <h4>{{ commentsTotal || 0 }} 条</h4>
+                            </div>
+                            <button type="button" class="close-btn" @click="commentsOpen = false">×</button>
+                        </header>
+                        <div class="comment-drawer__body" v-loading="commentsLoading">
+                            <p v-if="!isAuthenticated" class="comment-empty">登录后查看评论</p>
+                            <template v-else>
+                                <p v-if="!comments.length && !commentsLoading" class="comment-empty">暂无评论</p>
+                                <div v-for="item in comments" :key="item.id" class="comment-item">
+                                    <div class="comment-meta">
+                                        <span class="comment-author">{{ item.displayName || item.username }}</span>
+                                        <span class="comment-time">{{ item.createdAt }}</span>
+                                    </div>
+                                    <p class="comment-content">{{ item.content }}</p>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="comment-drawer__footer" v-if="isAuthenticated">
+                            <el-input
+                                v-model="commentInput"
+                                type="textarea"
+                                :autosize="{ minRows: 2, maxRows: 4 }"
+                                placeholder="写点什么吧"
+                                maxlength="500"
+                                show-word-limit
+                            />
+                            <el-button
+                                type="primary"
+                                size="small"
+                                :loading="commentSubmitting"
+                                class="comment-submit"
+                                @click="submitComment"
+                            >
+                                发布
+                            </el-button>
+                        </div>
+                    </aside>
+                </transition>
             </div>
         </div>
     </teleport>
@@ -103,7 +163,10 @@
 
 <script setup>
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { useStore } from 'vuex';
+import { ElMessage } from 'element-plus';
 import ImageCarousel from './ImageCarousel.vue';
+import { fetchVehicleComments, createVehicleComment, fetchFavoriteSummary, toggleFavorite } from '@/api/vehicles';
 import { CONFIG_INFO_FIELDS, VEHICLE_INFO_FIELDS } from '@/utils/constants';
 import { formatBoolean, formatFuelType, formatYearMonth } from '@/utils/formatters';
 
@@ -117,18 +180,15 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+const store = useStore();
+const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
+const currentUser = computed(() => store.state.auth.profile);
 
 const BODY_LOCK_CLASS = 'vehicle-detail-modal-open';
 const toggleBodyScroll = (shouldLock) => {
     if (typeof document === 'undefined') return;
     document.body.classList[shouldLock ? 'add' : 'remove'](BODY_LOCK_CLASS);
 };
-
-watch(
-    () => props.visible,
-    (val) => toggleBodyScroll(val),
-    { immediate: true }
-);
 
 onBeforeUnmount(() => toggleBodyScroll(false));
 
@@ -151,7 +211,168 @@ const exifEntries = computed(() => {
     if (!exifSource.value?.exif) return [];
     return Object.entries(exifSource.value.exif);
 });
+
+// 收藏
+const likes = ref([]);
+const likeTotal = ref(0);
+const liked = ref(false);
+const likeLoading = ref(false);
+
+const mapUsers = (list = []) =>
+    list.map((u) => ({
+        id: u.id,
+        name: u.displayName || u.username || '用户',
+        isSelf: u.isSelf
+    }));
+
+async function loadFavoriteSummary() {
+    if (!vehicle.value?.id) return;
+    try {
+        const resp = await fetchFavoriteSummary(vehicle.value.id);
+        liked.value = resp?.liked || false;
+        likeTotal.value = resp?.total || 0;
+        likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);
+    } catch (e) {
+        // ignore
+    }
+}
+
+async function toggleFavoriteAction() {
+    if (!vehicle.value?.id) return;
+    if (!isAuthenticated.value) {
+        ElMessage.info('请先登录再收藏');
+        return;
+    }
+    if (likeLoading.value) return;
+    likeLoading.value = true;
+    try {
+        const resp = await toggleFavorite(vehicle.value.id);
+        liked.value = resp?.liked || false;
+        likeTotal.value = resp?.total || 0;
+        likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);
+        store.commit('vehicles/SET_VEHICLE_FAVORITE_STATE', {
+            vehicleId: vehicle.value.id,
+            liked: liked.value,
+            likeTotal: likeTotal.value,
+            likes: likes.value
+        });
+    } catch (error) {
+        ElMessage.error(error?.message || '收藏操作失败');
+    } finally {
+        likeLoading.value = false;
+    }
+}
 const exifVisible = ref(false);
+
+const loadComments = async () => {
+    const id = vehicle.value?.id;
+    if (!id || !isAuthenticated.value) {
+        comments.value = [];
+        commentsTotal.value = 0;
+        return;
+    }
+    commentsLoading.value = true;
+    try {
+        const resp = await fetchVehicleComments(id, { page: 1, size: 50 });
+        const records = resp?.records || resp?.items || resp?.data || resp || [];
+        comments.value = records;
+        commentsTotal.value = resp?.total ?? records.length ?? 0;
+    } catch (error) {
+        ElMessage.error(error.message || '加载评论失败');
+    } finally {
+        commentsLoading.value = false;
+    }
+};
+
+const toggleComments = async () => {
+    if (!isAuthenticated.value) {
+        ElMessage.info('请先登录再查看评论');
+        return;
+    }
+    commentsOpen.value = !commentsOpen.value;
+    if (commentsOpen.value) {
+        await loadComments();
+    }
+};
+
+const submitComment = async () => {
+    if (!isAuthenticated.value) {
+        ElMessage.info('请先登录再发表评论');
+        return;
+    }
+    const id = vehicle.value?.id;
+    const text = commentInput.value?.trim();
+    if (!id || !text) {
+        ElMessage.warning('请输入评论内容');
+        return;
+    }
+    commentSubmitting.value = true;
+    try {
+        await createVehicleComment(id, text);
+        commentInput.value = '';
+        await loadComments();
+        ElMessage.success('评论已发布');
+    } catch (error) {
+        ElMessage.error(error.message || '发布失败');
+    } finally {
+        commentSubmitting.value = false;
+    }
+};
+
+const commentsOpen = ref(false);
+const comments = ref([]);
+const commentsTotal = ref(0);
+const commentsLoading = ref(false);
+const commentInput = ref('');
+const commentSubmitting = ref(false);
+
+watch(
+    () => props.visible,
+    async (val) => {
+        toggleBodyScroll(val);
+        if (val) {
+            likes.value = [];
+            likeTotal.value = 0;
+            liked.value = false;
+            await loadFavoriteSummary();
+            if (commentsOpen.value && isAuthenticated.value) {
+                await loadComments();
+            }
+        }
+    },
+    { immediate: true }
+);
+
+watch(
+    () => props.detail?.vehicle?.id,
+    async () => {
+        likes.value = [];
+        likeTotal.value = 0;
+        liked.value = false;
+        await loadFavoriteSummary();
+        if (commentsOpen.value && isAuthenticated.value) {
+            await loadComments();
+        }
+    },
+    { immediate: true }
+);
+
+watch(
+    isAuthenticated,
+    async (authed) => {
+        likes.value = [];
+        likeTotal.value = 0;
+        liked.value = false;
+        await loadFavoriteSummary();
+        if (authed && commentsOpen.value) {
+            await loadComments();
+        }
+        if (!authed) {
+            comments.value = [];
+            commentsTotal.value = 0;
+        }
+    }
+);
 
 const toSnakeCase = (value = '') =>
     value
@@ -348,6 +569,7 @@ const getConfigLink = (field) => {
 
 const handleClose = () => {
     exifVisible.value = false;
+    commentsOpen.value = false;
     emit('close');
 };
 </script>
@@ -382,6 +604,7 @@ const handleClose = () => {
     flex-direction: column;
     max-height: min(900px, calc(100vh - 48px));
     overflow-y: auto;
+    position: relative;
 }
 
 .modal__header {
@@ -391,6 +614,49 @@ const handleClose = () => {
     border-bottom: 1px solid #e2e8f0;
     padding-bottom: 12px;
     margin-bottom: 16px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.favorite-btn {
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    color: #b45309;
+    padding: 6px 10px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.favorite-btn:hover {
+    border-color: #fbbf24;
+    box-shadow: 0 10px 20px rgba(245, 158, 11, 0.16);
+}
+
+.favorite-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.favorite-count {
+    margin-left: 4px;
+    color: #92400e;
+}
+
+.comment-entry {
+    border: 1px solid #2563eb;
+    background: #eef2ff;
+    color: #1d4ed8;
+    border-radius: 10px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-weight: 600;
 }
 
 .modal__headline {
@@ -464,6 +730,92 @@ const handleClose = () => {
     padding-bottom: 8px;
 }
 
+.comment-drawer {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 320px;
+    height: calc(100% - 32px);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    z-index: 50;
+}
+
+.slide-enter-active,
+.slide-leave-active {
+    transition: all 0.2s ease;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+    opacity: 0;
+    transform: translateX(12px);
+}
+
+.comment-drawer__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.comment-drawer__eyebrow {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.comment-drawer__body {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.comment-item + .comment-item {
+    margin-top: 10px;
+}
+
+.comment-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.comment-author {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.comment-content {
+    margin: 4px 0 0;
+    color: #1f2937;
+    word-break: break-word;
+}
+
+.comment-empty {
+    text-align: center;
+    color: #94a3b8;
+    margin: 12px 0;
+}
+
+.comment-drawer__footer {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comment-submit {
+    align-self: flex-end;
+}
+
 .image-section__viewer {
     width: 100%;
     background: radial-gradient(circle at top, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.98));
@@ -479,6 +831,33 @@ const handleClose = () => {
     color: #94a3b8;
     border: 1px dashed #dbe3f3;
     border-radius: 20px;
+}
+
+.favorite-users {
+    margin-top: 10px;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.favorite-label {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.favorite-user {
+    background: #eef2ff;
+    color: #1d4ed8;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.favorite-more {
+    color: #94a3b8;
 }
 
 .info-section h3 {

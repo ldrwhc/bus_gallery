@@ -5,7 +5,7 @@
                 <img :src="logoUrl" alt="Bus Gallery" class="brand__logo" />
                 <div class="brand__text">
                     <strong>Bus Gallery</strong>
-                    <span>中国公交图库</span>
+                    <span>公交图库</span>
                 </div>
             </router-link>
 
@@ -16,14 +16,8 @@
             </button>
 
             <nav :class="['nav', { 'nav--open': navOpen }]">
-                <router-link
-                    v-for="item in visibleNavItems"
-                    :key="item.path"
-                    :to="item.path"
-                    class="nav__link"
-                    :class="{ 'nav__link--active': item.name === activeRouteName }"
-                    @click="navOpen = false"
-                >
+                <router-link v-for="item in visibleNavItems" :key="item.path" :to="item.path" class="nav__link"
+                    :class="{ 'nav__link--active': item.name === activeRouteName }" @click="navOpen = false">
                     {{ item.label }}
                 </router-link>
             </nav>
@@ -32,15 +26,8 @@
                 <button class="search-btn" type="button" aria-label="打开搜索" @click="emit('toggle-search')">
                     <svg viewBox="0 0 24 24">
                         <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" fill="none" />
-                        <line
-                            x1="16"
-                            y1="16"
-                            x2="21"
-                            y2="21"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                        />
+                        <line x1="16" y1="16" x2="21" y2="21" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" />
                     </svg>
                 </button>
 
@@ -142,6 +129,7 @@ const handleLogout = async () => {
     gap: 12px;
     text-decoration: none;
     color: inherit;
+    flex-shrink: 0;
 
     &__logo {
         width: 44px;
@@ -182,7 +170,7 @@ const handleLogout = async () => {
 
 .nav {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     gap: 8px;
     align-items: center;
     justify-content: center;
@@ -217,6 +205,10 @@ const handleLogout = async () => {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
 }
 
 .search-btn {
@@ -247,6 +239,7 @@ const handleLogout = async () => {
     gap: 8px;
     flex-shrink: 0;
     justify-content: flex-end;
+    flex-wrap: nowrap;
 }
 
 .ghost-btn,
@@ -308,8 +301,12 @@ const handleLogout = async () => {
     }
 
     .header-utility {
-        width: 100%;
+        position: relative;
+        width: auto;
         justify-content: flex-end;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        gap: 10px;
     }
 
     .search-btn {
@@ -319,10 +316,18 @@ const handleLogout = async () => {
 
     .nav {
         display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
         width: 100%;
         flex-direction: column;
         align-items: flex-start;
-        padding: 12px 0;
+        padding: 12px 16px 16px;
+        background: #fff;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
+        border-radius: 0 0 16px 16px;
+        z-index: 50;
 
         &--open {
             display: flex;
@@ -330,6 +335,8 @@ const handleLogout = async () => {
 
         &__link {
             width: 100%;
+            text-align: left;
+            justify-content: flex-start;
         }
     }
 
@@ -340,7 +347,12 @@ const handleLogout = async () => {
     .header-actions {
         width: 100%;
         justify-content: flex-end;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        gap: 6px;
+        position: sticky;
+        bottom: 0;
+        background: #fff;
+        padding-top: 8px;
     }
 }
 </style>

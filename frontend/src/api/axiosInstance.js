@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { getToken } from '@/utils/auth';
+import router from '@/router';
+import { getToken, persistToken } from '@/utils/auth';
 
 const configuredBase = (import.meta.env.VITE_API_BASE_URL || '').trim();
 const fallbackOrigin =
@@ -30,7 +31,15 @@ http.interceptors.request.use(
 http.interceptors.response.use(
     (response) => response.data,
     (error) => {
-        const message = error?.response?.data?.message || error.message || '请求出错';
+        const status = error?.response?.status;
+        if (status === 401) {
+            persistToken('');
+            const redirect = router.currentRoute.value.fullPath;
+            if (router.currentRoute.value.name !== 'Login') {
+                router.push({ name: 'Login', query: { redirect } });
+            }
+        }
+        const message = error?.response?.data?.message || error.message || '请求错误';
         console.error('请求错误：', message);
         return Promise.reject(new Error(message));
     }

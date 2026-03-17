@@ -1,12 +1,12 @@
-<template>
+﻿<template>
     <div class="user-profile-page">
         <section v-if="profile" class="profile-card">
             <div class="profile-info">
                 <div class="avatar">{{ avatarInitial }}</div>
                 <div>
-                    <h1>{{ profile.displayName || '匿名用户' }}</h1>
+                    <h1>{{ profile.displayName || '未命名用户' }}</h1>
                     <p class="muted">@{{ profile.username || 'unknown' }}</p>
-                    <p class="muted">累计上传：{{ profile.uploadsCount }} 张</p>
+                    <p class="muted">累计上传：{{ profile.uploadsCount || 0 }} 张</p>
                 </div>
             </div>
             <el-button v-if="isSelf" type="primary" @click="goUpload">继续上传</el-button>
@@ -38,6 +38,36 @@
             </div>
         </section>
 
+        <section class="gallery-card">
+            <header class="gallery-header">
+                <div>
+                    <h2>{{ isSelf ? '我的喜爱' : '收藏' }}</h2>
+                    <p class="muted">
+                        {{ isSelf ? '收藏的车辆（点击卡片打开详情）' : '收藏列表（若为空则尚未公开或暂未收藏）' }}
+                    </p>
+                </div>
+            </header>
+            <div v-if="favoritesLoading || profileLoading" class="state">收藏加载中...</div>
+            <div v-else-if="!favorites.length && isSelf" class="state">还没有收藏车辆</div>
+            <div v-else-if="!favorites.length && !isSelf" class="state">该用户暂无公开收藏</div>
+            <div v-else class="favorite-grid">
+                <article
+                    v-for="fav in favorites"
+                    :key="fav.vehicle?.id"
+                    class="favorite-card"
+                    @click="openFavorite(fav)"
+                >
+                    <img
+                        :src="fav.images?.[0]?.thumbnailUrl || fav.images?.[0]?.url || ''"
+                        :alt="fav.vehicle?.plateNumber || fav.vehicle?.modelName || 'favorite vehicle'"
+                    />
+                    <div class="favorite-meta">
+                        <h3>{{ fav.vehicle?.plateNumber || '未命名车辆' }}</h3>
+                    </div>
+                </article>
+            </div>
+        </section>
+
         <VehicleDetailModal
             v-if="detailVisible"
             :visible="detailVisible"
@@ -54,6 +84,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import { fetchUserProfile, fetchUserImages } from '@/api/users';
+import { fetchFavorites } from '@/api/vehicles';
 import { formatDate } from '@/utils/formatters';
 import VehicleDetailModal from '@/components/Gallery/VehicleDetailModal.vue';
 
@@ -82,6 +113,8 @@ const pagination = reactive({
 
 const images = ref([]);
 const imagesLoading = ref(false);
+const favorites = ref([]);
+const favoritesLoading = ref(false);
 
 const activeVehicleId = ref(null);
 const detailVisible = computed(() => Boolean(activeVehicleId.value));
@@ -117,7 +150,7 @@ const loadProfile = async () => {
         profile.value = data;
     } catch (error) {
         profileError.value = error;
-        ElMessage.error(error?.message || '用户信息加载失败');
+        ElMessage.error(error?.message || '获取用户信息失败');
         router.replace({ name: 'Home' });
     } finally {
         profileLoading.value = false;
@@ -135,7 +168,7 @@ const loadImages = async () => {
         images.value = data.records || [];
         pagination.total = data.total || 0;
     } catch (error) {
-        ElMessage.error(error?.message || '图片加载失败');
+        ElMessage.error(error?.message || '加载图片失败');
     } finally {
         imagesLoading.value = false;
     }
@@ -155,8 +188,31 @@ const openImage = async (image) => {
     try {
         await store.dispatch('vehicles/loadVehicleDetail', image.vehicleId);
     } catch (error) {
-        ElMessage.error('车辆详情加载失败');
+        ElMessage.error('加载车辆详情失败');
         activeVehicleId.value = null;
+    }
+};
+
+const openFavorite = async (detail) => {
+    if (!detail?.vehicle?.id) return;
+    activeVehicleId.value = detail.vehicle.id;
+    try {
+        await store.dispatch('vehicles/loadVehicleDetail', detail.vehicle.id);
+    } catch (error) {
+        ElMessage.error('加载车辆详情失败');
+        activeVehicleId.value = null;
+    }
+};
+
+const loadFavorites = async () => {
+    favoritesLoading.value = true;
+    try {
+        const list = await fetchFavorites(targetUserId.value);
+        favorites.value = Array.isArray(list) ? list : [];
+    } catch (error) {
+        favorites.value = [];
+    } finally {
+        favoritesLoading.value = false;
     }
 };
 
@@ -170,10 +226,11 @@ const goUpload = () => {
 
 watch(
     () => route.params.userId,
-    () => {
+    async () => {
         pagination.page = 1;
-        loadProfile();
-        loadImages();
+        await loadProfile();
+        await loadImages();
+        await loadFavorites();
     },
     { immediate: true }
 );
@@ -262,6 +319,40 @@ onMounted(() => {
         border-radius: 12px;
         margin-bottom: 8px;
     }
+}
+
+.favorite-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.favorite-card {
+    background: #f8fafc;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+    }
+
+    img {
+        width: 100%;
+        height: 140px;
+        object-fit: cover;
+        border-radius: 12px;
+        margin-bottom: 8px;
+        background: #e2e8f0;
+    }
+}
+
+.favorite-meta h3 {
+    margin: 0 0 4px;
 }
 
 .state {

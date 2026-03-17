@@ -4,22 +4,24 @@ import com.busgallery.busgallery.auth.AuthContextHolder;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.entity.*;
+import com.busgallery.busgallery.exception.BizException;
+import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.service.IdempotencyService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * UploadController类用于封装UploadController相关的领域职责（所在包：com.busgallery.busgallery.controller）。
- */
 @RestController
 @RequestMapping("/api/upload")
 @RequiredArgsConstructor
@@ -27,13 +29,24 @@ public class UploadController {
 
     private final VehicleService vehicleService;
     private final ImageService imageService;
+    private final IdempotencyService idempotencyService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequireLogin
+    @Transactional(timeout = 30)
     public VehicleController.VehicleDetailResponse uploadVehicle(
             @RequestPart("file") MultipartFile file,
-            @RequestPart("payload") UploadPayload payload
+            @RequestPart("payload") UploadPayload payload,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
+        return idempotencyService.runOnce(
+                idempotencyKey,
+                Duration.ofMinutes(10),
+                () -> handleUpload(file, payload)
+        );
+    }
+
+    private VehicleController.VehicleDetailResponse handleUpload(MultipartFile file, UploadPayload payload) {
         payload.validate();
 
         UserSession session = AuthContextHolder.requireUser();
@@ -42,6 +55,7 @@ public class UploadController {
         metadata.setUploaderId(session.getUserId());
         metadata.setUploaderUsername(session.getUsername());
         metadata.setUploaderDisplayName(session.getDisplayName());
+
         Image image = imageService.uploadAndSave(file, metadata);
         Vehicle vehicle = payload.toVehicle();
         VehicleConfig config = payload.toVehicleConfig();
@@ -65,9 +79,6 @@ public class UploadController {
         return VehicleController.assembleDetail(detailVehicle, detailConfig, detailImages);
     }
 
-    /**
-     * UploadPayload类用于封装UploadPayload相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class UploadPayload {
         private String plateNumber;
@@ -95,29 +106,21 @@ public class UploadController {
         private VehicleConfigPayload config;
         private String uploadUser;
 
-        /**
-         * validate方法用于处理validate相关的业务逻辑。
-         * @return 无返回值。
-         */
         void validate() {
             if (!StringUtils.hasText(plateNumber)) {
-                throw new IllegalArgumentException("车牌号不能为空");
+                throw new BizException(ErrorCode.INVALID_PARAM, "Plate number is required");
             }
             if (modelId == null && !StringUtils.hasText(modelName)) {
-                throw new IllegalArgumentException("车型名称或ID至少提供一个");
+                throw new BizException(ErrorCode.INVALID_PARAM, "Model name or ID is required");
             }
             if (companyId == null && !StringUtils.hasText(companyName)) {
-                throw new IllegalArgumentException("公司名称或ID至少提供一个");
+                throw new BizException(ErrorCode.INVALID_PARAM, "Company name or ID is required");
             }
             if (regionId == null && !StringUtils.hasText(regionCity)) {
-                throw new IllegalArgumentException("必须提供城市或地区ID");
+                throw new BizException(ErrorCode.INVALID_PARAM, "Region or city is required");
             }
         }
 
-        /**
-         * toVehicle方法用于处理toVehicle相关的业务逻辑。
-         * @return 返回Vehicle类型结果。
-         */
         Vehicle toVehicle() {
             Vehicle vehicle = new Vehicle();
             vehicle.setPlateNumber(plateNumber);
@@ -146,10 +149,6 @@ public class UploadController {
             return vehicle;
         }
 
-        /**
-         * toVehicleConfig方法用于处理toVehicleConfig相关的业务逻辑。
-         * @return 返回VehicleConfig类型结果。
-         */
         VehicleConfig toVehicleConfig() {
             if (config == null) {
                 return null;
@@ -177,9 +176,6 @@ public class UploadController {
         }
     }
 
-    /**
-     * VehicleConfigPayload类用于封装VehicleConfigPayload相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
     @Data
     public static class VehicleConfigPayload {
         private Long brandId;

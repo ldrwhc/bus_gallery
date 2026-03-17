@@ -38,11 +38,18 @@
                 WHERE id = #{id}
         </select>
 
-        <select id="selectByPlateNumber" parameterType="string" resultMap="VehicleResultMap">
-                SELECT <include refid="BaseColumnList"/>
-                FROM vehicle
-                WHERE plate_number = #{plateNumber}
-        </select>
+    <select id="selectByPlateNumber" parameterType="string" resultMap="VehicleResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle
+        WHERE plate_number = #{plateNumber}
+    </select>
+
+    <select id="selectAllByPlateNumber" parameterType="string" resultMap="VehicleResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle
+        WHERE plate_number = #{plateNumber}
+        ORDER BY id ASC
+    </select>
 
         <select id="selectByRegionId" parameterType="long" resultMap="VehicleResultMap">
                 SELECT <include refid="BaseColumnList"/>

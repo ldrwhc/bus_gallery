@@ -44,7 +44,7 @@ export const deleteVehicle = (vehicleId) =>
 /**
  * 统一的 “上传图片 + 建档” 接口
  */
-export const uploadVehicleWithImage = (vehiclePayload, file) => {
+export const uploadVehicleWithImage = (vehiclePayload, file, idempotencyKey) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append(
@@ -53,6 +53,24 @@ export const uploadVehicleWithImage = (vehiclePayload, file) => {
     );
 
     return http.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: {
+            'Content-Type': 'multipart/form-data',
+            'Idempotency-Key': idempotencyKey || crypto.randomUUID?.() || Date.now().toString()
+        }
     });
 };
+
+export const fetchVehicleComments = (vehicleId, params = {}) =>
+    http.get(`/vehicles/${vehicleId}/comments`, { params });
+
+export const createVehicleComment = (vehicleId, content) =>
+    http.post(`/vehicles/${vehicleId}/comments`, { content });
+
+export const toggleFavorite = (vehicleId) => http.post(`/favorites/${vehicleId}/toggle`);
+
+export const fetchFavoriteSummary = (vehicleId) => http.get(`/favorites/${vehicleId}/summary`);
+
+export const fetchFavorites = (userId) =>
+    http.get('/favorites', { params: userId ? { userId } : undefined });
+
+export const fetchVehiclesByPlate = (plateNumber) => http.get(`/vehicles/plate/${plateNumber}`);

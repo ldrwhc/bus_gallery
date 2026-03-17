@@ -77,6 +77,20 @@ const mutations = {
             [vehicleId]: detail
         };
     },
+    SET_VEHICLE_FAVORITE_STATE(state, { vehicleId, liked, likeTotal, likes }) {
+        const existing = state.detailMap[vehicleId] || {};
+        state.detailMap = {
+            ...state.detailMap,
+            [vehicleId]: {
+                ...existing,
+                favorite: {
+                    liked,
+                    likeTotal,
+                    likes
+                }
+            }
+        };
+    },
     SET_DETAIL_LOADING(state, { vehicleId, loading }) {
         state.detailLoadingMap = {
             ...state.detailLoadingMap,

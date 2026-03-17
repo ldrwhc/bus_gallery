@@ -3,12 +3,12 @@
         <div class="app-footer__inner">
             <div class="app-footer__brand">
                 <strong>Bus Gallery</strong>
-                <p>用数据与影像记录中国公交发展。</p>
+                <p>记录公交发展。</p>
             </div>
 
             <div class="app-footer__meta">
                 <span>© {{ year }} Bus Gallery</span>
-                <span>Made with ❤️ by the community</span>
+                <span>Made with whc by the community</span>
             </div>
         </div>
     </footer>

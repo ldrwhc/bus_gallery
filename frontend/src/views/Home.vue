@@ -4,9 +4,9 @@
             <section class="hero">
                 <div class="hero__text">
                     <p class="eyebrow">Bus Gallery</p>
-                    <h1>中国公交车辆图库</h1>
+                    <h1>公交车辆图库</h1>
                     <p class="description">
-                        收录全国公交车辆的车牌、配置与上线资料。打开页面即可按地区、公司、品牌或车型快速检索。
+                        收录全国公交车辆的车牌、配置与上线资料。
                     </p>
                 </div>
 
@@ -49,25 +49,15 @@
                 </div>
 
                 <div v-else class="gallery-grid">
-                    <VehicleCard
-                        v-for="item in gallery"
-                        :key="item?.vehicle?.id || item.vehicleId"
-                        :vehicle="item.vehicle"
-                        :config="item.config"
-                        :images="item.images"
-                        @view-detail="openVehicleDetail(item?.vehicle?.id)"
-                    />
+                    <VehicleCard v-for="item in gallery" :key="item?.vehicle?.id || item.vehicleId"
+                        :vehicle="item.vehicle" :config="item.config" :images="item.images"
+                        @view-detail="openVehicleDetail(item?.vehicle?.id)" />
                 </div>
             </section>
         </main>
 
-        <VehicleDetailModal
-            v-if="isDetailVisible"
-            :visible="isDetailVisible"
-            :detail="activeVehicleDetail"
-            :loading="activeVehicleLoading"
-            @close="closeDetail"
-        />
+        <VehicleDetailModal v-if="isDetailVisible" :visible="isDetailVisible" :detail="activeVehicleDetail"
+            :loading="activeVehicleLoading" @close="closeDetail" />
     </div>
 </template>
 
@@ -192,9 +182,9 @@ onMounted(() => {
 }
 
 .hero {
-    background: radial-gradient(circle at top left, #2563eb, #0f172a);
+    background: radial-gradient(circle at top left, #e0f2fe, #c7d2fe);
     border-radius: 32px;
-    padding: 48px;
+    padding: 40px;
     color: #fff;
     display: flex;
     gap: 40px;
@@ -215,11 +205,12 @@ onMounted(() => {
 @media (max-width: 900px) {
     .hero {
         flex-direction: column;
-        padding: 32px;
+        padding: 24px;
+        gap: 20px;
     }
 
     .visual-card {
-        margin-top: 12px;
+        display: none;
     }
 
     .gallery-section {

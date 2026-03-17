@@ -50,3 +50,34 @@ SET @ddl_image := IF(
 PREPARE stmt FROM @ddl_image;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+CREATE TABLE IF NOT EXISTS `vehicle_comment` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `vehicle_id` BIGINT UNSIGNED NOT NULL,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `username` VARCHAR(64) NOT NULL,
+    `display_name` VARCHAR(128) NULL,
+    `content` TEXT NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_vehicle_comment_vehicle` (`vehicle_id`),
+    CONSTRAINT `fk_vehicle_comment_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicle`(`id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci
+  COMMENT = 'comments on vehicles';
+
+CREATE TABLE IF NOT EXISTS `vehicle_favorite` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `vehicle_id` BIGINT UNSIGNED NOT NULL,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_vehicle_favorite_user_vehicle` (`vehicle_id`, `user_id`),
+    KEY `idx_vehicle_favorite_vehicle` (`vehicle_id`),
+    CONSTRAINT `fk_vehicle_favorite_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicle`(`id`),
+    CONSTRAINT `fk_vehicle_favorite_user` FOREIGN KEY (`user_id`) REFERENCES `app_user`(`id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci
+  COMMENT = 'user favorites on vehicles';

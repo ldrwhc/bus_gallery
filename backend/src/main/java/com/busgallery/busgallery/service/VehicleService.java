@@ -25,6 +25,13 @@ public interface VehicleService {
     Vehicle findByPlateNumber(String plateNumber);
 
     /**
+     * listByPlateNumber方法用于处理同车牌的全部车辆。
+     * @param plateNumber plateNumber参数
+     * @return 返回List<Vehicle>
+     */
+    List<Vehicle> listByPlateNumber(String plateNumber);
+
+    /**
      * listByRegion方法用于处理listByRegion相关的业务逻辑。
      * @param regionId regionId参数，详见调用方上下文。
      * @return 返回List<Vehicle>类型结果。

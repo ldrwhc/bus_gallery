@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.VehicleFavoriteMapper">
+
+    <resultMap id="FavoriteResultMap" type="com.busgallery.busgallery.entity.VehicleFavorite">
+        <id property="id" column="id"/>
+        <result property="vehicleId" column="vehicle_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="select" resultMap="FavoriteResultMap">
+        SELECT id, vehicle_id, user_id, created_at
+        FROM vehicle_favorite
+        WHERE vehicle_id = #{vehicleId} AND user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <select id="selectByVehicle" resultMap="FavoriteResultMap">
+        SELECT id, vehicle_id, user_id, created_at
+        FROM vehicle_favorite
+        WHERE vehicle_id = #{vehicleId}
+        ORDER BY created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectByUser" resultMap="FavoriteResultMap">
+        SELECT id, vehicle_id, user_id, created_at
+        FROM vehicle_favorite
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="countByVehicle" resultType="long">
+        SELECT COUNT(1) FROM vehicle_favorite WHERE vehicle_id = #{vehicleId}
+    </select>
+
+    <insert id="insert" parameterType="com.busgallery.busgallery.entity.VehicleFavorite" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO vehicle_favorite (vehicle_id, user_id)
+        VALUES (#{vehicleId}, #{userId})
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM vehicle_favorite WHERE vehicle_id = #{vehicleId} AND user_id = #{userId}
+    </delete>
+</mapper>

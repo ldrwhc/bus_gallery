@@ -79,6 +79,37 @@
                         </div>
                     </div>
 
+                    <div class="filter-grid">
+                        <div v-if="vehicleFilterOptions.years.length" class="filter-line">
+                            <span class="filter-label">年份</span>
+                            <div class="chip-row">
+                                <button
+                                    v-for="year in vehicleFilterOptions.years"
+                                    :key="year"
+                                    type="button"
+                                    :class="['filter-chip', { active: vehicleFilters.year === year }]"
+                                    @click="vehicleFilters.year = vehicleFilters.year === year ? '' : year"
+                                >
+                                    {{ year }}
+                                </button>
+                            </div>
+                        </div>
+                        <div v-if="vehicleFilterOptions.brands.length" class="filter-line">
+                            <span class="filter-label">品牌</span>
+                            <div class="chip-row">
+                                <button
+                                    v-for="brand in vehicleFilterOptions.brands"
+                                    :key="brand"
+                                    type="button"
+                                    :class="['filter-chip', { active: vehicleFilters.brand === brand }]"
+                                    @click="vehicleFilters.brand = vehicleFilters.brand === brand ? '' : brand"
+                                >
+                                    {{ brand }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <section v-if="detailLoading || vehiclesLoading" class="state state--loading">
                         正在加载车辆...
                     </section>
@@ -194,7 +225,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, reactive, watch, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
@@ -256,6 +287,42 @@ const companyDetail = computed(() =>
 
 const companyVehicles = computed(() =>
     selectedCompanyId.value ? store.state.companies.vehiclesByCompany[selectedCompanyId.value] || [] : []
+);
+
+const vehicleFilters = reactive({
+    year: '',
+    brand: ''
+});
+
+const vehicleFilterOptions = computed(() => {
+    const years = new Set();
+    const brands = new Set();
+    companyVehicles.value.forEach((detail) => {
+        const year = formatYearValue(detail.vehicle?.launchDate);
+        if (year) years.add(year);
+        const brandName =
+            detail.vehicle?.model?.brand?.name ||
+            detail.vehicleConfig?.brandName ||
+            detail.vehicle?.brandName;
+        if (brandName) brands.add(brandName);
+    });
+    return {
+        years: Array.from(years),
+        brands: Array.from(brands)
+    };
+});
+
+const filteredCompanyVehicles = computed(() =>
+    companyVehicles.value.filter((detail) => {
+        const year = formatYearValue(detail.vehicle?.launchDate);
+        const brandName =
+            detail.vehicle?.model?.brand?.name ||
+            detail.vehicleConfig?.brandName ||
+            detail.vehicle?.brandName;
+        const matchYear = !vehicleFilters.year || vehicleFilters.year === year;
+        const matchBrand = !vehicleFilters.brand || vehicleFilters.brand === brandName;
+        return matchYear && matchBrand;
+    })
 );
 
 const detailLoading = computed(() =>
@@ -346,9 +413,9 @@ const companyRegionName = computed(() => {
 });
 
 const groupedVehicleTimeline = computed(() => {
-    if (!companyVehicles.value.length) return [];
+    if (!filteredCompanyVehicles.value.length) return [];
     const yearMap = new Map();
-    companyVehicles.value.forEach((detail) => {
+    filteredCompanyVehicles.value.forEach((detail) => {
         const year = formatYearValue(detail.vehicle?.launchDate);
         const modelId = detail.vehicle?.model?.id || detail.vehicleConfig?.modelId || detail.vehicle?.id;
         const yearBucket = yearMap.get(year) || new Map();
@@ -606,6 +673,48 @@ onMounted(() => {
 
 .detail-summary {
     margin-bottom: 16px;
+}
+
+.filter-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 8px 0 16px;
+}
+
+.filter-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.filter-label {
+    font-weight: 600;
+    color: #475569;
+}
+
+.chip-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-chip {
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 999px;
+    padding: 6px 12px;
+    background: #fff;
+    color: #2563eb;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &.active,
+    &:hover {
+        background: #2563eb;
+        color: #fff;
+        border-color: #2563eb;
+    }
 }
 
 .timeline-group + .timeline-group {

@@ -52,6 +52,15 @@ public class VehicleServiceImpl implements VehicleService {
         return vehicle;
     }
 
+    @Override
+    public List<Vehicle> listByPlateNumber(String plateNumber) {
+        List<Vehicle> vehicles = vehicleMapper.selectAllByPlateNumber(plateNumber);
+        if (vehicles != null) {
+            vehicles.forEach(this::populateVehicleRelations);
+        }
+        return vehicles;
+    }
+
     /**
      * listByRegion方法用于处理listByRegion相关的业务逻辑。
      * @param regionId regionId参数，详见调用方上下文。

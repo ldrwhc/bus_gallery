@@ -1,27 +1,39 @@
 ﻿<template>
     <div class="carousel">
         <div class="carousel__main">
-            <button class="nav-btn nav-btn--prev" type="button" :disabled="!hasPrev" @click="prev">
+            <button
+                v-if="showNav"
+                class="nav-btn nav-btn--prev"
+                type="button"
+                :disabled="!hasPrev"
+                @click="prev"
+            >
                 ‹
             </button>
 
             <div class="carousel__stage">
                 <img :src="activeImageUrl" :alt="activeImageAlt" />
-                <div v-if="activeImage" class="carousel__meta">
+                <div v-if="activeImage" class="carousel__meta carousel__meta--top">
                     <router-link
                         v-if="uploaderRoute"
                         class="carousel__user-link"
                         :to="uploaderRoute"
                         @click.stop
                     >
-                        由 {{ uploaderLabel }} 上传
+                        {{ uploaderLabel }}
                     </router-link>
-                    <span v-else class="carousel__user-label">由 {{ uploaderLabel }} 上传</span>
+                    <span v-else class="carousel__user-label">{{ uploaderLabel }}</span>
                     <span class="carousel__time">上传于 {{ timestampLabel }}</span>
                 </div>
             </div>
 
-            <button class="nav-btn nav-btn--next" type="button" :disabled="!hasNext" @click="next">
+            <button
+                v-if="showNav"
+                class="nav-btn nav-btn--next"
+                type="button"
+                :disabled="!hasNext"
+                @click="next"
+            >
                 ›
             </button>
         </div>
@@ -46,10 +58,20 @@ import { computed, ref, watch } from 'vue';
 import { FALLBACK_IMAGE } from '@/utils/constants';
 import { formatDateTime } from '@/utils/formatters';
 
+const emit = defineEmits(['change']);
+
 const props = defineProps({
     images: {
         type: Array,
         default: () => []
+    },
+    activeIndex: {
+        type: Number,
+        default: 0
+    },
+    showNav: {
+        type: Boolean,
+        default: true
     }
 });
 
@@ -59,6 +81,15 @@ watch(
     () => props.images,
     () => {
         currentIndex.value = 0;
+    }
+);
+
+watch(
+    () => props.activeIndex,
+    (val) => {
+        if (typeof val === 'number' && val !== currentIndex.value) {
+            currentIndex.value = val;
+        }
     }
 );
 
@@ -85,8 +116,10 @@ const timestampLabel = computed(() => {
 
 const uploaderRoute = computed(() => {
     const id = activeImage.value?.uploaderId;
-    if (!id) return null;
-    return { name: 'UserProfile', params: { userId: id } };
+    const username = activeImage.value?.uploaderUsername;
+    const target = id || username;
+    if (!target) return null;
+    return { name: 'UserProfile', params: { userId: target } };
 });
 
 const hasPrev = computed(() => currentIndex.value > 0);
@@ -94,14 +127,17 @@ const hasNext = computed(() => currentIndex.value < images.value.length - 1);
 
 const prev = () => {
     if (hasPrev.value) currentIndex.value -= 1;
+    emit('change', currentIndex.value);
 };
 
 const next = () => {
     if (hasNext.value) currentIndex.value += 1;
+    emit('change', currentIndex.value);
 };
 
 const go = (index) => {
     currentIndex.value = index;
+    emit('change', currentIndex.value);
 };
 </script>
 
@@ -159,6 +195,15 @@ const go = (index) => {
         gap: 4px;
         text-align: right;
         pointer-events: auto;
+        z-index: 2;
+    }
+
+    &__meta--top {
+        top: 12px;
+        bottom: auto;
+        text-align: right;
+        background: rgba(15, 23, 42, 0.18);
+        left: auto;
     }
 
     &__user-link,
@@ -188,13 +233,15 @@ const go = (index) => {
     top: 50%;
     transform: translateY(-50%);
     border: none;
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(15, 23, 42, 0.8);
     color: #fff;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     cursor: pointer;
     font-size: 1.4rem;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+    z-index: 5;
 
     &:disabled {
         opacity: 0.3;

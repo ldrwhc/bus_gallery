@@ -51,46 +51,106 @@
                         <div class="company-grid">
                             <div v-for="company in model.companies || []" :key="company.id" class="company-pill">
                                 <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" />
-                                <div class="company-pill__body">
-                                    <p class="company-name">{{ company.name }}</p>
-                                    <p class="company-region">
-                                        {{ company.regionName || regionsById[company.regionId] || '地区待补全' }}
-                                    </p>
-                                </div>
-                                <button
-                                    class="text-btn"
-                                    type="button"
-                                    @click="router.push({ name: 'CompanyCatalog', params: { companyId: company.id } })"
-                                >
-                                    查看公司
-                                </button>
-                            </div>
+                        <div class="company-pill__body">
+                            <p class="company-name">{{ company.name }}</p>
+                            <p class="company-region">
+                                {{ company.regionName || regionsById[company.regionId] || '地区待补全' }}
+                            </p>
+                        </div>
+                        <div class="company-actions">
+                            <button
+                                class="text-btn"
+                                type="button"
+                                @click="router.push({ name: 'CompanyCatalog', params: { companyId: company.id } })"
+                            >
+                                查看公司
+                            </button>
+                        </div>
+                    </div>
                         </div>
                     </article>
                 </section>
             </template>
 
             <template v-else>
-                <section class="model-detail" v-if="modelDetail">
-                    <div class="detail-summary">
-                        <p class="eyebrow">Model Detail</p>
-                        <h1>{{ modelDetail.name }}</h1>
-                        <p class="subtitle">{{ modelDetail.brand?.name || brandNameMap[selectedModelId] || '品牌待补全' }}</p>
-                    </div>
+            <section class="model-detail" v-if="modelDetail">
+                <div class="detail-summary">
+                    <p class="eyebrow">Model Detail</p>
+                    <h1>{{ modelDetail.name }}</h1>
+                    <p class="subtitle">{{ modelDetail.brand?.name || brandNameMap[selectedModelId] || '品牌待补全' }}</p>
+                </div>
 
-                    <section v-if="detailLoading || vehiclesLoading" class="state state--loading">
-                        正在加载运营公司...
-                    </section>
+                <div class="filter-grid">
+                    <div v-if="filterOptions.year.length" class="filter-line">
+                        <span class="filter-label">生产年份</span>
+                        <div class="chip-row">
+                            <button
+                                v-for="year in filterOptions.year"
+                                :key="year"
+                                :class="['filter-chip', { active: filterSelection.year === year }]"
+                                @click="filterSelection.year = filterSelection.year === year ? '' : year"
+                                type="button"
+                            >
+                                {{ year }}
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="filterOptions.power.length" class="filter-line">
+                        <span class="filter-label">动力系统</span>
+                        <div class="chip-row">
+                            <button
+                                v-for="power in filterOptions.power"
+                                :key="power"
+                                :class="['filter-chip', { active: filterSelection.power === power }]"
+                                @click="filterSelection.power = filterSelection.power === power ? '' : power"
+                                type="button"
+                            >
+                                {{ power }}
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="filterOptions.fuel.length" class="filter-line">
+                        <span class="filter-label">燃料</span>
+                        <div class="chip-row">
+                            <button
+                                v-for="fuel in filterOptions.fuel"
+                                :key="fuel"
+                                :class="['filter-chip', { active: filterSelection.fuel === fuel }]"
+                                @click="filterSelection.fuel = filterSelection.fuel === fuel ? '' : fuel"
+                                type="button"
+                            >
+                                {{ fuel }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <section v-if="detailLoading || vehiclesLoading" class="state state--loading">
+                    正在加载运营公司...
+                </section>
 
                     <section v-else-if="!companyGroups.length" class="state state--empty">
                         暂无车辆数据
                     </section>
 
                     <section v-else class="company-detail-grid">
-                        <article v-for="group in companyGroups" :key="group.companyId || group.companyName" class="detail-card">
-                            <router-link class="detail-card__title" :to="{ name: 'CompanyCatalog', params: { companyId: group.companyId } }">
-                                {{ group.companyName }}
-                            </router-link>
+                        <article
+                            v-for="group in filteredCompanyGroups"
+                            :key="group.companyId || group.companyName"
+                            class="detail-card"
+                        >
+                            <div class="detail-card__title-row">
+                                <router-link class="detail-card__title" :to="{ name: 'CompanyCatalog', params: { companyId: group.companyId } }">
+                                    {{ group.companyName }}
+                                </router-link>
+                                <router-link
+                                    class="detail-card__icon"
+                                    :to="{ name: 'CompanyCatalog', params: { companyId: group.companyId } }"
+                                    aria-label="查看公司"
+                                >
+                                    🚌
+                                </router-link>
+                            </div>
                             <p class="detail-card__region">{{ group.regionName }}</p>
                             <div class="detail-card__image">
                                 <img :src="group.coverImage || placeholderLogo" :alt="group.companyName" />
@@ -98,31 +158,94 @@
                             <ul class="info-list">
                                 <li>
                                     <span>生产年份</span>
-                                    <strong>{{ group.info.productionYear }}</strong>
+                                    <div class="badge-row">
+                                        <span
+                                            v-for="badge in group.info.badges.year"
+                                            :key="badge.label"
+                                            class="count-badge"
+                                        >
+                                            {{ badge.label }}
+                                            <strong>{{ badge.count }}</strong>
+                                        </span>
+                                    </div>
                                 </li>
                                 <li>
                                     <span>动力系统</span>
-                                    <strong>{{ group.info.power }}</strong>
+                                    <div class="badge-row">
+                                        <span
+                                            v-for="badge in group.info.badges.power"
+                                            :key="badge.label"
+                                            class="count-badge"
+                                        >
+                                            {{ badge.label }}
+                                            <strong>{{ badge.count }}</strong>
+                                        </span>
+                                    </div>
                                 </li>
                                 <li>
                                     <span>燃料</span>
-                                    <strong>{{ group.info.fuel }}</strong>
+                                    <div class="badge-row">
+                                        <span
+                                            v-for="badge in group.info.badges.fuel"
+                                            :key="badge.label"
+                                            class="count-badge"
+                                        >
+                                            {{ badge.label }}
+                                            <strong>{{ badge.count }}</strong>
+                                        </span>
+                                    </div>
                                 </li>
                                 <li>
                                     <span>变速系统</span>
-                                    <strong>{{ group.info.transmission }}</strong>
+                                    <div class="badge-row">
+                                        <span
+                                            v-for="badge in group.info.badges.transmission"
+                                            :key="badge.label"
+                                            class="count-badge"
+                                        >
+                                            {{ badge.label }}
+                                            <strong>{{ badge.count }}</strong>
+                                        </span>
+                                    </div>
                                 </li>
                                 <li>
                                     <span>踏步</span>
-                                    <strong>{{ group.info.step }}</strong>
+                                    <div class="badge-row">
+                                        <span
+                                            v-for="badge in group.info.badges.step"
+                                            :key="badge.label"
+                                            class="count-badge"
+                                        >
+                                            {{ badge.label }}
+                                            <strong>{{ badge.count }}</strong>
+                                        </span>
+                                    </div>
                                 </li>
                                 <li>
                                     <span>悬挂</span>
-                                    <strong>{{ group.info.suspension }}</strong>
+                                    <div class="badge-row">
+                                        <span
+                                            v-for="badge in group.info.badges.suspension"
+                                            :key="badge.label"
+                                            class="count-badge"
+                                        >
+                                            {{ badge.label }}
+                                            <strong>{{ badge.count }}</strong>
+                                        </span>
+                                    </div>
                                 </li>
                                 <li>
                                     <span>空调</span>
-                                    <strong>{{ group.info.airConditioned }}</strong>
+                                    <div class="badge-row">
+                                        <span
+                                            v-for="badge in group.info.badges.air"
+                                            :key="badge.label"
+                                            class="count-badge"
+                                        >
+                                            {{ badge.label }}
+                                            <strong>{{ badge.count }}</strong>
+                                        </span>
+                                    </div>
                                 </li>
                             </ul>
                         </article>
@@ -134,7 +257,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, reactive, watch, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
@@ -234,17 +357,62 @@ const formatFuel = (value) => formatFuelType(value);
 
 const formatAirConditioned = (value) => formatBoolean(value);
 
-const buildInfo = (detail) => {
-    const config = detail.vehicleConfig || {};
-    const vehicle = detail.vehicle || {};
+const aggregateInfo = (details) => {
+    const makeMap = () => Object.create(null);
+    const yearMap = makeMap();
+    const powerMap = makeMap();
+    const fuelMap = makeMap();
+    const transmissionMap = makeMap();
+    const stepMap = makeMap();
+    const suspensionMap = makeMap();
+    let airTrue = 0;
+    let airFalse = 0;
+
+    details.forEach((detail) => {
+        const config = detail.vehicleConfig || {};
+        const vehicle = detail.vehicle || {};
+        const year = formatYear(vehicle.factoryDate || vehicle.launchDate);
+        yearMap[year] = (yearMap[year] || 0) + 1;
+
+        const power = config.engine || config.motor || '—';
+        powerMap[power] = (powerMap[power] || 0) + 1;
+
+        const fuel = formatFuel(config.fuelType);
+        fuelMap[fuel] = (fuelMap[fuel] || 0) + 1;
+
+        const transmission = config.transmissionSystem || '—';
+        transmissionMap[transmission] = (transmissionMap[transmission] || 0) + 1;
+
+        const step = config.stepType || '—';
+        stepMap[step] = (stepMap[step] || 0) + 1;
+
+        const suspension = config.suspension || '—';
+        suspensionMap[suspension] = (suspensionMap[suspension] || 0) + 1;
+
+        if (vehicle.airConditioned === false) airFalse += 1;
+        else airTrue += 1;
+    });
+
+    const toBadges = (map) =>
+        Object.entries(map).map(([label, count]) => ({
+            label,
+            count
+        }));
+
+    const airBadges = [];
+    if (airTrue) airBadges.push({ label: '有空调', count: airTrue });
+    if (airFalse) airBadges.push({ label: '无空调', count: airFalse });
+
     return {
-        productionYear: formatYear(vehicle.factoryDate || vehicle.launchDate),
-        power: config.engine || config.motor || '—',
-        fuel: formatFuel(config.fuelType),
-        transmission: config.transmissionSystem || '—',
-        step: config.stepType || '—',
-        suspension: config.suspension || '—',
-        airConditioned: formatAirConditioned(vehicle.airConditioned)
+        badges: {
+            year: toBadges(yearMap),
+            power: toBadges(powerMap),
+            fuel: toBadges(fuelMap),
+            transmission: toBadges(transmissionMap),
+            step: toBadges(stepMap),
+            suspension: toBadges(suspensionMap),
+            air: airBadges
+        }
     };
 };
 
@@ -272,16 +440,57 @@ const companyGroups = computed(() => {
                 companyName,
                 regionName,
                 coverImage: resolveImage(detail.images),
-                info: buildInfo(detail)
+                details: []
             };
             map.set(companyId, entry);
         }
+        entry.details.push(detail);
         if (!entry.coverImage) {
             entry.coverImage = resolveImage(detail.images);
         }
     });
-    return Array.from(map.values());
+    return Array.from(map.values()).map((entry) => ({
+        ...entry,
+        info: aggregateInfo(entry.details),
+        total: entry.details.length
+    }));
 });
+
+const filterSelection = reactive({
+    year: '',
+    power: '',
+    fuel: ''
+});
+
+const filterOptions = computed(() => {
+    const opts = {
+        year: new Set(),
+        power: new Set(),
+        fuel: new Set()
+    };
+    companyGroups.value.forEach((group) => {
+        group.info.badges.year.forEach((b) => opts.year.add(b.label));
+        group.info.badges.power.forEach((b) => opts.power.add(b.label));
+        group.info.badges.fuel.forEach((b) => opts.fuel.add(b.label));
+    });
+    return {
+        year: Array.from(opts.year),
+        power: Array.from(opts.power),
+        fuel: Array.from(opts.fuel)
+    };
+});
+
+const filteredCompanyGroups = computed(() =>
+    companyGroups.value.filter((group) => {
+        const matchBadge = (selected, badges) =>
+            !selected || badges.some((b) => b.label === selected);
+        return (
+            matchBadge(filterSelection.year, group.info.badges.year) &&
+            matchBadge(filterSelection.power, group.info.badges.power) &&
+            matchBadge(filterSelection.fuel, group.info.badges.fuel)
+        );
+    })
+);
 
 const clearModelFilter = () => {
     router.push({ name: 'ModelCatalog' });
@@ -411,18 +620,21 @@ onMounted(() => {
 
 .company-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 16px;
 }
 
 .company-pill {
     border: 1px solid #e2e8f0;
     border-radius: 18px;
-    padding: 14px;
+    padding: 14px 20px;
     display: flex;
-    gap: 12px;
+    gap: 16px;
     align-items: center;
     background: #f8fafc;
+    white-space: normal;
+    min-width: 300px;
+    justify-content: space-between;
 
     img {
         width: 80px;
@@ -433,15 +645,25 @@ onMounted(() => {
 }
 
 .company-pill__body {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 .company-name {
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .company-region {
     color: #475569;
+    white-space: nowrap;
+}
+
+.company-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
 }
 
 .text-btn,
@@ -461,6 +683,48 @@ onMounted(() => {
     box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
 
+.filter-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 12px 0 16px;
+}
+
+.filter-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.filter-label {
+    font-weight: 600;
+    color: #475569;
+}
+
+.chip-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-chip {
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    background: #fff;
+    color: #2563eb;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &.active,
+    &:hover {
+        background: #2563eb;
+        color: #fff;
+        border-color: #2563eb;
+    }
+}
+
 .company-detail-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -472,6 +736,14 @@ onMounted(() => {
     border-radius: 18px;
     padding: 16px;
     background: #f9fafb;
+    position: relative;
+}
+
+.detail-card__title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
 
 .detail-card__title,
@@ -479,6 +751,12 @@ onMounted(() => {
     font-weight: 600;
     color: #0f172a;
     text-decoration: none;
+}
+
+.detail-card__icon {
+    text-decoration: none;
+    font-size: 1.2rem;
+    line-height: 1;
 }
 
 .detail-card__region {
@@ -519,6 +797,31 @@ onMounted(() => {
             color: #0f172a;
             margin-top: 2px;
         }
+    }
+}
+
+.badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: #eef2ff;
+    color: #1d4ed8;
+    border-radius: 12px;
+    font-weight: 600;
+
+    strong {
+        color: #0f172a;
+        background: #fff;
+        padding: 2px 6px;
+        border-radius: 8px;
+        box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.15);
     }
 }
 

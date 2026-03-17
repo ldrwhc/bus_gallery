@@ -73,6 +73,8 @@ defineEmits(['select-model', 'select-company']);
     gap: 10px;
     cursor: pointer;
     background: #f8fafc;
+    white-space: normal;
+    min-width: 200px;
 
     &:hover {
         border-color: #0f172a;

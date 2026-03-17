@@ -27,6 +27,13 @@ public interface VehicleMapper {
     Vehicle selectByPlateNumber(@Param("plateNumber") String plateNumber);
 
     /**
+     * selectAllByPlateNumber方法用于处理同车牌的所有车辆。
+     * @param plateNumber 车牌
+     * @return 车辆列表
+     */
+    List<Vehicle> selectAllByPlateNumber(@Param("plateNumber") String plateNumber);
+
+    /**
      * selectByRegionId方法用于处理selectByRegionId相关的业务逻辑。
      * @param regionId regionId参数，详见调用方上下文。
      * @return 返回List<Vehicle>类型结果。
