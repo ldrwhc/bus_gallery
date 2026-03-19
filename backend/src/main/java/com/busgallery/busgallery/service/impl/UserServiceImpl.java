@@ -1,5 +1,6 @@
 package com.busgallery.busgallery.service.impl;
 
+import com.busgallery.busgallery.auth.UserRole;
 import com.busgallery.busgallery.dto.response.UserProfileResponse;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.User;
@@ -10,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -45,6 +48,11 @@ public class UserServiceImpl implements UserService {
         return userRepository.existsByUsername(username);
     }
 
+    @Override
+    public boolean existsByEmail(String email) {
+        return StringUtils.hasText(email) && userRepository.existsByEmail(email.trim().toLowerCase());
+    }
+
     /**
      * findByUsername方法用于处理findByUsername相关的业务逻辑。
      * @param username username参数，详见调用方上下文。
@@ -55,6 +63,14 @@ public class UserServiceImpl implements UserService {
         return userRepository.findByUsername(username).orElse(null);
     }
 
+    @Override
+    public User findByEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return null;
+        }
+        return userRepository.findByEmail(email.trim().toLowerCase()).orElse(null);
+    }
+
     /**
      * findById方法用于处理findById相关的业务逻辑。
      * @param id id参数，详见调用方上下文。
@@ -63,6 +79,58 @@ public class UserServiceImpl implements UserService {
     @Override
     public User findById(Long id) {
         return userRepository.findById(id).orElse(null);
+    }
+
+    @Override
+    public long countUsers() {
+        return userRepository.count();
+    }
+
+    @Override
+    public long countByRole(UserRole role) {
+        return userRepository.countByRole(role);
+    }
+
+    @Override
+    public List<User> listAllUsers() {
+        return userRepository.findAllByOrderByIdAsc();
+    }
+
+    @Override
+    @Transactional
+    public User updateRole(Long userId, UserRole role, Long reviewRegionId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        UserRole nextRole = role == null ? UserRole.USER : role;
+        user.setRole(nextRole);
+        user.setReviewRegionId(nextRole == UserRole.REVIEWER ? reviewRegionId : null);
+        return userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public User bindEmail(Long userId, String email, LocalDateTime verifiedAt) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        user.setEmail(StringUtils.hasText(email) ? email.trim().toLowerCase() : null);
+        user.setEmailVerifiedAt(verifiedAt);
+        return userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public User updatePassword(Long userId, String passwordHash, LocalDateTime changedAt) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        user.setPasswordHash(passwordHash);
+        user.setPasswordChangedAt(changedAt);
+        return userRepository.save(user);
     }
 
     /**
@@ -114,7 +182,28 @@ public class UserServiceImpl implements UserService {
                 .displayName(user.getDisplayName())
                 .avatarUrl(user.getAvatarUrl())
                 .bio(user.getBio())
+                .emailMasked(maskEmail(user.getEmail()))
+                .emailVerified(user.getEmailVerifiedAt() != null)
+                .role(user.getRole())
+                .reviewRegionId(user.getReviewRegionId())
                 .uploadsCount(uploadsCount)
                 .build();
+    }
+
+    private String maskEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return "";
+        }
+        String clean = email.trim();
+        int at = clean.indexOf('@');
+        if (at <= 1) {
+            return "***";
+        }
+        String local = clean.substring(0, at);
+        String domain = clean.substring(at);
+        if (local.length() <= 2) {
+            return local.charAt(0) + "***" + domain;
+        }
+        return local.charAt(0) + "***" + local.charAt(local.length() - 1) + domain;
     }
 }

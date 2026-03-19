@@ -24,28 +24,28 @@ const router = createRouter({
             name: 'RegionCatalog',
             component: () => import('@/views/RegionCatalog.vue'),
             props: (route) => ({ regionId: route.params.regionId || null }),
-            meta: { title: '按地区' }
+            meta: { title: '地区' }
         },
         {
             path: '/companies/:companyId?',
             name: 'CompanyCatalog',
             component: () => import('@/views/CompanyCatalog.vue'),
             props: (route) => ({ companyId: route.params.companyId || null }),
-            meta: { title: '按公司' }
+            meta: { title: '公司' }
         },
         {
             path: '/brands/:brandId?',
             name: 'BrandCatalog',
             component: () => import('@/views/BrandCatalog.vue'),
             props: (route) => ({ brandId: route.params.brandId || null }),
-            meta: { title: '按品牌' }
+            meta: { title: '品牌' }
         },
         {
             path: '/models/:modelId?',
             name: 'ModelCatalog',
             component: () => import('@/views/ModelCatalog.vue'),
             props: (route) => ({ modelId: route.params.modelId || null }),
-            meta: { title: '按车型' }
+            meta: { title: '车型' }
         },
         {
             path: '/about',
@@ -58,6 +58,18 @@ const router = createRouter({
             name: 'Upload',
             component: () => import('@/views/Upload.vue'),
             meta: { title: '上传图片', requiresAuth: true }
+        },
+        {
+            path: '/review',
+            name: 'ReviewCenter',
+            component: () => import('@/views/ReviewCenter.vue'),
+            meta: { title: '审核中心', requiresAuth: true, roles: ['REVIEWER', 'STATION'] }
+        },
+        {
+            path: '/dashboard',
+            name: 'AdminDashboard',
+            component: () => import('@/views/AdminDashboard.vue'),
+            meta: { title: '站长后台', requiresAuth: true, roles: ['STATION'] }
         },
         {
             path: '/users/:userId',
@@ -103,6 +115,12 @@ const router = createRouter({
             meta: { title: '注册' }
         },
         {
+            path: '/forgot-password',
+            name: 'ForgotPassword',
+            component: () => import('@/views/ForgotPassword.vue'),
+            meta: { title: '找回密码' }
+        },
+        {
             path: '/:pathMatch(.*)*',
             redirect: '/'
         }
@@ -134,6 +152,16 @@ router.beforeEach(async (to) => {
         notifyLoginRequired();
         return { name: 'Login', query: { redirect: to.fullPath } };
     }
+
+    const roleLimits = to.meta?.roles;
+    if (requiresAuth && Array.isArray(roleLimits) && roleLimits.length > 0) {
+        const role = store.state.auth.profile?.role;
+        if (!role || !roleLimits.includes(role)) {
+            ElMessage.warning('当前账号无权限访问该页面');
+            return { name: 'Home' };
+        }
+    }
+
     if ((to.name === 'Login' || to.name === 'Register') && isAuthed) {
         return { name: 'Home' };
     }

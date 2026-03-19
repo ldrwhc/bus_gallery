@@ -70,7 +70,17 @@ http.interceptors.response.use(
             Object.prototype.hasOwnProperty.call(payload, 'message') &&
             payload.code !== '00000'
         ) {
-            return Promise.reject(new Error(payload.message || '请求错误'));
+            if (payload.code === 'A0401') {
+                resetAuthState();
+                const redirect = router.currentRoute.value.fullPath;
+                notifyAuthRequired(payload.message || '登录已失效，请重新登录');
+                if (router.currentRoute.value.name !== 'Login') {
+                    router.push({ name: 'Login', query: { redirect } });
+                }
+            }
+            const error = new Error(payload.message || '请求错误');
+            error.code = payload.code;
+            return Promise.reject(error);
         }
         return payload;
     },

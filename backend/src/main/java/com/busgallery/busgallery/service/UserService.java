@@ -1,9 +1,11 @@
 package com.busgallery.busgallery.service;
 
+import com.busgallery.busgallery.auth.UserRole;
 import com.busgallery.busgallery.dto.response.UserProfileResponse;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.User;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -25,6 +27,8 @@ public interface UserService {
      */
     boolean existsByUsername(String username);
 
+    boolean existsByEmail(String email);
+
     /**
      * findByUsername方法用于处理findByUsername相关的业务逻辑。
      * @param username username参数，详见调用方上下文。
@@ -32,12 +36,26 @@ public interface UserService {
      */
     User findByUsername(String username);
 
+    User findByEmail(String email);
+
     /**
      * findById方法用于处理findById相关的业务逻辑。
      * @param id id参数，详见调用方上下文。
      * @return 返回User类型结果。
      */
     User findById(Long id);
+
+    long countUsers();
+
+    long countByRole(UserRole role);
+
+    List<User> listAllUsers();
+
+    User updateRole(Long userId, UserRole role, Long reviewRegionId);
+
+    User bindEmail(Long userId, String email, LocalDateTime verifiedAt);
+
+    User updatePassword(Long userId, String passwordHash, LocalDateTime changedAt);
 
     /**
      * countUserImages方法用于处理countUserImages相关的业务逻辑。

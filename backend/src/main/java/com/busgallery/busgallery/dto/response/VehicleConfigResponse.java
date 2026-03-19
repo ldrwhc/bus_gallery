@@ -1,6 +1,7 @@
 package com.busgallery.busgallery.dto.response;
 
 import com.busgallery.busgallery.entity.VehicleConfig;
+import com.busgallery.busgallery.util.FuelTypeNormalizer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -41,7 +42,7 @@ public class VehicleConfigResponse {
 
         return new VehicleConfigResponse(
                 brandId, brandName, modelId, modelName,
-                config.getMotor(), config.getEngine(), config.getFuelType(),
+                config.getMotor(), config.getEngine(), FuelTypeNormalizer.normalize(config.getFuelType()),
                 config.getStepType(), config.getSuspension(), config.getAxle(),
                 config.getOtherConfigs()
         );

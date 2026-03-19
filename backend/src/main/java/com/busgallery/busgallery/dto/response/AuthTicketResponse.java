@@ -1,0 +1,12 @@
+package com.busgallery.busgallery.dto.response;
+
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class AuthTicketResponse {
+    private String ticket;
+    private long expireInSeconds;
+}
+

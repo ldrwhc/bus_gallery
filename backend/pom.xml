@@ -81,6 +81,12 @@
       <artifactId>spring-boot-starter-data-redis</artifactId>
     </dependency>
 
+    <!-- SMTP email sending -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-mail</artifactId>
+    </dependency>
+
     <!-- Password hashing utilities -->
     <dependency>
       <groupId>org.springframework.security</groupId>

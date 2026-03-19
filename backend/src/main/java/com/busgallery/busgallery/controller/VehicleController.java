@@ -1,9 +1,12 @@
 package com.busgallery.busgallery.controller;
 
+import com.busgallery.busgallery.auth.RequireLogin;
+import com.busgallery.busgallery.auth.RoleGuard;
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
 import com.busgallery.busgallery.util.ExifUtils;
+import com.busgallery.busgallery.util.FuelTypeNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
@@ -115,7 +118,9 @@ public class VehicleController {
     }
 
     @PostMapping
+    @RequireLogin
     public VehicleDetailResponse create(@Valid @RequestBody VehicleRequest request) {
+        RoleGuard.requireReviewerOrStation();
         Vehicle vehicle = request.toVehicle();
         VehicleConfig config = request.toVehicleConfig();
         Vehicle saved = vehicleService.create(
@@ -133,7 +138,9 @@ public class VehicleController {
     }
 
     @PutMapping("/{id}")
+    @RequireLogin
     public VehicleDetailResponse update(@PathVariable Long id, @Valid @RequestBody VehicleRequest request) {
+        RoleGuard.requireReviewerOrStation();
         Vehicle vehicle = request.toVehicle();
         vehicle.setId(id);
         VehicleConfig config = request.toVehicleConfig();
@@ -152,7 +159,9 @@ public class VehicleController {
     }
 
     @DeleteMapping("/{id}")
+    @RequireLogin
     public void delete(@PathVariable Long id) {
+        RoleGuard.requireReviewerOrStation();
         vehicleService.delete(id);
     }
 
@@ -243,7 +252,7 @@ public class VehicleController {
         dto.setModelName(source.getModel() != null ? source.getModel().getName() : null);
         dto.setMotor(source.getMotor());
         dto.setEngine(source.getEngine());
-        dto.setFuelType(source.getFuelType());
+        dto.setFuelType(FuelTypeNormalizer.normalize(source.getFuelType()));
         dto.setStepType(source.getStepType());
         dto.setTransmissionSystem(source.getTransmissionSystem());
         dto.setSuspension(source.getSuspension());
@@ -386,7 +395,7 @@ public class VehicleController {
             }
             cfg.setMotor(config.getMotor());
             cfg.setEngine(config.getEngine());
-            cfg.setFuelType(config.getFuelType());
+            cfg.setFuelType(FuelTypeNormalizer.normalize(config.getFuelType()));
             cfg.setStepType(config.getStepType());
             cfg.setTransmissionSystem(config.getTransmissionSystem());
             cfg.setSuspension(config.getSuspension());

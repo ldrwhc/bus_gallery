@@ -1,6 +1,7 @@
 package com.busgallery.busgallery.dto.request;
 
 import com.busgallery.busgallery.entity.*;
+import com.busgallery.busgallery.util.FuelTypeNormalizer;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -78,7 +79,7 @@ public class VehicleRequest {
         }
         cfg.setMotor(config.getMotor());
         cfg.setEngine(config.getEngine());
-        cfg.setFuelType(config.getFuelType());
+        cfg.setFuelType(FuelTypeNormalizer.normalize(config.getFuelType()));
         cfg.setStepType(config.getStepType());
         cfg.setSuspension(config.getSuspension());
         cfg.setAxle(config.getAxle());

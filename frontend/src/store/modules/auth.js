@@ -35,12 +35,14 @@ const mutations = {
 };
 
 const actions = {
-    async bootstrap({ state, dispatch }) {
+    async bootstrap({ state, dispatch, commit }) {
         if (!state.token) return null;
         if (state.profile) return state.profile;
         try {
             return await dispatch('fetchProfile');
         } catch (error) {
+            persistToken('');
+            commit('RESET');
             return null;
         }
     },

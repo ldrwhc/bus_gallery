@@ -22,6 +22,7 @@
                     <el-button type="primary" :loading="loading" @click="handleSubmit">
                         登录
                     </el-button>
+                    <router-link class="text-btn" to="/forgot-password">忘记密码？</router-link>
                     <router-link class="text-btn" to="/register">还没有账号？点此注册</router-link>
                 </div>
             </el-form>

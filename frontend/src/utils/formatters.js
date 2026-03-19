@@ -1,4 +1,6 @@
-﻿export const formatDate = (value, fallback = '-', options = {}) => {
+import { normalizeFuelType } from './fuel';
+
+export const formatDate = (value, fallback = '-', options = {}) => {
     if (!value) return fallback;
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return fallback;
@@ -43,24 +45,9 @@ export const formatVehicleTitle = (vehicle = {}) => {
     return vehicle.plateNumber || vehicle.modelName || vehicle.companyName || '车辆信息';
 };
 
-const fuelLabelMap = {
-    gasoline: '汽油',
-    diesel: '柴油',
-    electric: '纯电',
-    hybrid: '混动',
-    gas: '燃气',
-    diesel_electric: '柴油 + 电',
-    cng: '压缩天然气',
-    cng_electric: '压缩天然气 + 电',
-    lng: '液化天然气',
-    lng_electric: '液化天然气 + 电',
-    hydrogen_electric: '压缩氢气 + 电',
-    compressed_hydrogen_electric: '压缩氢气 + 电'
-};
-
 export const formatFuelType = (fuelType) => {
     if (!fuelType) return '燃料类型未知';
-    return fuelLabelMap[fuelType] || fuelType;
+    return normalizeFuelType(fuelType);
 };
 
 export const ensureArray = (value) => (Array.isArray(value) ? value : []);

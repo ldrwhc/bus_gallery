@@ -33,6 +33,60 @@
 
                 <div class="header-actions">
                     <template v-if="isAuthenticated">
+                        <div class="info-wrap">
+                            <button class="info-btn" type="button" aria-label="消息通知" @click="toggleInbox">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M12 3a6 6 0 0 0-6 6v3.8l-1.6 2.7a1 1 0 0 0 .86 1.5h13.48a1 1 0 0 0 .86-1.5L18 12.8V9a6 6 0 0 0-6-6z" fill="none" stroke="currentColor" stroke-width="1.8" />
+                                    <path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                                </svg>
+                                <span v-if="inboxCount" class="info-badge">{{ inboxCount > 99 ? '99+' : inboxCount }}</span>
+                            </button>
+                            <div v-if="inboxVisible" class="inbox-panel">
+                                <div class="inbox-toolbar">
+                                    <p class="inbox-title">{{ inboxTitle }}</p>
+                                    <button
+                                        class="inbox-clear"
+                                        type="button"
+                                        :disabled="!visibleInboxItems.length"
+                                        @click="clearInbox"
+                                    >
+                                        一键清除
+                                    </button>
+                                </div>
+                                <p v-if="inboxLoading" class="inbox-empty">加载中...</p>
+                                <template v-else-if="visibleInboxItems.length">
+                                    <div
+                                        v-for="item in visibleInboxItems.slice(0, 8)"
+                                        :key="item.id"
+                                        class="inbox-item"
+                                    >
+                                        <button
+                                            class="inbox-item__main"
+                                            type="button"
+                                            @click="openInboxItem(item)"
+                                        >
+                                            <span class="inbox-item__status">{{ resolveItemStatus(item) }}</span>
+                                            <span class="inbox-item__text">{{ resolveItemText(item) }}</span>
+                                        </button>
+                                        <button
+                                            class="inbox-item__delete"
+                                            type="button"
+                                            aria-label="删除消息"
+                                            @click="removeInboxItem(item)"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                </template>
+                                <p v-else class="inbox-empty">暂无消息</p>
+                            </div>
+                        </div>
+                        <router-link v-if="role === 'REVIEWER' || role === 'STATION'" class="ghost-btn ghost-btn--sm" to="/review">
+                            审核页
+                        </router-link>
+                        <router-link v-if="role === 'STATION'" class="ghost-btn ghost-btn--sm" to="/dashboard">
+                            后台
+                        </router-link>
                         <router-link class="user-pill" to="/account">
                             {{ displayName }}
                         </router-link>
@@ -51,11 +105,12 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import logoUrl from '@/assets/images/logo.svg?url';
 import { NAV_LINKS } from '@/utils/constants';
+import { fetchReviewInbox } from '@/api/reviews';
 
 const emit = defineEmits(['toggle-search']);
 
@@ -67,6 +122,7 @@ const title = import.meta.env.VITE_APP_TITLE || 'Bus Gallery';
 
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
 const profile = computed(() => store.state.auth.profile);
+const role = computed(() => profile.value?.role || '');
 const displayName = computed(() => profile.value?.displayName || profile.value?.username || '我的账号');
 
 const visibleNavItems = computed(() =>
@@ -75,15 +131,149 @@ const visibleNavItems = computed(() =>
 
 const activeRouteName = computed(() => route.name);
 const navOpen = ref(false);
+const inboxVisible = ref(false);
+const inboxLoading = ref(false);
+const inboxItems = ref([]);
+const dismissedInboxIds = ref(new Set());
+let inboxTimer = null;
+const INBOX_POLL_INTERVAL_MS = 90000;
+
+const inboxStorageKey = computed(() => {
+    const uid = profile.value?.id || 'guest';
+    return `busGalleryInboxDismissed:${uid}`;
+});
+const visibleInboxItems = computed(() =>
+    inboxItems.value.filter((item) => !dismissedInboxIds.value.has(String(item.id || '')))
+);
+const inboxCount = computed(() => visibleInboxItems.value.length);
+const inboxTitle = computed(() => {
+    if (role.value === 'REVIEWER' || role.value === 'STATION') {
+        return '待审核消息';
+    }
+    return '审核通知';
+});
 
 const toggleNav = () => {
     navOpen.value = !navOpen.value;
+};
+
+const loadInbox = async () => {
+    if (!isAuthenticated.value) {
+        inboxItems.value = [];
+        return;
+    }
+    inboxLoading.value = true;
+    try {
+        const list = await fetchReviewInbox();
+        inboxItems.value = Array.isArray(list) ? list : [];
+    } catch (error) {
+        inboxItems.value = [];
+    } finally {
+        inboxLoading.value = false;
+    }
+};
+
+const loadDismissedInboxIds = () => {
+    if (typeof window === 'undefined') return;
+    try {
+        const raw = window.localStorage.getItem(inboxStorageKey.value);
+        const list = raw ? JSON.parse(raw) : [];
+        dismissedInboxIds.value = new Set(Array.isArray(list) ? list.map((id) => String(id)) : []);
+    } catch (error) {
+        dismissedInboxIds.value = new Set();
+    }
+};
+
+const saveDismissedInboxIds = () => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(inboxStorageKey.value, JSON.stringify(Array.from(dismissedInboxIds.value)));
+};
+
+const clearInbox = () => {
+    visibleInboxItems.value.forEach((item) => dismissedInboxIds.value.add(String(item.id || '')));
+    saveDismissedInboxIds();
+};
+
+const removeInboxItem = (item = {}) => {
+    dismissedInboxIds.value.add(String(item.id || ''));
+    saveDismissedInboxIds();
+};
+
+const isDocumentVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+const shouldPollInbox = () => isAuthenticated.value && isDocumentVisible();
+
+const startInboxPolling = () => {
+    stopInboxPolling();
+    if (!shouldPollInbox()) return;
+    inboxTimer = setInterval(() => {
+        if (!shouldPollInbox()) {
+            stopInboxPolling();
+            return;
+        }
+        loadInbox();
+    }, INBOX_POLL_INTERVAL_MS);
+};
+
+const stopInboxPolling = () => {
+    if (inboxTimer) {
+        clearInterval(inboxTimer);
+        inboxTimer = null;
+    }
+};
+
+const handleVisibilityChange = () => {
+    if (!isAuthenticated.value) {
+        stopInboxPolling();
+        return;
+    }
+    if (!isDocumentVisible()) {
+        stopInboxPolling();
+        return;
+    }
+    loadInbox();
+    startInboxPolling();
+};
+
+const toggleInbox = async () => {
+    inboxVisible.value = !inboxVisible.value;
+    if (inboxVisible.value) {
+        await loadInbox();
+    }
+};
+
+const resolveItemStatus = (item = {}) => {
+    const status = item.status || '';
+    if (status === 'PENDING') return '待审核';
+    if (status === 'APPROVED') return '已通过';
+    if (status === 'REJECTED') return '已拒绝';
+    return '通知';
+};
+
+const resolveItemText = (item = {}) => {
+    if (item.status === 'REJECTED') {
+        return item.rejectReason || '审核未通过';
+    }
+    if (item.requestPayload?.plateNumber) {
+        return `${item.requestPayload.plateNumber} ${item.actionType === 'UPDATE' ? '修改申请' : '上传申请'}`;
+    }
+    return item.actionType === 'UPDATE' ? '图片信息修改申请' : '图片上传申请';
+};
+
+const openInboxItem = (item = {}) => {
+    inboxVisible.value = false;
+    if (role.value === 'REVIEWER' || role.value === 'STATION') {
+        const query = item.id ? { submissionId: item.id, at: Date.now() } : { at: Date.now() };
+        router.push({ name: 'ReviewCenter', query });
+        return;
+    }
+    router.push({ name: 'Account' });
 };
 
 watch(
     () => route.fullPath,
     () => {
         navOpen.value = false;
+        inboxVisible.value = false;
     }
 );
 
@@ -93,14 +283,45 @@ watch(
         if (val && !profile.value) {
             store.dispatch('auth/fetchProfile');
         }
+        if (val) {
+            loadDismissedInboxIds();
+            handleVisibilityChange();
+        } else {
+            inboxItems.value = [];
+            dismissedInboxIds.value = new Set();
+            stopInboxPolling();
+        }
     },
     { immediate: true }
 );
 
+watch(
+    () => profile.value?.id,
+    () => {
+        if (isAuthenticated.value) {
+            loadDismissedInboxIds();
+        }
+    }
+);
+
 const handleLogout = async () => {
     await store.dispatch('auth/logout');
+    stopInboxPolling();
     router.push({ name: 'Home' });
 };
+
+onMounted(() => {
+    if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+});
+
+onBeforeUnmount(() => {
+    if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+    stopInboxPolling();
+});
 </script>
 
 <style scoped lang="scss">
@@ -242,6 +463,145 @@ const handleLogout = async () => {
     flex-wrap: nowrap;
 }
 
+.info-wrap {
+    position: relative;
+}
+
+.info-btn {
+    border: 1px solid rgba(37, 99, 235, 0.28);
+    background: #fff;
+    color: #2563eb;
+    border-radius: 999px;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+
+    svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+.info-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.68rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.inbox-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 320px;
+    max-height: 420px;
+    overflow-y: auto;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
+    padding: 10px;
+    z-index: 80;
+}
+
+.inbox-title {
+    margin: 2px 0 8px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.inbox-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.inbox-clear {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.inbox-clear:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.inbox-empty {
+    margin: 8px 0;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.inbox-item {
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+    display: flex;
+    align-items: stretch;
+    margin-bottom: 8px;
+}
+
+.inbox-item__main {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.inbox-item:hover {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+}
+
+.inbox-item__delete {
+    border: none;
+    background: transparent;
+    width: 30px;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.inbox-item__delete:hover {
+    color: #ef4444;
+}
+
+.inbox-item__status {
+    font-size: 0.78rem;
+    color: #1d4ed8;
+}
+
+.inbox-item__text {
+    font-size: 0.84rem;
+    color: #334155;
+}
+
 .ghost-btn,
 .primary-btn,
 .user-pill {
@@ -353,6 +713,10 @@ const handleLogout = async () => {
         bottom: 0;
         background: #fff;
         padding-top: 8px;
+    }
+
+    .inbox-panel {
+        width: min(320px, 86vw);
     }
 }
 </style>

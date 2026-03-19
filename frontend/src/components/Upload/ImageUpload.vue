@@ -231,7 +231,7 @@
 
             <div class="actions">
                 <el-button type="primary" :loading="loading" :disabled="loading || !isAuthenticated" @click="submit">
-                    上传并建档
+                    提交审核
                 </el-button>
                 <el-button :disabled="loading" @click="reset">重置</el-button>
             </div>
@@ -249,23 +249,14 @@ import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import { uploadVehicleWithImage } from '@/api/vehicles';
 import { PROVINCE_CITY_DATA } from '@/utils/regionData';
+import { FUEL_OPTIONS, isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
 
 const emit = defineEmits(['uploaded']);
 const store = useStore();
 
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
 
-const fuelOptions = [
-    { label: '压缩天然气', value: 'cng' },
-    { label: '液化天然气', value: 'lng' },
-    { label: '柴油', value: 'diesel' },
-    { label: '汽油', value: 'gasoline' },
-    { label: '纯电', value: 'electric' },
-    { label: '柴油 + 电', value: 'diesel_electric' },
-    { label: '压缩天然气 + 电', value: 'cng_electric' },
-    { label: '液化天然气 + 电', value: 'lng_electric' },
-    { label: '压缩氢气 + 电', value: 'compressed_hydrogen_electric' }
-];
+const fuelOptions = FUEL_OPTIONS;
 
 const initialConfig = () => ({
     motor: '',
@@ -453,11 +444,8 @@ const companyHint = computed(() => {
         : '系统暂无该公司，提交后将自动创建';
 });
 
-const showMotorField = computed(() => (form.config.fuelType || '').includes('electric'));
-const showEngineField = computed(() => {
-    const value = (form.config.fuelType || '').toLowerCase();
-    return value.includes('diesel') || value.includes('gasoline') || value.includes('lng') || value.includes('cng');
-});
+const showMotorField = computed(() => isElectricFuel(form.config.fuelType));
+const showEngineField = computed(() => isCombustionFuel(form.config.fuelType));
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const fileList = ref([]);
@@ -538,7 +526,7 @@ const buildConfigPayload = () => {
         modelId: form.modelId || null,
         motor: values.motor?.trim() || null,
         engine: values.engine?.trim() || null,
-        fuelType: values.fuelType || null,
+        fuelType: normalizeFuelType(values.fuelType) || null,
         stepType: values.stepType?.trim() || null,
         transmissionSystem: values.transmissionSystem?.trim() || null,
         suspension: values.suspension?.trim() || null,
@@ -624,8 +612,12 @@ const submit = async () => {
             remark: null,
             config: buildConfigPayload()
         };
-        await uploadVehicleWithImage(payload, selectedFile.value);
-        ElMessage.success('上传成功，车辆已建档');
+        const result = await uploadVehicleWithImage(payload, selectedFile.value);
+        if (result?.status === 'PENDING') {
+            ElMessage.success('上传已提交，等待审核');
+        } else {
+            ElMessage.success('上传成功，车辆已建档');
+        }
         emit('uploaded');
         reset();
     } catch (error) {

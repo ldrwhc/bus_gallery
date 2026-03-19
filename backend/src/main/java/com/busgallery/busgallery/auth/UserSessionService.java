@@ -10,44 +10,37 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.UUID;
 
-/**
- * UserSessionService类用于封装UserSessionService相关的领域职责（所在包：com.busgallery.busgallery.auth）。
- */
 @Service
 @RequiredArgsConstructor
 public class UserSessionService {
 
     private static final String KEY_PREFIX = "busgallery:sessions:";
+    private static final String USER_TOKENS_KEY_PREFIX = "busgallery:user:sessions:";
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
     private final AuthProperties authProperties;
 
-    /**
-     * createSession方法用于处理createSession相关的业务逻辑。
-     * @param user user参数，详见调用方上下文。
-     * @return 返回String类型结果。
-     */
     public String createSession(User user) {
         String token = UUID.randomUUID().toString().replace("-", "");
+        Duration ttl = Duration.ofSeconds(Math.max(60L, authProperties.getTtlSeconds()));
         UserSession session = UserSession.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
                 .displayName(user.getDisplayName())
                 .avatarUrl(user.getAvatarUrl())
+                .role(user.getRole())
+                .reviewRegionId(user.getReviewRegionId())
                 .token(token)
                 .build();
-        save(token, session);
+        save(token, session, ttl);
+        bindTokenToUser(user.getId(), token, ttl);
         return token;
     }
 
-    /**
-     * getSession方法用于处理getSession相关的业务逻辑。
-     * @param token token参数，详见调用方上下文。
-     * @return 返回UserSession类型结果。
-     */
     public UserSession getSession(String token) {
         if (!StringUtils.hasText(token)) {
             return null;
@@ -67,40 +60,56 @@ public class UserSessionService {
         }
     }
 
-    /**
-     * deleteSession方法用于处理deleteSession相关的业务逻辑。
-     * @param token token参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     public void deleteSession(String token) {
         if (!StringUtils.hasText(token)) {
             return;
         }
+        UserSession session = getSession(token);
         stringRedisTemplate.delete(buildKey(token));
-    }
-
-    /**
-     * save方法用于处理save相关的业务逻辑。
-     * @param token token参数，详见调用方上下文。
-     * @param session session参数，详见调用方上下文。
-     * @return 无返回值。
-     */
-    private void save(String token, UserSession session) {
-        try {
-            Duration ttl = Duration.ofSeconds(Math.max(60L, authProperties.getTtlSeconds()));
-            stringRedisTemplate.opsForValue()
-                    .set(buildKey(token), objectMapper.writeValueAsString(session), ttl);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("无法序列化用户会话", e);
+        if (session != null && session.getUserId() != null) {
+            stringRedisTemplate.opsForSet().remove(buildUserTokensKey(session.getUserId()), token);
         }
     }
 
-    /**
-     * buildKey方法用于处理buildKey相关的业务逻辑。
-     * @param token token参数，详见调用方上下文。
-     * @return 返回String类型结果。
-     */
+    public void deleteAllSessionsByUserId(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        String key = buildUserTokensKey(userId);
+        Set<String> tokens = stringRedisTemplate.opsForSet().members(key);
+        if (tokens != null && !tokens.isEmpty()) {
+            for (String token : tokens) {
+                if (StringUtils.hasText(token)) {
+                    stringRedisTemplate.delete(buildKey(token));
+                }
+            }
+        }
+        stringRedisTemplate.delete(key);
+    }
+
+    private void save(String token, UserSession session, Duration ttl) {
+        try {
+            stringRedisTemplate.opsForValue().set(buildKey(token), objectMapper.writeValueAsString(session), ttl);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize user session", e);
+        }
+    }
+
+    private void bindTokenToUser(Long userId, String token, Duration ttl) {
+        if (userId == null || !StringUtils.hasText(token)) {
+            return;
+        }
+        String key = buildUserTokensKey(userId);
+        stringRedisTemplate.opsForSet().add(key, token);
+        stringRedisTemplate.expire(key, ttl);
+    }
+
     private String buildKey(String token) {
         return KEY_PREFIX + token;
     }
+
+    private String buildUserTokensKey(Long userId) {
+        return USER_TOKENS_KEY_PREFIX + userId;
+    }
 }
+

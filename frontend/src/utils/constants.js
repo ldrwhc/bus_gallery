@@ -3,10 +3,10 @@
 export const NAV_LINKS = [
     { label: '首页', name: 'Home', path: '/' },
     { label: '图库', name: 'Gallery', path: '/gallery' },
-    { label: '按地区', name: 'RegionCatalog', path: '/regions' },
-    { label: '按公司', name: 'CompanyCatalog', path: '/companies' },
-    { label: '按品牌', name: 'BrandCatalog', path: '/brands' },
-    { label: '按车型', name: 'ModelCatalog', path: '/models' },
+    { label: '地区', name: 'RegionCatalog', path: '/regions' },
+    { label: '公司', name: 'CompanyCatalog', path: '/companies' },
+    { label: '品牌', name: 'BrandCatalog', path: '/brands' },
+    { label: '车型', name: 'ModelCatalog', path: '/models' },
     { label: '关于', name: 'About', path: '/about' },
     { label: '上传', name: 'Upload', path: '/upload', requiresAuth: true }
 ];

@@ -17,5 +17,7 @@ public class UserSession {
     private String username;
     private String displayName;
     private String avatarUrl;
+    private UserRole role;
+    private Long reviewRegionId;
     private String token;
 }

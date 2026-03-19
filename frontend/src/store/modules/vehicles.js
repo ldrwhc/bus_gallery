@@ -179,10 +179,12 @@ const actions = {
         commit('RESET_FILTERS');
         return dispatch('loadVehicleGallery', { page: 1 });
     },
-    async loadVehicleDetail({ state, commit }, vehicleId) {
+    async loadVehicleDetail({ state, commit }, payload) {
+        const vehicleId = typeof payload === 'object' && payload !== null ? payload.vehicleId : payload;
+        const force = typeof payload === 'object' && payload !== null ? Boolean(payload.force) : false;
         if (!vehicleId) return null;
         if (state.detailLoadingMap[vehicleId]) return state.detailMap[vehicleId] || null;
-        if (state.detailMap[vehicleId]) return state.detailMap[vehicleId];
+        if (!force && state.detailMap[vehicleId]) return state.detailMap[vehicleId];
         commit('SET_DETAIL_LOADING', { vehicleId, loading: true });
         try {
             const findPlateByVehicleId = () => {

@@ -190,6 +190,7 @@ import ImageCarousel from './ImageCarousel.vue';
 import { fetchFavoriteSummary, toggleFavorite } from '@/api/vehicles';
 import { CONFIG_INFO_FIELDS, VEHICLE_INFO_FIELDS } from '@/utils/constants';
 import { formatBoolean, formatFuelType, formatYearMonth } from '@/utils/formatters';
+import { isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
 
 const props = defineProps({
     visible: Boolean,
@@ -664,19 +665,13 @@ const formatVehicleField = (field, rawValue) => {
 
 const rawFuelType = computed(() => {
     const fuel = config.value?.fuelType || config.value?.fuel_type || '';
-    return String(fuel).toLowerCase();
+    return normalizeFuelType(fuel);
 });
 
 const configFieldDefinitions = computed(() => {
     const fuel = rawFuelType.value;
-    const hasElectric = fuel.includes('electric');
-    const hasCombustion =
-        fuel.includes('diesel') ||
-        fuel.includes('gasoline') ||
-        fuel.includes('oil') ||
-        fuel.includes('lng') ||
-        fuel.includes('cng') ||
-        fuel.includes('gas');
+    const hasElectric = isElectricFuel(fuel);
+    const hasCombustion = isCombustionFuel(fuel);
     return CONFIG_INFO_FIELDS.filter((field) => {
         if (field.key === 'motor') {
             return hasElectric;

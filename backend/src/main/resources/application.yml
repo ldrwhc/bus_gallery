@@ -29,6 +29,21 @@ spring:
       password: ${REDIS_PASSWORD:12345678}
       database: ${REDIS_DATABASE:0}
       timeout: ${REDIS_TIMEOUT:10000}
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+          connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:3000}
+          timeout: ${MAIL_SMTP_TIMEOUT:5000}
+          writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
   sql:
     init:
       mode: always
@@ -53,6 +68,24 @@ minio:
 auth:
   session:
     ttl-seconds: ${AUTH_SESSION_TTL_SECONDS:86400}
+  security:
+    code-length: ${AUTH_SECURITY_CODE_LENGTH:6}
+    otp-ttl-seconds: ${AUTH_SECURITY_OTP_TTL_SECONDS:300}
+    otp-max-attempts: ${AUTH_SECURITY_OTP_MAX_ATTEMPTS:5}
+    otp-resend-cooldown-seconds: ${AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS:60}
+    reset-ticket-ttl-seconds: ${AUTH_SECURITY_RESET_TICKET_TTL_SECONDS:600}
+    mail-enabled: ${AUTH_SECURITY_MAIL_ENABLED:false}
+    mail-from: ${AUTH_SECURITY_MAIL_FROM:}
+    rate-limit:
+      auth-global-per-minute: ${AUTH_RATE_AUTH_GLOBAL_PER_MINUTE:1200}
+      send-code-ip-per-minute: ${AUTH_RATE_SEND_CODE_IP_PER_MINUTE:30}
+      send-code-email-per-hour: ${AUTH_RATE_SEND_CODE_EMAIL_PER_HOUR:12}
+      register-ip-per-minute: ${AUTH_RATE_REGISTER_IP_PER_MINUTE:20}
+      register-email-per-hour: ${AUTH_RATE_REGISTER_EMAIL_PER_HOUR:8}
+      login-ip-per-minute: ${AUTH_RATE_LOGIN_IP_PER_MINUTE:120}
+      login-user-per-minute: ${AUTH_RATE_LOGIN_USER_PER_MINUTE:30}
+      forgot-ip-per-minute: ${AUTH_RATE_FORGOT_IP_PER_MINUTE:30}
+      forgot-identifier-per-hour: ${AUTH_RATE_FORGOT_IDENTIFIER_PER_HOUR:15}
 
 logging:
   level:
