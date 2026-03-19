@@ -1,68 +1,87 @@
-﻿<template>
+<template>
     <div class="page home-view">
-        <main class="home-main constrained">
+        <main class="home-main">
             <section class="hero">
-                <div class="hero__text">
-                    <p class="eyebrow">Bus Gallery</p>
-                    <h1>公交车辆热点速览</h1>
-                    <div class="hero__actions">
-                        <router-link class="primary-btn" to="/gallery">进入图库</router-link>
-                        <button class="ghost-btn" type="button" @click="refreshHot">刷新热门</button>
-                    </div>
+                <p class="eyebrow">Bus Gallery</p>
+                <h1>图库收集</h1>
+                <p class="hero__desc">快速检索，探索图库。</p>
+                <form class="hero-search" @submit.prevent="handleSearch">
+                    <input v-model.trim="searchKeyword" type="text" placeholder="搜索车牌 / 车型 / 公司 / 地区" />
+                    <button class="search-submit" type="submit">搜索图库</button>
+                </form>
+                <div class="hero__actions">
+                    <router-link class="primary-btn" to="/gallery">进入图库</router-link>
+                    <button class="ghost-btn" type="button" @click="refreshHot">刷新热门</button>
                 </div>
             </section>
 
             <section class="hot-section">
                 <header class="section-header">
-                    <h2>热门图片</h2>
-                    <router-link class="ghost-btn" to="/gallery">查看全部图库</router-link>
+                    <div class="section-title">
+                        <h2>热门图片</h2>
+                        <router-link class="ghost-btn ghost-btn--inline" to="/gallery">查看全部</router-link>
+                    </div>
                 </header>
 
                 <div v-if="hotLoading" class="state state--loading">正在拉取热门快照...</div>
                 <div v-else-if="hotError" class="state state--error">{{ hotError }}</div>
-                <div v-else-if="!hotSnapshots.length" class="state state--empty">暂无热门车牌，稍后再试</div>
+                <div v-else-if="!waterfallCards.length" class="state state--empty">暂无热门图片，稍后再试</div>
 
-                <div v-else class="hot-grid-wrap">
-                    <div class="hot-grid">
-                        <article
-                            v-for="(item, index) in hotSnapshots"
-                            :key="item.plateNumber"
-                            class="hot-card"
-                            @click="openSnapshot(item)"
-                        >
-                            <div class="hot-card__cover">
-                                <img
-                                    :src="firstImage(item)?.thumbnailUrl || firstImage(item)?.url || fallback"
-                                    :alt="item.plateNumber"
-                                    :loading="index < 2 ? 'eager' : 'lazy'"
-                                    :fetchpriority="index < 2 ? 'high' : 'auto'"
-                                    decoding="async"
-                                />
-                                <span class="badge">{{ formatPlate(item.plateNumber) }}</span>
+                <div v-else class="waterfall">
+                    <article
+                        v-for="(card, index) in waterfallCards"
+                        :key="card.key"
+                        class="waterfall-card"
+                        @click="openCard(card)"
+                    >
+                        <div class="waterfall-media">
+                            <img
+                                :src="card.image?.thumbnailUrl || card.image?.url || fallback"
+                                :alt="card.plateNumber || '公交图片'"
+                                :loading="index < 9 ? 'eager' : 'lazy'"
+                                :fetchpriority="index < 9 ? 'high' : 'auto'"
+                                decoding="async"
+                            />
+                            <div class="waterfall-overlay">
+                                <div class="waterfall-meta">
+                                    <span class="plate-badge">{{ formatPlate(card.plateNumber) || '未上牌' }}</span>
+                                    <p class="meta-line">{{ card.author }} · {{ card.region }}</p>
+                                </div>
                             </div>
-                        </article>
-                    </div>
+                        </div>
+                    </article>
                 </div>
             </section>
         </main>
 
-        <VehicleDetailModal v-if="isDetailVisible" :visible="isDetailVisible" :detail="activeVehicleDetail"
-            :loading="activeVehicleLoading" @close="closeDetail" />
+        <VehicleDetailModal
+            v-if="isDetailVisible"
+            :visible="isDetailVisible"
+            :detail="activeVehicleDetail"
+            :initial-image-id="activeImageId"
+            :loading="activeVehicleLoading"
+            @close="closeDetail"
+        />
     </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
-const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 import { fetchHotSnapshots } from '@/api/snapshots';
 import { FALLBACK_IMAGE } from '@/utils/constants';
 
+const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
+
 const store = useStore();
+const router = useRouter();
 const hotSnapshots = ref([]);
 const hotLoading = ref(false);
 const hotError = ref('');
 const fallback = FALLBACK_IMAGE;
+const searchKeyword = ref('');
+const activeImageId = ref(null);
 
 const activeVehicleId = ref(null);
 const activeVehicleDetail = computed(() =>
@@ -75,18 +94,41 @@ const activeVehicleLoading = computed(
 );
 const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
 
-const firstImage = (snapshot) => snapshot?.variants?.[0]?.images?.[0] || null;
-const firstVehicleId = (snapshot) => snapshot?.variants?.[0]?.vehicle?.id || null;
+const firstVariant = (snapshot) => snapshot?.variants?.[0] || null;
+const firstVehicleId = (snapshot) => firstVariant(snapshot)?.vehicle?.id || null;
+
+const waterfallCards = computed(() => {
+    const cards = [];
+    hotSnapshots.value.forEach((snapshot, sIdx) => {
+        const variants = Array.isArray(snapshot?.variants) && snapshot.variants.length ? snapshot.variants : [null];
+        variants.forEach((variant, vIdx) => {
+            const vehicle = variant?.vehicle || null;
+            const images = Array.isArray(variant?.images) && variant.images.length ? variant.images : [null];
+            images.forEach((image, iIdx) => {
+                cards.push({
+                    key: `${snapshot?.plateNumber || 'unknown'}-${sIdx}-${vehicle?.id || 'v'}-${vIdx}-${image?.id || iIdx}`,
+                    plateNumber: snapshot?.plateNumber || vehicle?.plateNumber || '',
+                    vehicleId: vehicle?.id || firstVehicleId(snapshot),
+                    image,
+                    author: image?.uploaderDisplayName || image?.uploaderUsername || '匿名上传',
+                    region:
+                        vehicle?.region?.name ||
+                        vehicle?.company?.regionName ||
+                        vehicle?.company?.name ||
+                        '地区待补充'
+                });
+            });
+        });
+    });
+    return cards;
+});
+
 const formatPlate = (plate = '') => {
     const value = String(plate || '').trim();
     if (!value) return value;
     const match = value.match(/^(.{2})(.{5,6})$/u);
-    if (match) {
-        return `${match[1]} ${match[2]}`;
-    }
-    if (value.length > 2) {
-        return `${value.slice(0, 2)} ${value.slice(2)}`;
-    }
+    if (match) return `${match[1]} ${match[2]}`;
+    if (value.length > 2) return `${value.slice(0, 2)} ${value.slice(2)}`;
     return value;
 };
 
@@ -94,9 +136,9 @@ const loadHot = async () => {
     hotLoading.value = true;
     hotError.value = '';
     try {
-        const res = await fetchHotSnapshots(6);
+        const res = await fetchHotSnapshots(48);
         hotSnapshots.value = Array.isArray(res) ? res : res?.data || [];
-    } catch (e) {
+    } catch (error) {
         hotError.value = '获取热门快照失败，请稍后再试';
     } finally {
         hotLoading.value = false;
@@ -105,19 +147,29 @@ const loadHot = async () => {
 
 const refreshHot = () => loadHot();
 
-const openSnapshot = async (snapshot) => {
-    const vid = firstVehicleId(snapshot);
-    if (!vid) return;
-    activeVehicleId.value = vid;
+const handleSearch = () => {
+    const keyword = searchKeyword.value.trim();
+    router.push(keyword ? { name: 'Gallery', query: { keyword } } : { name: 'Gallery' });
+};
+
+const openCard = async (card) => {
+    if (!card?.vehicleId) return;
+    activeImageId.value = card?.image?.id || null;
+    activeVehicleId.value = card.vehicleId;
     try {
-        await store.dispatch('vehicles/loadVehicleDetail', vid);
-    } catch (err) {
-        console.error(err);
+        await store.dispatch('vehicles/loadVehicleDetail', {
+            vehicleId: card.vehicleId,
+            plateNumber: card.plateNumber,
+            force: true
+        });
+    } catch (error) {
+        console.error(error);
     }
 };
 
 const closeDetail = () => {
     activeVehicleId.value = null;
+    activeImageId.value = null;
 };
 
 onMounted(() => {
@@ -130,112 +182,191 @@ onMounted(() => {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: #f5f7fb;
+    background:
+        radial-gradient(circle at 20% -10%, rgba(56, 189, 248, 0.18), transparent 45%),
+        radial-gradient(circle at 90% 0%, rgba(14, 165, 233, 0.14), transparent 40%),
+        #f6f8fc;
 }
 
-.constrained {
-    width: min(1200px, 100%);
-    margin: 0 auto;
+.home-main {
+    width: 100%;
+    margin: 0;
     flex: 1;
-    padding: clamp(32px, 5vw, 72px) clamp(16px, 4vw, 32px) clamp(96px, 8vw, 120px);
+    padding: clamp(30px, 3.5vw, 40px) clamp(20px, 3vw, 38px) 84px;
     box-sizing: border-box;
 }
 
 .hero {
-    background: radial-gradient(circle at top left, #e0f2fe, #c7d2fe);
-    border-radius: 32px;
-    padding: 40px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 40px;
+    border-radius: 16px;
+    padding: clamp(26px, 3.2vw, 44px);
     color: #fff;
-    display: flex;
-    gap: 40px;
-    align-items: center;
-    margin-bottom: 32px;
+    background: linear-gradient(130deg, #0b4aa5 0%, #1d4ed8 45%, #0ea5e9 100%);
+    box-shadow: 0 18px 36px rgba(30, 64, 175, 0.28);
 
-    &__text {
-        flex: 1;
+    &::after {
+        content: '';
+        position: absolute;
+        inset: -35% -5% auto auto;
+        width: 360px;
+        height: 360px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
+        pointer-events: none;
     }
 
-    &__actions {
-        display: flex;
-        gap: 12px;
-        margin-top: 20px;
-        flex-wrap: wrap;
+    h1 {
+        margin: 4px 0 12px;
+        font-size: clamp(1.9rem, 4vw, 2.9rem);
+        line-height: 1.08;
+        letter-spacing: 0.01em;
     }
 }
 
+.eyebrow {
+    margin: 0;
+    font-size: 0.86rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    opacity: 0.88;
+}
+
+.hero__desc {
+    margin: 0 0 18px;
+    max-width: 760px;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.hero-search {
+    width: min(860px, 100%);
+    background: rgba(255, 255, 255, 0.94);
+    border-radius: 999px;
+    padding: 6px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+
+    input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        padding: 12px 16px;
+        font-size: 1rem;
+        color: #0f172a;
+        outline: none;
+    }
+}
+
+.search-submit {
+    border: none;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #fff;
+    padding: 10px 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.hero__actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
 .hot-section {
-    background: #fff;
-    border-radius: 24px;
-    padding: 32px;
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+    background: transparent;
+    padding: 0;
+    margin-top: 6px;
 }
 
 .section-header {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 24px;
-
-    .subtitle {
-        color: #6b7280;
-        margin-top: 4px;
-    }
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 18px;
 }
 
-.hot-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 12px;
+.section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
 }
 
-.hot-grid-wrap {
-    border-radius: 28px;
-    padding: 14px;
-    background: #eaf1fb;
-    border: 1px solid rgba(148, 163, 184, 0.28);
+.section-title h2 {
+    margin: 0;
 }
 
-.hot-card {
-    border-radius: 18px;
-    background: #fff;
+.waterfall {
+    column-count: 3;
+    column-gap: 14px;
+}
+
+.waterfall-card {
+    margin: 0 0 14px;
+    break-inside: avoid;
+    border-radius: 10px;
     overflow: hidden;
     cursor: pointer;
-    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+}
 
-    &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 22px rgba(15, 23, 42, 0.1);
-    }
+.waterfall-media {
+    position: relative;
+}
 
-    &__cover {
-        position: relative;
-        aspect-ratio: 16 / 10;
-        background: #e2e8f0;
+.waterfall-media img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
 
-        img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
+.waterfall-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0) 45%, rgba(15, 23, 42, 0.82) 100%);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
 
-        .badge {
-            position: absolute;
-            left: 12px;
-            top: 12px;
-            background: rgba(15, 23, 42, 0.8);
-            color: #fff;
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 0.85rem;
-        }
-    }
+.waterfall-card:hover .waterfall-overlay {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.waterfall-meta {
+    width: 100%;
+    padding: 10px;
+    color: #fff;
+}
+
+.plate-badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.meta-line {
+    margin: 8px 0 0;
+    font-size: 0.84rem;
+    color: rgba(255, 255, 255, 0.92);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .state {
-    border-radius: 18px;
-    padding: 32px;
+    border-radius: 12px;
+    padding: 22px;
     text-align: center;
     background: #f8fafc;
     color: #475569;
@@ -254,39 +385,71 @@ onMounted(() => {
 .ghost-btn {
     border: none;
     border-radius: 999px;
-    padding: 10px 18px;
+    padding: 8px 15px;
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s;
+    text-decoration: none;
 }
 
 .primary-btn {
-    background: #2563eb;
-    color: #fff;
+    background: #ffffff;
+    color: #0f172a;
 
     &:hover {
-        background: #1d4ed8;
+        background: rgba(255, 255, 255, 0.9);
     }
 }
 
 .ghost-btn {
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
 
     &:hover {
-        background: rgba(37, 99, 235, 0.2);
+        background: rgba(255, 255, 255, 0.28);
     }
 }
 
-@media (max-width: 900px) {
-    .hero {
-        padding: 24px;
-        gap: 16px;
-        min-height: 220px;
+.ghost-btn--inline {
+    padding: 6px 12px;
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+}
+
+@media (max-width: 1100px) {
+    .waterfall {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 768px) {
+    .home-main {
+        padding: 24px 16px 34px;
     }
 
-    .hot-section {
-        padding: 24px;
+    .hero {
+        margin-bottom: 26px;
+        padding: 18px 14px;
+        border-radius: 12px;
+    }
+
+    .hero-search {
+        border-radius: 14px;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-submit {
+        width: 100%;
+    }
+
+    .waterfall {
+        column-count: 1;
+    }
+
+    .waterfall-overlay {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 </style>

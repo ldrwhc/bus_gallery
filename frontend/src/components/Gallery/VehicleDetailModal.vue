@@ -198,6 +198,10 @@ const props = defineProps({
         type: Object,
         default: () => null
     },
+    initialImageId: {
+        type: [Number, String],
+        default: null
+    },
     loading: Boolean
 });
 
@@ -238,6 +242,8 @@ const images = computed(() => {
 
 const findFirstImageIndexForVariant = (variantIdx) =>
     images.value.findIndex((img) => img.__variantIndex === variantIdx);
+const findVariantIndexByVehicleId = (vehicleId) =>
+    variants.value.findIndex((variant) => variant?.vehicle?.id === vehicleId);
 
 const currentImageIndex = ref(0);
 const currentVariantIndex = ref(0);
@@ -247,21 +253,36 @@ const config = computed(
     () => variants.value[currentVariantIndex.value]?.vehicleConfig || props.detail?.vehicleConfig || {}
 );
 
+const resetFocus = () => {
+    let targetVariant = 0;
+    let targetImageIndex = -1;
+
+    if (props.initialImageId != null) {
+        targetImageIndex = images.value.findIndex(
+            (image) => String(image?.id) === String(props.initialImageId)
+        );
+        if (targetImageIndex >= 0) {
+            targetVariant = images.value[targetImageIndex]?.__variantIndex || 0;
+        }
+    }
+
+    if (targetImageIndex < 0) {
+        const detailVehicleId = props.detail?.vehicle?.id;
+        const variantIndex = findVariantIndexByVehicleId(detailVehicleId);
+        targetVariant = variantIndex >= 0 ? variantIndex : 0;
+        targetImageIndex = findFirstImageIndexForVariant(targetVariant);
+    }
+
+    currentVariantIndex.value = targetVariant;
+    currentImageIndex.value = targetImageIndex >= 0 ? targetImageIndex : 0;
+};
+
 watch(
-    () => props.detail,
+    () => [props.detail, props.initialImageId],
     () => {
-        currentVariantIndex.value = 0;
-        const firstIdx = findFirstImageIndexForVariant(0);
-        currentImageIndex.value = firstIdx >= 0 ? firstIdx : 0;
+        resetFocus();
     }
 );
-
-watch(currentVariantIndex, (idx) => {
-    const firstIdx = findFirstImageIndexForVariant(idx);
-    if (firstIdx >= 0 && firstIdx !== currentImageIndex.value) {
-        currentImageIndex.value = firstIdx;
-    }
-});
 
 const hasImages = computed(() => (images.value?.length || 0) > 0);
 
@@ -285,13 +306,23 @@ const handleImageChange = (nextIndex) => {
 const prevVariant = () => {
     const total = variants.value.length;
     if (total < 2) return;
-    currentVariantIndex.value = (currentVariantIndex.value - 1 + total) % total;
+    const nextVariantIndex = (currentVariantIndex.value - 1 + total) % total;
+    currentVariantIndex.value = nextVariantIndex;
+    const firstIdx = findFirstImageIndexForVariant(nextVariantIndex);
+    if (firstIdx >= 0) {
+        currentImageIndex.value = firstIdx;
+    }
 };
 
 const nextVariant = () => {
     const total = variants.value.length;
     if (total < 2) return;
-    currentVariantIndex.value = (currentVariantIndex.value + 1) % total;
+    const nextVariantIndex = (currentVariantIndex.value + 1) % total;
+    currentVariantIndex.value = nextVariantIndex;
+    const firstIdx = findFirstImageIndexForVariant(nextVariantIndex);
+    if (firstIdx >= 0) {
+        currentImageIndex.value = firstIdx;
+    }
 };
 
 const hasExif = computed(() => Boolean(exifSource.value));
@@ -1079,8 +1110,8 @@ const handleClose = () => {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     border: 1px solid rgba(255, 255, 255, 0.25);
     background: rgba(15, 23, 42, 0.75);
@@ -1092,11 +1123,11 @@ const handleClose = () => {
 }
 
 .variant-nav--prev {
-    left: 12px;
+    left: 20px;
 }
 
 .variant-nav--next {
-    right: 12px;
+    right: 20px;
 }
 
 .info-section h3 {

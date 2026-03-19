@@ -4,20 +4,22 @@
         <main class="app-shell__main">
             <slot />
         </main>
-        <AppFooter class="app-shell__footer" />
+        <AppFooter v-if="!hideFooter" class="app-shell__footer" />
         <SearchOverlay :visible="searchVisible" @close="closeSearch" @search="handleSearch" />
     </div>
 </template>
 
 <script setup>
-import { ref, watch, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppHeader from '@/components/Layout/AppHeader.vue';
 import AppFooter from '@/components/Layout/AppFooter.vue';
 import SearchOverlay from '@/components/Search/SearchOverlay.vue';
 
 const searchVisible = ref(false);
 const router = useRouter();
+const route = useRoute();
+const hideFooter = computed(() => route.name === 'Home');
 
 const lockBody = (locked) => {
     document.body.style.overflow = locked ? 'hidden' : '';
@@ -69,7 +71,7 @@ onBeforeUnmount(() => lockBody(false));
     width: 100%;
     max-width: 100vw;
     box-sizing: border-box;
-    padding-top: 96px;
+    padding-top: 74px;
     padding-bottom: 24px;
 }
 </style>

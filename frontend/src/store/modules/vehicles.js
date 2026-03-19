@@ -182,12 +182,15 @@ const actions = {
     async loadVehicleDetail({ state, commit }, payload) {
         const vehicleId = typeof payload === 'object' && payload !== null ? payload.vehicleId : payload;
         const force = typeof payload === 'object' && payload !== null ? Boolean(payload.force) : false;
+        const plateFromPayload =
+            typeof payload === 'object' && payload !== null ? (payload.plateNumber || '').trim() : '';
         if (!vehicleId) return null;
         if (state.detailLoadingMap[vehicleId]) return state.detailMap[vehicleId] || null;
         if (!force && state.detailMap[vehicleId]) return state.detailMap[vehicleId];
         commit('SET_DETAIL_LOADING', { vehicleId, loading: true });
         try {
             const findPlateByVehicleId = () => {
+                if (plateFromPayload) return plateFromPayload;
                 const direct = state.detailMap[vehicleId]?.vehicle?.plateNumber;
                 if (direct) return direct;
                 for (const item of state.gallery || []) {
@@ -199,8 +202,8 @@ const actions = {
                 return null;
             };
 
-            const plate = findPlateByVehicleId();
-            if (plate) {
+            const applySnapshotByPlate = async (plate) => {
+                if (!plate) return false;
                 try {
                     const snapshot = await fetchSnapshotByPlate(plate);
                     if (snapshot && Array.isArray(snapshot.variants) && snapshot.variants.length) {
@@ -216,16 +219,25 @@ const actions = {
                             };
                             commit('SET_VEHICLE_DETAIL', { vehicleId: id, detail });
                         });
-                        return state.detailMap[vehicleId] || null;
+                        return true;
                     }
                 } catch (e) {
                     // fallback to normal detail endpoint
                 }
-            }
+                return false;
+            };
+
+            const plate = findPlateByVehicleId();
+            const hasSnapshot = await applySnapshotByPlate(plate);
+            if (hasSnapshot) return state.detailMap[vehicleId] || null;
 
             const detail = await fetchVehicleGalleryDetail(vehicleId);
-            commit('SET_VEHICLE_DETAIL', { vehicleId, detail });
-            return detail;
+            const detailPlate = detail?.vehicle?.plateNumber;
+            const snapshotApplied = await applySnapshotByPlate(detailPlate);
+            if (!snapshotApplied) {
+                commit('SET_VEHICLE_DETAIL', { vehicleId, detail });
+            }
+            return state.detailMap[vehicleId] || detail;
         } finally {
             commit('SET_DETAIL_LOADING', { vehicleId, loading: false });
         }

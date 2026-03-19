@@ -365,7 +365,8 @@ onBeforeUnmount(() => {
     background: rgba(255, 255, 255, 0.95);
     border-bottom: 1px solid rgba(15, 23, 42, 0.06);
     backdrop-filter: blur(12px);
-    padding: 10px 0;
+    padding: 6px 0;
+    min-height: 74px;
     width: 100%;
 
     &__inner {
@@ -377,6 +378,7 @@ onBeforeUnmount(() => {
         flex-wrap: wrap;
         align-items: center;
         gap: 16px;
+        min-height: 62px;
     }
 }
 

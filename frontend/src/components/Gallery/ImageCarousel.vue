@@ -82,16 +82,30 @@ const currentIndex = ref(0);
 
 watch(
     () => props.images,
-    () => {
-        currentIndex.value = 0;
+    (list) => {
+        const total = Array.isArray(list) ? list.length : 0;
+        if (total <= 0) {
+            currentIndex.value = 0;
+            return;
+        }
+        const preferred =
+            typeof props.activeIndex === 'number' && !Number.isNaN(props.activeIndex)
+                ? props.activeIndex
+                : currentIndex.value;
+        const safeIndex = Math.max(0, Math.min(preferred, total - 1));
+        currentIndex.value = safeIndex;
     }
 );
 
 watch(
     () => props.activeIndex,
     (val) => {
-        if (typeof val === 'number' && val !== currentIndex.value) {
-            currentIndex.value = val;
+        if (typeof val === 'number' && !Number.isNaN(val)) {
+            const maxIndex = Math.max(0, images.value.length - 1);
+            const safeIndex = Math.max(0, Math.min(val, maxIndex));
+            if (safeIndex !== currentIndex.value) {
+                currentIndex.value = safeIndex;
+            }
         }
     }
 );
