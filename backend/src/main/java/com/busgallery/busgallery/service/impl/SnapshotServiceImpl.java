@@ -61,9 +61,20 @@ public class SnapshotServiceImpl implements SnapshotService {
                 return cached;
             }
         }
-        SnapshotPayload payload = buildSnapshot(normalized);
-        cacheSnapshot(normalized, payload);
-        return payload;
+        SnapshotPayload stale = readStale(normalized);
+        boolean locked = tryAcquireLock(normalized);
+        if (!locked && stale != null) {
+            return stale;
+        }
+        try {
+            SnapshotPayload payload = buildSnapshot(normalized);
+            cacheSnapshot(normalized, payload);
+            return payload;
+        } finally {
+            if (locked) {
+                releaseLock(normalized);
+            }
+        }
     }
 
     /**
@@ -138,6 +149,7 @@ public class SnapshotServiceImpl implements SnapshotService {
             String versionKey = buildVersionKey(normalizedPlate, version);
             redisTemplate.opsForValue().set(versionKey, base64, SNAPSHOT_TTL);
             redisTemplate.opsForValue().set(buildLatestKey(normalizedPlate), version, SNAPSHOT_TTL);
+            redisTemplate.opsForValue().set(buildStaleKey(normalizedPlate), base64, Duration.ofHours(1));
         } catch (Exception e) {
             // best effort
         }
@@ -164,6 +176,46 @@ public class SnapshotServiceImpl implements SnapshotService {
 
     private String buildVersionKey(String plate, String version) {
         return "bg:snapshot:plate:" + plate + ":v" + version;
+    }
+
+    private String buildStaleKey(String plate) {
+        return "bg:snapshot:plate:" + plate + ":stale";
+    }
+
+    private String buildLockKey(String plate) {
+        return "bg:snapshot:plate:" + plate + ":lock";
+    }
+
+    private boolean tryAcquireLock(String plate) {
+        try {
+            Boolean ok = redisTemplate.opsForValue().setIfAbsent(buildLockKey(plate), "1", Duration.ofSeconds(30));
+            return Boolean.TRUE.equals(ok);
+        } catch (Exception ignore) {
+            return false;
+        }
+    }
+
+    private void releaseLock(String plate) {
+        try {
+            redisTemplate.delete(buildLockKey(plate));
+        } catch (Exception ignore) {
+        }
+    }
+
+    private SnapshotPayload readStale(String normalizedPlate) {
+        String base64 = redisTemplate.opsForValue().get(buildStaleKey(normalizedPlate));
+        if (!StringUtils.hasText(base64)) return null;
+        try {
+            byte[] gz = Base64.getDecoder().decode(base64.getBytes(StandardCharsets.UTF_8));
+            byte[] json = ungzip(gz);
+            SnapshotPayload payload = objectMapper.readValue(json, SnapshotPayload.class);
+            if (payload.getVersion() == 0) {
+                payload.setVersion(System.currentTimeMillis());
+            }
+            return payload;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String normalizePlate(String plate) {

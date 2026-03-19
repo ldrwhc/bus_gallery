@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
@@ -30,6 +31,9 @@ public class VehicleController {
     private final ImageService imageService;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+
+    @Value("${busgallery.cache.vehicles.page-ttl-seconds:60}")
+    private long vehiclePageCacheTtlSeconds;
 
     @GetMapping("/{id}")
     public VehicleDetailResponse detail(@PathVariable Long id) {
@@ -73,7 +77,7 @@ public class VehicleController {
         VehiclePageResponse response = new VehiclePageResponse(summaries, total, 1, size, nextLaunch, nextCursorId);
         try {
             String payload = objectMapper.writeValueAsString(response);
-            stringRedisTemplate.opsForValue().set(cacheKey, payload, Duration.ofSeconds(60));
+            stringRedisTemplate.opsForValue().set(cacheKey, payload, Duration.ofSeconds(vehiclePageCacheTtlSeconds));
         } catch (Exception ignore) {
         }
         return response;

@@ -28,8 +28,10 @@ public class VehicleServiceImpl implements VehicleService {
     private final StringRedisTemplate stringRedisTemplate;
 
     public Vehicle findById(Long id) {
-        Vehicle vehicle = vehicleMapper.selectById(id);
-        populateVehicleRelations(vehicle);
+        Vehicle vehicle = vehicleMapper.selectDetailById(id);
+        if (vehicle == null) {
+            return null;
+        }
         return vehicle;
     }
 
@@ -40,10 +42,7 @@ public class VehicleServiceImpl implements VehicleService {
     }
 
     public List<Vehicle> listByPlateNumber(String plateNumber) {
-        List<Vehicle> vehicles = vehicleMapper.selectAllByPlateNumber(plateNumber);
-        if (vehicles != null) {
-            vehicles.forEach(this::populateVehicleRelations);
-        }
+        List<Vehicle> vehicles = vehicleMapper.selectDetailByPlateNumber(plateNumber);
         return vehicles;
     }
 

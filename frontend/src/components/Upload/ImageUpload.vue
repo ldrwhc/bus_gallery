@@ -31,7 +31,7 @@
                         <div class="el-upload__tip">仅支持 JPG / PNG / WebP，文件不超过 20 MB</div>
                     </el-upload>
                     <div v-if="previewUrl" class="preview-card" @click="previewVisible = true">
-                        <img :src="previewUrl" alt="preview" />
+                        <img :src="previewUrl" alt="preview" decoding="async" />
                         <p>点击预览大图</p>
                     </div>
                 </div>
@@ -238,7 +238,7 @@
         </el-form>
 
         <el-dialog v-model="previewVisible" title="图片预览" width="60%">
-            <img v-if="previewUrl" :src="previewUrl" class="preview-image" alt="preview" />
+            <img v-if="previewUrl" :src="previewUrl" class="preview-image" alt="preview" decoding="async" />
         </el-dialog>
     </div>
 </template>

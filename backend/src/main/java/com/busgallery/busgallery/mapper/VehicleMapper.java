@@ -12,9 +12,13 @@ public interface VehicleMapper {
 
     Vehicle selectById(@Param("id") Long id);
 
+    Vehicle selectDetailById(@Param("id") Long id);
+
     Vehicle selectByPlateNumber(@Param("plateNumber") String plateNumber);
 
     List<Vehicle> selectAllByPlateNumber(@Param("plateNumber") String plateNumber);
+
+    List<Vehicle> selectDetailByPlateNumber(@Param("plateNumber") String plateNumber);
 
     List<Vehicle> selectByRegionId(@Param("regionId") Long regionId);
 

@@ -2,7 +2,7 @@
     <header class="app-header">
         <div class="app-header__inner">
             <router-link class="brand" :title="title" to="/">
-                <img :src="logoUrl" alt="Bus Gallery" class="brand__logo" />
+                <img :src="logoUrl" alt="Bus Gallery" class="brand__logo" loading="eager" decoding="async" fetchpriority="high" />
                 <div class="brand__text">
                     <strong>Bus Gallery</strong>
                     <span>公交图库</span>

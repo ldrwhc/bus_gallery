@@ -57,7 +57,7 @@
                             class="company-card"
                             @click="goCompany(company.id)"
                         >
-                            <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" />
+                            <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" loading="lazy" decoding="async" />
                             <div>
                                 <p class="company-name">{{ company.name }}</p>
                                 <p class="meta">车型 {{ company.modelsCount ?? '未知' }}</p>

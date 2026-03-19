@@ -11,7 +11,7 @@
                 >
                     ‹
                 </button>
-                <img :src="activeImageUrl" :alt="activeImageAlt" />
+                <img :src="activeImageUrl" :alt="activeImageAlt" loading="eager" decoding="async" />
                 <div v-if="activeImage" class="carousel__meta carousel__meta--top">
                     <router-link
                         v-if="uploaderRoute"
@@ -45,7 +45,12 @@
                 type="button"
                 @click="go(index)"
             >
-                <img :src="image.thumbnailUrl || image.url" :alt="'预览' + (index + 1)" />
+                <img
+                    :src="image.thumbnailUrl || image.url"
+                    :alt="'预览' + (index + 1)"
+                    loading="lazy"
+                    decoding="async"
+                />
             </button>
         </div>
     </div>

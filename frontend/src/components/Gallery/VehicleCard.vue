@@ -2,7 +2,7 @@
     <div class="vehicle-card" @click="handleOpen">
         <div class="card-cover">
             <button v-if="hasPrev" class="nav-btn nav-btn--prev" type="button" @click.stop="prev">‹</button>
-            <img :src="coverUrl" :alt="vehicle?.plateNumber || '车辆图片'" />
+            <img :src="coverUrl" :alt="vehicle?.plateNumber || '车辆图片'" loading="lazy" decoding="async" />
             <button v-if="hasNext" class="nav-btn nav-btn--next" type="button" @click.stop="next">›</button>
             <span v-if="variants?.length > 1" class="badge">{{ variants.length }}</span>
         </div>

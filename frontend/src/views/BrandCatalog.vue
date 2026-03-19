@@ -52,7 +52,7 @@
                                 {{ model.name }}
                             </router-link>
                             <div class="model-card__image">
-                                <img :src="model.thumbnailUrl || placeholderLogo" :alt="model.name" />
+                                <img :src="model.thumbnailUrl || placeholderLogo" :alt="model.name" loading="lazy" decoding="async" />
                             </div>
                             <router-link
                                 v-if="modelCityMap[model.id]?.regionId"
@@ -307,20 +307,26 @@ onMounted(() => {
 }
 
 .pill-btn {
-    border: 1px solid rgba(99, 102, 241, 0.4);
+    border: 1px solid rgba(99, 102, 241, 0.28);
     border-radius: 999px;
-    padding: 4px 14px;
-    background: #fff;
-    color: #4c1d95;
-    font-weight: 600;
-    font-size: 0.85rem;
+    height: 30px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    background: rgba(99, 102, 241, 0.06);
+    color: #4338ca;
+    font-weight: 500;
+    font-size: 0.78rem;
+    line-height: 1;
     cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.15);
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 
     &:hover {
-        background: rgba(99, 102, 241, 0.1);
-        box-shadow: 0 10px 24px rgba(79, 70, 229, 0.25);
+        background: rgba(99, 102, 241, 0.12);
+        border-color: rgba(99, 102, 241, 0.4);
+        color: #3730a3;
     }
 }
 

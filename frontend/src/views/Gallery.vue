@@ -63,11 +63,11 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import VehicleCard from '@/components/Gallery/VehicleCard.vue';
-import VehicleDetailModal from '@/components/Gallery/VehicleDetailModal.vue';
+const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
 const store = useStore();
 const route = useRoute();
@@ -230,12 +230,12 @@ onMounted(() => {
 
 @media (max-width: 900px) {
     .hero {
-        flex-direction: column;
         padding: 24px;
-        gap: 20px;
+        gap: 16px;
+        min-height: 200px;
     }
 
-    .visual-card {
+    .hero__visual {
         display: none;
     }
 

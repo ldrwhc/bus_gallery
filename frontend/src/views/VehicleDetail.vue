@@ -154,8 +154,6 @@ import ImageCarousel from '@/components/Gallery/ImageCarousel.vue';
 import VehicleCard from '@/components/VehicleCard.vue';
 import {
     fetchVehicleGallery,
-    fetchVehicleComments,
-    createVehicleComment,
     fetchFavoriteSummary,
     toggleFavorite,
     fetchVehiclesByPlate
@@ -193,6 +191,18 @@ const favoriteLoading = new Set();
 const isMobile = ref(false);
 const resizeHandler = () => {
     isMobile.value = window.innerWidth < 900;
+    refreshCommentPolling();
+};
+
+const COMMENT_PAGE_SIZE = 50;
+const COMMENT_POLL_INTERVAL_MS = 8000;
+let commentPollTimer = null;
+
+const syncCommentsFromCache = (vehicleId) => {
+    const cached = store.state.vehicles?.commentCache?.[vehicleId];
+    if (!cached) return;
+    comments.value = cached.records || [];
+    commentsTotal.value = cached.total ?? cached.records?.length ?? 0;
 };
 
 const loadSameCompany = async (companyId, currentVehicleId) => {
@@ -251,6 +261,7 @@ const loadDetail = async (id) => {
         await loadComments();
     }
     await loadLikeSummary();
+    refreshCommentPolling();
 };
 
 const handleImageChange = async (index) => {
@@ -264,11 +275,12 @@ const handleImageChange = async (index) => {
             if (isMobile.value && isAuthenticated.value) {
                 await loadComments();
             }
+            refreshCommentPolling();
         }
     }
 };
 
-const loadComments = async () => {
+const loadComments = async ({ force = false } = {}) => {
     if (!vehicleData.value?.vehicle?.id || !isAuthenticated.value) {
         comments.value = [];
         commentsTotal.value = 0;
@@ -276,10 +288,14 @@ const loadComments = async () => {
     }
     commentsLoading.value = true;
     try {
-        const resp = await fetchVehicleComments(vehicleData.value.vehicle.id, { page: 1, size: 50 });
-        const records = resp?.records || resp?.items || resp?.data || resp || [];
-        comments.value = records;
-        commentsTotal.value = resp?.total ?? records.length ?? 0;
+        const resp = await store.dispatch('vehicles/loadVehicleComments', {
+            vehicleId: vehicleData.value.vehicle.id,
+            page: 1,
+            size: COMMENT_PAGE_SIZE,
+            force
+        });
+        comments.value = resp?.records || [];
+        commentsTotal.value = resp?.total ?? comments.value.length ?? 0;
     } catch (error) {
         ElMessage.error(error.message || '加载评论失败');
     } finally {
@@ -300,9 +316,9 @@ const submitComment = async () => {
     }
     commentSubmitting.value = true;
     try {
-        await createVehicleComment(vehicleData.value.vehicle.id, text);
+        await store.dispatch('vehicles/addVehicleComment', { vehicleId: vehicleData.value.vehicle.id, content: text });
         commentInput.value = '';
-        await loadComments();
+        syncCommentsFromCache(vehicleData.value.vehicle.id);
         ElMessage.success('评论已发布');
     } catch (error) {
         ElMessage.error(error.message || '发布失败');
@@ -316,6 +332,7 @@ const toggleComments = async () => {
     if (commentsOpen.value && !comments.length) {
         await loadComments();
     }
+    refreshCommentPolling();
 };
 
 const mapUsers = (list = []) =>
@@ -439,7 +456,25 @@ const openComments = async () => {
         commentsOpen.value = true;
     }
     await loadComments();
+    refreshCommentPolling();
 };
+
+function refreshCommentPolling() {
+    const shouldPoll = isAuthenticated.value && (commentsOpen.value || isMobile.value);
+    if (!shouldPoll) {
+        if (commentPollTimer) {
+            clearInterval(commentPollTimer);
+            commentPollTimer = null;
+        }
+        return;
+    }
+    if (commentPollTimer) return;
+    commentPollTimer = setInterval(() => {
+        if (!isAuthenticated.value) return;
+        if (!commentsOpen.value && !isMobile.value) return;
+        loadComments({ force: true });
+    }, COMMENT_POLL_INTERVAL_MS);
+}
 
 const goLogin = () => {
     router.push({ name: 'Login', query: { redirect: route.fullPath } });
@@ -465,6 +500,7 @@ watch(isAuthenticated, async (val) => {
     } else if (!val) {
         comments.value = [];
     }
+    refreshCommentPolling();
     await loadLikeSummary();
 });
 
@@ -477,6 +513,10 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', resizeHandler);
     if (likeDebounceTimer) {
         clearTimeout(likeDebounceTimer);
+    }
+    if (commentPollTimer) {
+        clearInterval(commentPollTimer);
+        commentPollTimer = null;
     }
 });
 </script>

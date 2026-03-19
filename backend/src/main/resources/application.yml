@@ -10,8 +10,8 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
+      maximum-pool-size: 30
+      minimum-idle: 10
   servlet:
     multipart:
       max-file-size: 20MB  # 单文件最大大小
@@ -43,7 +43,7 @@ mybatis:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 minio:
-  endpoint: http://minio:9000        # 后端内部访问地址
+  endpoint: ${MINIO_ENDPOINT:http://minio:9000}        # 后端内部访问地址
   bucket: bus-gallery
   access-key: admin
   secret-key: 12345678
@@ -60,3 +60,15 @@ logging:
     com.busgallery: DEBUG
     org.springframework.web: DEBUG
     org.mybatis: DEBUG
+
+busgallery:
+  metrics:
+    slow-query-ms: 200
+  cache:
+    vehicles:
+      page-ttl-seconds: 30
+    favorites:
+      summary-ttl-seconds: 30
+      liked-ttl-seconds: 30
+    comments:
+      ttl-seconds: 30

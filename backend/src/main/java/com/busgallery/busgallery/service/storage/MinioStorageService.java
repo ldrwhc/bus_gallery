@@ -14,6 +14,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -40,9 +44,15 @@ public class MinioStorageService implements StorageService {
     @Override
     public StorageObject upload(String objectName, InputStream inputStream, long size, String contentType) {
         int attempts = 0;
+        int maxAttempts = 2;
         long backoffMs = 200;
         while (true) {
             try {
+                if (attempts > 0 && inputStream.markSupported()) {
+                    inputStream.reset();
+                } else if (attempts > 0) {
+                    throw new BizException(ErrorCode.STORAGE_ERROR, "Upload stream is not repeatable");
+                }
                 PutObjectArgs.Builder builder = PutObjectArgs.builder()
                         .bucket(properties.getBucket())
                         .object(objectName)
@@ -55,7 +65,10 @@ public class MinioStorageService implements StorageService {
                 return new StorageObject(objectName, url, url);
             } catch (Exception e) {
                 attempts++;
-                if (attempts >= 3) {
+                if (isConnectionIssue(e)) {
+                    throw new BizException(ErrorCode.STORAGE_ERROR, "MinIO unreachable or timed out, please check service and endpoint");
+                }
+                if (attempts >= maxAttempts) {
                     throw new BizException(ErrorCode.STORAGE_ERROR, "Upload to MinIO failed after retries");
                 }
                 try {
@@ -109,5 +122,19 @@ public class MinioStorageService implements StorageService {
             return "";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private boolean isConnectionIssue(Exception e) {
+        Throwable current = e;
+        while (current != null) {
+            if (current instanceof UnknownHostException
+                    || current instanceof ConnectException
+                    || current instanceof SocketTimeoutException
+                    || current instanceof NoRouteToHostException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

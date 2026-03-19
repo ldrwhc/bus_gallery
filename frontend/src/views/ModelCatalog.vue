@@ -50,7 +50,7 @@
 
                         <div class="company-grid">
                             <div v-for="company in model.companies || []" :key="company.id" class="company-pill">
-                                <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" />
+                                <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" loading="lazy" decoding="async" />
                         <div class="company-pill__body">
                             <p class="company-name">{{ company.name }}</p>
                             <p class="company-region">
@@ -153,7 +153,7 @@
                             </div>
                             <p class="detail-card__region">{{ group.regionName }}</p>
                             <div class="detail-card__image">
-                                <img :src="group.coverImage || placeholderLogo" :alt="group.companyName" />
+                                <img :src="group.coverImage || placeholderLogo" :alt="group.companyName" loading="lazy" decoding="async" />
                             </div>
                             <ul class="info-list">
                                 <li>
@@ -601,20 +601,26 @@ onMounted(() => {
 }
 
 .pill-btn {
-    border: 1px solid rgba(37, 99, 235, 0.4);
+    border: 1px solid rgba(37, 99, 235, 0.3);
     border-radius: 999px;
-    padding: 4px 14px;
-    background: #fff;
-    color: #2563eb;
-    font-weight: 600;
-    font-size: 0.85rem;
+    height: 30px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    background: rgba(37, 99, 235, 0.06);
+    color: #1d4ed8;
+    font-weight: 500;
+    font-size: 0.78rem;
+    line-height: 1;
     cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.12);
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 
     &:hover {
-        background: rgba(37, 99, 235, 0.08);
-        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.2);
+        background: rgba(37, 99, 235, 0.12);
+        border-color: rgba(37, 99, 235, 0.42);
+        color: #1e40af;
     }
 }
 

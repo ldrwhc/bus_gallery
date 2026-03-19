@@ -77,6 +77,7 @@ public class ImageServiceImpl implements ImageService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("涓婁紶鏂囦欢涓嶈兘涓虹┖");
         }
+        log.info("Uploading image: name={}, size={} bytes", file.getOriginalFilename(), file.getSize());
         Image meta = metadata != null ? metadata : new Image();
         String objectName = buildObjectName(file.getOriginalFilename());
         try {
@@ -114,6 +115,7 @@ public class ImageServiceImpl implements ImageService {
             image.setCreateTime(LocalDateTime.now());
             image.setExifJson(exifJson);
             imageMapper.insert(image);
+            log.info("Image upload succeeded: id={}, objectName={}", image.getId(), image.getObjectName());
             return imageMapper.selectById(image.getId());
         } catch (IOException e) {
             log.error("Image upload failed due to IO error", e);
@@ -215,3 +217,4 @@ public class ImageServiceImpl implements ImageService {
         return baos.toByteArray();
     }
 }
+

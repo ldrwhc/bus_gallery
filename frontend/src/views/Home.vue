@@ -5,27 +5,16 @@
                 <div class="hero__text">
                     <p class="eyebrow">Bus Gallery</p>
                     <h1>公交车辆热点速览</h1>
-                    <p class="description">热门车牌一键秒开：先取 Redis 快照，再拉增量数据，低带宽也能快。</p>
                     <div class="hero__actions">
                         <router-link class="primary-btn" to="/gallery">进入图库</router-link>
                         <button class="ghost-btn" type="button" @click="refreshHot">刷新热门</button>
-                    </div>
-                </div>
-                <div class="hero__visual">
-                    <div class="visual-card">
-                        <p class="visual-title">今日快照</p>
-                        <p class="visual-number">{{ hotSnapshots.length || '--' }}</p>
-                        <p class="visual-caption">热门车牌</p>
                     </div>
                 </div>
             </section>
 
             <section class="hot-section">
                 <header class="section-header">
-                    <div>
-                        <h2>热门图片 / 车牌快照</h2>
-                        <p class="subtitle">来自 Redis big key 的预渲染快照，点击立即打开详情</p>
-                    </div>
+                    <h2>热门图片</h2>
                     <router-link class="ghost-btn" to="/gallery">查看全部图库</router-link>
                 </header>
 
@@ -33,18 +22,26 @@
                 <div v-else-if="hotError" class="state state--error">{{ hotError }}</div>
                 <div v-else-if="!hotSnapshots.length" class="state state--empty">暂无热门车牌，稍后再试</div>
 
-                <div v-else class="hot-grid">
-                    <article v-for="item in hotSnapshots" :key="item.plateNumber" class="hot-card" @click="openSnapshot(item)">
-                        <div class="hot-card__cover">
-                            <img :src="firstImage(item)?.thumbnailUrl || firstImage(item)?.url || fallback" :alt="item.plateNumber" />
-                            <span class="badge">{{ item.plateNumber }}</span>
-                        </div>
-                        <div class="hot-card__body">
-                            <p class="plate">{{ item.plateNumber }}</p>
-                            <p class="meta">变体 {{ item.variants?.length || 0 }} · 评论 {{ item.comments?.length || 0 }} · 收藏 {{ item.favoriteSummary?.total || 0 }}</p>
-                            <p class="recommend" v-if="item.recommendations?.length">同公司推荐：{{ item.recommendations.length }}</p>
-                        </div>
-                    </article>
+                <div v-else class="hot-grid-wrap">
+                    <div class="hot-grid">
+                        <article
+                            v-for="(item, index) in hotSnapshots"
+                            :key="item.plateNumber"
+                            class="hot-card"
+                            @click="openSnapshot(item)"
+                        >
+                            <div class="hot-card__cover">
+                                <img
+                                    :src="firstImage(item)?.thumbnailUrl || firstImage(item)?.url || fallback"
+                                    :alt="item.plateNumber"
+                                    :loading="index < 2 ? 'eager' : 'lazy'"
+                                    :fetchpriority="index < 2 ? 'high' : 'auto'"
+                                    decoding="async"
+                                />
+                                <span class="badge">{{ formatPlate(item.plateNumber) }}</span>
+                            </div>
+                        </article>
+                    </div>
                 </div>
             </section>
         </main>
@@ -55,9 +52,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
-import VehicleDetailModal from '@/components/Gallery/VehicleDetailModal.vue';
+const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 import { fetchHotSnapshots } from '@/api/snapshots';
 import { FALLBACK_IMAGE } from '@/utils/constants';
 
@@ -80,6 +77,18 @@ const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
 
 const firstImage = (snapshot) => snapshot?.variants?.[0]?.images?.[0] || null;
 const firstVehicleId = (snapshot) => snapshot?.variants?.[0]?.vehicle?.id || null;
+const formatPlate = (plate = '') => {
+    const value = String(plate || '').trim();
+    if (!value) return value;
+    const match = value.match(/^(.{2})(.{5,6})$/u);
+    if (match) {
+        return `${match[1]} ${match[2]}`;
+    }
+    if (value.length > 2) {
+        return `${value.slice(0, 2)} ${value.slice(2)}`;
+    }
+    return value;
+};
 
 const loadHot = async () => {
     hotLoading.value = true;
@@ -146,12 +155,6 @@ onMounted(() => {
         flex: 1;
     }
 
-    &__visual {
-        flex: 0 0 280px;
-        display: flex;
-        justify-content: center;
-    }
-
     &__actions {
         display: flex;
         gap: 12px;
@@ -181,26 +184,33 @@ onMounted(() => {
 
 .hot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 12px;
+}
+
+.hot-grid-wrap {
+    border-radius: 28px;
+    padding: 14px;
+    background: #eaf1fb;
+    border: 1px solid rgba(148, 163, 184, 0.28);
 }
 
 .hot-card {
-    border-radius: 16px;
-    background: #f8fafc;
+    border-radius: 18px;
+    background: #fff;
     overflow: hidden;
     cursor: pointer;
-    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
 
     &:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 22px rgba(15, 23, 42, 0.1);
     }
 
     &__cover {
         position: relative;
-        aspect-ratio: 4 / 3;
+        aspect-ratio: 16 / 10;
         background: #e2e8f0;
 
         img {
@@ -221,28 +231,6 @@ onMounted(() => {
             font-size: 0.85rem;
         }
     }
-
-    &__body {
-        padding: 12px 14px 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-}
-
-.plate {
-    font-weight: 700;
-    color: #0f172a;
-}
-
-.meta {
-    color: #475569;
-    font-size: 0.9rem;
-}
-
-.recommend {
-    color: #1d4ed8;
-    font-size: 0.9rem;
 }
 
 .state {
@@ -292,9 +280,9 @@ onMounted(() => {
 
 @media (max-width: 900px) {
     .hero {
-        flex-direction: column;
         padding: 24px;
-        gap: 20px;
+        gap: 16px;
+        min-height: 220px;
     }
 
     .hot-section {

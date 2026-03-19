@@ -16,7 +16,7 @@
             <div class="model-grid">
                 <div v-for="model in brand.models || []" :key="model.id" class="model-pill"
                     @click="$emit('select-model', model)">
-                    <img :src="model.thumbnailUrl || placeholder" :alt="model.name" loading="lazy" />
+                    <img :src="model.thumbnailUrl || placeholder" :alt="model.name" loading="lazy" decoding="async" />
                     <div>
                         <p class="model-name">{{ model.name }}</p>
                         <p class="meta">{{ model.length ? `${model.length}m` : '—' }}</p>

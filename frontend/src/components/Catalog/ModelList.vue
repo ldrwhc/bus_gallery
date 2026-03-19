@@ -16,7 +16,7 @@
             <div class="company-grid">
                 <div v-for="company in model.companies || []" :key="company.id" class="company-pill"
                     @click="$emit('select-company', company)">
-                    <img :src="company.thumbnailUrl || placeholder" :alt="company.name" />
+                    <img :src="company.thumbnailUrl || placeholder" :alt="company.name" loading="lazy" decoding="async" />
                     <div>
                         <p class="company-name">{{ company.name }}</p>
                         <p class="meta">{{ company.regionName || '地区未知' }}</p>

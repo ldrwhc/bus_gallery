@@ -32,7 +32,12 @@
             <div v-else-if="!images.length" class="state">暂未上传图片</div>
             <div v-else class="image-grid">
                 <article v-for="image in images" :key="image.id" class="image-card" @click="openImage(image)">
-                    <img :src="image.thumbnailUrl || image.url" :alt="image.objectName || 'upload'" />
+                    <img
+                        :src="image.thumbnailUrl || image.url"
+                        :alt="image.objectName || 'upload'"
+                        loading="lazy"
+                        decoding="async"
+                    />
                     <p class="muted">{{ formatDate(image.createTime) }}</p>
                 </article>
             </div>
@@ -60,6 +65,8 @@
                     <img
                         :src="fav.images?.[0]?.thumbnailUrl || fav.images?.[0]?.url || ''"
                         :alt="fav.vehicle?.plateNumber || fav.vehicle?.modelName || 'favorite vehicle'"
+                        loading="lazy"
+                        decoding="async"
                     />
                     <div class="favorite-meta">
                         <h3>{{ fav.vehicle?.plateNumber || '未命名车辆' }}</h3>
@@ -79,14 +86,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch, defineAsyncComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import { fetchUserProfile, fetchUserImages } from '@/api/users';
 import { fetchFavorites } from '@/api/vehicles';
 import { formatDate } from '@/utils/formatters';
-import VehicleDetailModal from '@/components/Gallery/VehicleDetailModal.vue';
+const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
 const route = useRoute();
 const router = useRouter();

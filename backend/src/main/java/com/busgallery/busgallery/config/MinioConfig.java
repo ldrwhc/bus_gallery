@@ -2,9 +2,12 @@ package com.busgallery.busgallery.config;
 
 import com.busgallery.busgallery.service.storage.StorageProperties;
 import io.minio.MinioClient;
+import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * MinioConfig类用于封装MinioConfig相关的领域职责（所在包：com.busgallery.busgallery.config）。
@@ -20,9 +23,16 @@ public class MinioConfig {
      */
     @Bean
     public MinioClient minioClient(StorageProperties properties) {
+        OkHttpClient httpClient = new OkHttpClient.Builder()
+                .connectTimeout(3, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .callTimeout(45, TimeUnit.SECONDS)
+                .build();
         return MinioClient.builder()
                 .endpoint(properties.getEndpoint())
                 .credentials(properties.getAccessKey(), properties.getSecretKey())
+                .httpClient(httpClient)
                 .build();
     }
 }

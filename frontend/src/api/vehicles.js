@@ -47,17 +47,18 @@ export const deleteVehicle = (vehicleId) =>
 export const uploadVehicleWithImage = (vehiclePayload, file, idempotencyKey) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append(
-        'payload',
-        new Blob([JSON.stringify(vehiclePayload)], { type: 'application/json' })
-    );
+    // Keep payload as plain text so Spring @RequestPart("payload") String can parse it reliably.
+    formData.append('payload', JSON.stringify(vehiclePayload));
 
-    return http.post('/upload', formData, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-            'Idempotency-Key': idempotencyKey || crypto.randomUUID?.() || Date.now().toString()
-        }
-    });
+    const config = {
+        timeout: 60000
+    };
+    const normalizedIdempotencyKey = String(idempotencyKey || '').trim();
+    if (normalizedIdempotencyKey) {
+        // Custom headers trigger CORS preflight in cross-origin deployments; only send when needed.
+        config.headers = { 'Idempotency-Key': normalizedIdempotencyKey };
+    }
+    return http.post('/upload', formData, config);
 };
 
 export const fetchVehicleComments = (vehicleId, params = {}) =>

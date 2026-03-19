@@ -10,7 +10,8 @@ const state = () => ({
 });
 
 const getters = {
-    isAuthenticated: (state) => Boolean(state.token)
+    hasToken: (state) => Boolean(state.token),
+    isAuthenticated: (state) => Boolean(state.token && state.profile)
 };
 
 const mutations = {
@@ -34,6 +35,15 @@ const mutations = {
 };
 
 const actions = {
+    async bootstrap({ state, dispatch }) {
+        if (!state.token) return null;
+        if (state.profile) return state.profile;
+        try {
+            return await dispatch('fetchProfile');
+        } catch (error) {
+            return null;
+        }
+    },
     async login({ commit }, payload) {
         commit('SET_LOADING', true);
         commit('SET_ERROR', null);

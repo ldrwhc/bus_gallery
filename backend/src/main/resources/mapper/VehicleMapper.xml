@@ -4,11 +4,11 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.busgallery.busgallery.mapper.VehicleMapper">
 
-        <resultMap id="VehicleResultMap" type="com.busgallery.busgallery.entity.Vehicle">
-                <id property="id" column="id"/>
-                <result property="plateNumber" column="plate_number"/>
-                <result property="customNumber" column="custom_number"/>
-                <result property="factoryDate" column="factory_date"/>
+    <resultMap id="VehicleResultMap" type="com.busgallery.busgallery.entity.Vehicle">
+        <id property="id" column="id"/>
+        <result property="plateNumber" column="plate_number"/>
+        <result property="customNumber" column="custom_number"/>
+        <result property="factoryDate" column="factory_date"/>
                 <result property="launchDate" column="launch_date"/>
                 <result property="airConditioned" column="air_conditioned"/>
                 <result property="source" column="source"/>
@@ -21,10 +21,47 @@
                 <association property="company" javaType="com.busgallery.busgallery.entity.Company">
                         <id property="id" column="company_id"/>
                 </association>
-                <association property="region" javaType="com.busgallery.busgallery.entity.Region">
-                        <id property="id" column="region_id"/>
-                </association>
-        </resultMap>
+        <association property="region" javaType="com.busgallery.busgallery.entity.Region">
+                <id property="id" column="region_id"/>
+        </association>
+    </resultMap>
+
+    <resultMap id="VehicleDetailMap" type="com.busgallery.busgallery.entity.Vehicle">
+        <id property="id" column="id"/>
+        <result property="plateNumber" column="plate_number"/>
+        <result property="customNumber" column="custom_number"/>
+        <result property="factoryDate" column="factory_date"/>
+        <result property="launchDate" column="launch_date"/>
+        <result property="airConditioned" column="air_conditioned"/>
+        <result property="source" column="source"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <association property="model" javaType="com.busgallery.busgallery.entity.Model">
+            <id property="id" column="m_id"/>
+            <result property="name" column="m_name"/>
+            <association property="brand" javaType="com.busgallery.busgallery.entity.Brand">
+                <id property="id" column="b_id"/>
+                <result property="name" column="b_name"/>
+            </association>
+        </association>
+        <association property="company" javaType="com.busgallery.busgallery.entity.Company">
+            <id property="id" column="c_id"/>
+            <result property="name" column="c_name"/>
+            <association property="region" javaType="com.busgallery.busgallery.entity.Region">
+                <id property="id" column="cr_id"/>
+                <result property="name" column="cr_name"/>
+                <result property="parentId" column="cr_parent_id"/>
+                <result property="level" column="cr_level"/>
+            </association>
+        </association>
+        <association property="region" javaType="com.busgallery.busgallery.entity.Region">
+            <id property="id" column="r_id"/>
+            <result property="name" column="r_name"/>
+            <result property="parentId" column="r_parent_id"/>
+            <result property="level" column="r_level"/>
+        </association>
+    </resultMap>
 
         <sql id="BaseColumnList">
                 id, plate_number, custom_number, model_id, company_id, region_id,
@@ -32,11 +69,30 @@
                 created_at, updated_at
         </sql>
 
-        <select id="selectById" parameterType="long" resultMap="VehicleResultMap">
-                SELECT <include refid="BaseColumnList"/>
-                FROM vehicle
-                WHERE id = #{id}
-        </select>
+    <select id="selectById" parameterType="long" resultMap="VehicleResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectDetailById" parameterType="long" resultMap="VehicleDetailMap">
+        SELECT
+            v.id, v.plate_number, v.custom_number, v.model_id, v.company_id, v.region_id,
+            v.factory_date, v.launch_date, v.air_conditioned, v.source, v.remark,
+            v.created_at, v.updated_at,
+            m.id AS m_id, m.name AS m_name, m.brand_id AS m_brand_id,
+            b.id AS b_id, b.name AS b_name,
+            c.id AS c_id, c.name AS c_name, c.region_id AS c_region_id,
+            cr.id AS cr_id, cr.name AS cr_name, cr.parent_id AS cr_parent_id, cr.level AS cr_level,
+            r.id AS r_id, r.name AS r_name, r.parent_id AS r_parent_id, r.level AS r_level
+        FROM vehicle v
+        LEFT JOIN model m ON v.model_id = m.id
+        LEFT JOIN brand b ON m.brand_id = b.id
+        LEFT JOIN company c ON v.company_id = c.id
+        LEFT JOIN region cr ON c.region_id = cr.id
+        LEFT JOIN region r ON v.region_id = r.id
+        WHERE v.id = #{id}
+    </select>
 
     <select id="selectByPlateNumber" parameterType="string" resultMap="VehicleResultMap">
         SELECT <include refid="BaseColumnList"/>
@@ -49,6 +105,26 @@
         FROM vehicle
         WHERE REPLACE(plate_number, ' ', '') = REPLACE(#{plateNumber}, ' ', '')
         ORDER BY id ASC
+    </select>
+
+    <select id="selectDetailByPlateNumber" parameterType="string" resultMap="VehicleDetailMap">
+        SELECT
+            v.id, v.plate_number, v.custom_number, v.model_id, v.company_id, v.region_id,
+            v.factory_date, v.launch_date, v.air_conditioned, v.source, v.remark,
+            v.created_at, v.updated_at,
+            m.id AS m_id, m.name AS m_name, m.brand_id AS m_brand_id,
+            b.id AS b_id, b.name AS b_name,
+            c.id AS c_id, c.name AS c_name, c.region_id AS c_region_id,
+            cr.id AS cr_id, cr.name AS cr_name, cr.parent_id AS cr_parent_id, cr.level AS cr_level,
+            r.id AS r_id, r.name AS r_name, r.parent_id AS r_parent_id, r.level AS r_level
+        FROM vehicle v
+        LEFT JOIN model m ON v.model_id = m.id
+        LEFT JOIN brand b ON m.brand_id = b.id
+        LEFT JOIN company c ON v.company_id = c.id
+        LEFT JOIN region cr ON c.region_id = cr.id
+        LEFT JOIN region r ON v.region_id = r.id
+        WHERE REPLACE(v.plate_number, ' ', '') = REPLACE(#{plateNumber}, ' ', '')
+        ORDER BY v.id ASC
     </select>
 
         <select id="selectByRegionId" parameterType="long" resultMap="VehicleResultMap">

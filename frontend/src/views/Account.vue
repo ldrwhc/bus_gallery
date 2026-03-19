@@ -32,7 +32,12 @@
             <div v-else-if="!images.length" class="state">还没有上传任何图片</div>
             <div v-else class="image-grid">
                 <article v-for="image in images" :key="image.id" class="image-card" @click="openImage(image)">
-                    <img :src="image.thumbnailUrl || image.url" :alt="image.objectName || 'upload'" />
+                    <img
+                        :src="image.thumbnailUrl || image.url"
+                        :alt="image.objectName || 'upload'"
+                        loading="lazy"
+                        decoding="async"
+                    />
                     <p class="muted">{{ formatDate(image.createTime) }}</p>
                 </article>
             </div>
@@ -49,13 +54,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { fetchMyImages } from '@/api/users';
 import { formatDate } from '@/utils/formatters';
-import VehicleDetailModal from '@/components/Gallery/VehicleDetailModal.vue';
+const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
 const store = useStore();
 const router = useRouter();

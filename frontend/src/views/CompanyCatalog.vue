@@ -51,7 +51,7 @@
 
                         <div v-if="company.models?.length" class="model-grid">
                             <div v-for="model in company.models" :key="model.id" class="model-card">
-                                <img :src="model.thumbnailUrl || placeholderLogo" :alt="model.name" />
+                                <img :src="model.thumbnailUrl || placeholderLogo" :alt="model.name" loading="lazy" decoding="async" />
                                 <div class="model-card__body">
                                     <p class="model-name">{{ model.name }}</p>
                                     <p class="tag">{{ resolveModelBrand(model) }}</p>
@@ -142,7 +142,7 @@
                                         </button>
                                     </div>
                                     <div class="detail-card__image">
-                                        <img :src="item.coverImage || placeholderLogo" :alt="item.modelName" />
+                                        <img :src="item.coverImage || placeholderLogo" :alt="item.modelName" loading="lazy" decoding="async" />
                                     </div>
                                     <p class="detail-card__caption">上线年份：{{ group.year }}</p>
                                 </div>
@@ -201,6 +201,8 @@
                                                     <img
                                                         :src="resolveImage(record.images) || placeholderLogo"
                                                         :alt="record.vehicle?.plateNumber || '车辆缩略图'"
+                                                        loading="lazy"
+                                                        decoding="async"
                                                     />
                                                 </button>
                                             </div>
@@ -225,11 +227,11 @@
 </template>
 
 <script setup>
-import { computed, ref, reactive, watch, onMounted } from 'vue';
+import { computed, ref, reactive, watch, onMounted, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
-import VehicleDetailModal from '@/components/Gallery/VehicleDetailModal.vue';
+const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
 const store = useStore();
 const route = useRoute();

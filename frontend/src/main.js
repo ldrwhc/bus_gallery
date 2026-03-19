@@ -12,4 +12,11 @@ const app = createApp(App);
 app.use(store);
 app.use(router);
 app.use(ElementPlus);
-app.mount('#app');
+
+// Validate persisted token before first paint to avoid showing logged-in UI for stale sessions.
+const bootstrapAndMount = async () => {
+    await store.dispatch('auth/bootstrap');
+    app.mount('#app');
+};
+
+bootstrapAndMount();

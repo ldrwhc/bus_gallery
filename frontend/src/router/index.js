@@ -1,4 +1,5 @@
 ﻿import { createRouter, createWebHistory } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import store from '@/store';
 
 const defaultTitle = import.meta.env.VITE_APP_TITLE || 'Bus Gallery';
@@ -111,18 +112,32 @@ const router = createRouter({
     }
 });
 
-router.beforeEach((to, from, next) => {
+let lastAuthPromptAt = 0;
+const notifyLoginRequired = () => {
+    const now = Date.now();
+    if (now - lastAuthPromptAt < 1200) return;
+    lastAuthPromptAt = now;
+    ElMessage.warning('请先登录');
+};
+
+router.beforeEach(async (to) => {
     const requiresAuth = to.meta?.requiresAuth;
-    const isAuthed = store.getters['auth/isAuthenticated'];
+    const hasToken = store.getters['auth/hasToken'];
+    let isAuthed = store.getters['auth/isAuthenticated'];
+
+    if (!isAuthed && hasToken) {
+        await store.dispatch('auth/bootstrap');
+        isAuthed = store.getters['auth/isAuthenticated'];
+    }
+
     if (requiresAuth && !isAuthed) {
-        next({ name: 'Login', query: { redirect: to.fullPath } });
-        return;
+        notifyLoginRequired();
+        return { name: 'Login', query: { redirect: to.fullPath } };
     }
     if ((to.name === 'Login' || to.name === 'Register') && isAuthed) {
-        next({ name: 'Home' });
-        return;
+        return { name: 'Home' };
     }
-    next();
+    return true;
 });
 
 router.afterEach((to) => {
@@ -130,3 +145,4 @@ router.afterEach((to) => {
 });
 
 export default router;
+

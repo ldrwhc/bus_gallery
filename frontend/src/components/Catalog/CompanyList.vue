@@ -16,7 +16,7 @@
             <div class="model-grid">
                 <div v-for="model in company.models || []" :key="model.id" class="model-card"
                     @click="$emit('select-model', model)">
-                    <img :src="model.thumbnailUrl || placeholder" :alt="model.name" loading="lazy" />
+                    <img :src="model.thumbnailUrl || placeholder" :alt="model.name" loading="lazy" decoding="async" />
                     <p class="model-name">{{ model.name }}</p>
                     <p class="meta">{{ model.brandName || '品牌未知' }}</p>
                 </div>

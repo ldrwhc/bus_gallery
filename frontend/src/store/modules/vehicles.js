@@ -1,6 +1,8 @@
 import {
     fetchVehicleGallery,
-    fetchVehicleGalleryDetail
+    fetchVehicleGalleryDetail,
+    fetchVehicleComments,
+    createVehicleComment
 } from '@/api/vehicles';
 import { fetchSnapshotByPlate } from '@/api/snapshots';
 
@@ -33,6 +35,9 @@ const parseList = (payload) => {
     return [];
 };
 
+const COMMENT_CACHE_TTL_MS = 30 * 1000;
+const COMMENT_MIN_REFRESH_MS = 2000;
+
 const state = () => ({
     gallery: [],
     galleryLoading: false,
@@ -44,7 +49,11 @@ const state = () => ({
         total: 0
     },
     detailMap: {},
-    detailLoadingMap: {}
+    detailLoadingMap: {},
+    commentCache: {},
+    commentLoadingMap: {},
+    commentErrorMap: {},
+    commentLastFetchMap: {}
 });
 
 const getters = {
@@ -96,6 +105,37 @@ const mutations = {
         state.detailLoadingMap = {
             ...state.detailLoadingMap,
             [vehicleId]: loading
+        };
+    },
+    SET_COMMENT_CACHE(state, { vehicleId, page, size, records, total, fetchedAt }) {
+        state.commentCache = {
+            ...state.commentCache,
+            [vehicleId]: {
+                vehicleId,
+                page,
+                size,
+                records: Array.isArray(records) ? records : [],
+                total: total ?? 0,
+                fetchedAt: fetchedAt ?? Date.now()
+            }
+        };
+    },
+    SET_COMMENT_LOADING(state, { vehicleId, loading }) {
+        state.commentLoadingMap = {
+            ...state.commentLoadingMap,
+            [vehicleId]: loading
+        };
+    },
+    SET_COMMENT_ERROR(state, { vehicleId, error }) {
+        state.commentErrorMap = {
+            ...state.commentErrorMap,
+            [vehicleId]: error
+        };
+    },
+    SET_COMMENT_LAST_FETCH(state, { vehicleId, ts }) {
+        state.commentLastFetchMap = {
+            ...state.commentLastFetchMap,
+            [vehicleId]: ts
         };
     }
 };
@@ -187,6 +227,65 @@ const actions = {
         } finally {
             commit('SET_DETAIL_LOADING', { vehicleId, loading: false });
         }
+    },
+    async loadVehicleComments({ state, commit }, { vehicleId, page = 1, size = 50, force = false } = {}) {
+        if (!vehicleId) return { records: [], total: 0 };
+        const cached = state.commentCache[vehicleId];
+        const now = Date.now();
+        const isFresh =
+            cached &&
+            cached.page === page &&
+            cached.size === size &&
+            now - (cached.fetchedAt || 0) < COMMENT_CACHE_TTL_MS;
+        if (isFresh && !force) {
+            return cached;
+        }
+        const lastFetch = state.commentLastFetchMap[vehicleId] || 0;
+        if (state.commentLoadingMap[vehicleId]) {
+            return cached || { records: [], total: 0 };
+        }
+        if (force && now - lastFetch < COMMENT_MIN_REFRESH_MS) {
+            return cached || { records: [], total: 0 };
+        }
+        commit('SET_COMMENT_LOADING', { vehicleId, loading: true });
+        commit('SET_COMMENT_ERROR', { vehicleId, error: null });
+        commit('SET_COMMENT_LAST_FETCH', { vehicleId, ts: now });
+        try {
+            const resp = await fetchVehicleComments(vehicleId, { page, size });
+            const records = resp?.records || resp?.items || resp?.data || resp || [];
+            const total = resp?.total ?? records.length ?? 0;
+            commit('SET_COMMENT_CACHE', { vehicleId, page, size, records, total, fetchedAt: now });
+            return state.commentCache[vehicleId];
+        } catch (error) {
+            commit('SET_COMMENT_ERROR', { vehicleId, error: error?.message || '加载评论失败' });
+            if (cached) return cached;
+            throw error;
+        } finally {
+            commit('SET_COMMENT_LOADING', { vehicleId, loading: false });
+        }
+    },
+    async addVehicleComment({ state, commit }, { vehicleId, content }) {
+        if (!vehicleId || !content) {
+            throw new Error('vehicleId or content missing');
+        }
+        const comment = await createVehicleComment(vehicleId, content);
+        const cached = state.commentCache[vehicleId];
+        const nextTotal = (cached?.total ?? 0) + 1;
+        const page = cached?.page ?? 1;
+        const size = cached?.size ?? 50;
+        const existing = cached?.records || [];
+        const hasComment = existing.some((item) => item?.id && item.id === comment?.id);
+        const nextRecords = page === 1 ? [comment, ...existing.filter((item) => item?.id !== comment?.id)] : existing;
+        const trimmed = page === 1 ? nextRecords.slice(0, size) : existing;
+        commit('SET_COMMENT_CACHE', {
+            vehicleId,
+            page,
+            size,
+            records: hasComment ? existing : trimmed,
+            total: nextTotal,
+            fetchedAt: Date.now()
+        });
+        return comment;
     }
 };
 

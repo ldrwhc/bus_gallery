@@ -9,8 +9,10 @@ import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.service.IdempotencyService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -25,20 +27,27 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/upload")
 @RequiredArgsConstructor
+@Slf4j
 public class UploadController {
 
     private final VehicleService vehicleService;
     private final ImageService imageService;
     private final IdempotencyService idempotencyService;
+    private final ObjectMapper objectMapper;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequireLogin
     @Transactional(timeout = 30)
     public VehicleController.VehicleDetailResponse uploadVehicle(
             @RequestPart("file") MultipartFile file,
-            @RequestPart("payload") UploadPayload payload,
+            @RequestPart(value = "payload", required = false) String payloadJson,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
+        UploadPayload payload = parsePayload(payloadJson);
+        log.info("Upload request received: fileName={}, size={}, plate={}",
+                file != null ? file.getOriginalFilename() : "null",
+                file != null ? file.getSize() : -1,
+                payload != null ? payload.getPlateNumber() : "null");
         return idempotencyService.runOnce(
                 idempotencyKey,
                 Duration.ofMinutes(10),
@@ -77,6 +86,17 @@ public class UploadController {
         List<Image> detailImages = imageService.listByVehicle(saved.getId());
 
         return VehicleController.assembleDetail(detailVehicle, detailConfig, detailImages);
+    }
+
+    private UploadPayload parsePayload(String payloadJson) {
+        if (!StringUtils.hasText(payloadJson)) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "上传缺少必要字段: payload");
+        }
+        try {
+            return objectMapper.readValue(payloadJson, UploadPayload.class);
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "payload 格式错误，请检查上传参数");
+        }
     }
 
     @Data

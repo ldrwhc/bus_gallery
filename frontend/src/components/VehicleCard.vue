@@ -1,6 +1,6 @@
 <template>
     <el-card class="vehicle-card" shadow="never">
-        <img :src="cover" alt="" class="vehicle-img" />
+        <img :src="cover" alt="" class="vehicle-img" loading="lazy" decoding="async" />
         <div class="vehicle-body">
             <div class="vehicle-title">{{ vehicle.modelName }}（{{ vehicle.plateNumber || '未登记' }}）</div>
             <div class="vehicle-meta">

@@ -187,7 +187,7 @@ import { computed, ref, watch, onBeforeUnmount, reactive } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import ImageCarousel from './ImageCarousel.vue';
-import { fetchVehicleComments, createVehicleComment, fetchFavoriteSummary, toggleFavorite } from '@/api/vehicles';
+import { fetchFavoriteSummary, toggleFavorite } from '@/api/vehicles';
 import { CONFIG_INFO_FIELDS, VEHICLE_INFO_FIELDS } from '@/utils/constants';
 import { formatBoolean, formatFuelType, formatYearMonth } from '@/utils/formatters';
 
@@ -440,7 +440,18 @@ async function toggleFavoriteAction() {
 }
 const exifVisible = ref(false);
 
-const loadComments = async () => {
+const COMMENT_PAGE_SIZE = 50;
+const COMMENT_POLL_INTERVAL_MS = 8000;
+let commentPollTimer = null;
+
+const syncCommentsFromCache = (vehicleId) => {
+    const cached = store.state.vehicles?.commentCache?.[vehicleId];
+    if (!cached) return;
+    comments.value = cached.records || [];
+    commentsTotal.value = cached.total ?? cached.records?.length ?? 0;
+};
+
+const loadComments = async ({ force = false } = {}) => {
     const id = vehicle.value?.id;
     if (!id || !isAuthenticated.value) {
         comments.value = [];
@@ -449,10 +460,14 @@ const loadComments = async () => {
     }
     commentsLoading.value = true;
     try {
-        const resp = await fetchVehicleComments(id, { page: 1, size: 50 });
-        const records = resp?.records || resp?.items || resp?.data || resp || [];
-        comments.value = records;
-        commentsTotal.value = resp?.total ?? records.length ?? 0;
+        const resp = await store.dispatch('vehicles/loadVehicleComments', {
+            vehicleId: id,
+            page: 1,
+            size: COMMENT_PAGE_SIZE,
+            force
+        });
+        comments.value = resp?.records || [];
+        commentsTotal.value = resp?.total ?? comments.value.length ?? 0;
     } catch (error) {
         ElMessage.error(error.message || '加载评论失败');
     } finally {
@@ -468,6 +483,9 @@ const toggleComments = async () => {
     commentsOpen.value = !commentsOpen.value;
     if (commentsOpen.value) {
         await loadComments();
+        startCommentPolling();
+    } else {
+        stopCommentPolling();
     }
 };
 
@@ -484,9 +502,9 @@ const submitComment = async () => {
     }
     commentSubmitting.value = true;
     try {
-        await createVehicleComment(id, text);
+        await store.dispatch('vehicles/addVehicleComment', { vehicleId: id, content: text });
         commentInput.value = '';
-        await loadComments();
+        syncCommentsFromCache(id);
         ElMessage.success('评论已发布');
     } catch (error) {
         ElMessage.error(error.message || '发布失败');
@@ -502,16 +520,33 @@ const commentsLoading = ref(false);
 const commentInput = ref('');
 const commentSubmitting = ref(false);
 
+const startCommentPolling = () => {
+    if (commentPollTimer) return;
+    commentPollTimer = setInterval(() => {
+        if (!props.visible || !commentsOpen.value || !isAuthenticated.value) return;
+        loadComments({ force: true });
+    }, COMMENT_POLL_INTERVAL_MS);
+};
+
+const stopCommentPolling = () => {
+    if (commentPollTimer) {
+        clearInterval(commentPollTimer);
+        commentPollTimer = null;
+    }
+};
+
 watch(
     () => props.visible,
     async (val) => {
         toggleBodyScroll(val);
         if (val && commentsOpen.value && isAuthenticated.value) {
             await loadComments();
+            startCommentPolling();
         }
         if (!val) {
             commentsOpen.value = false;
             exifVisible.value = false;
+            stopCommentPolling();
         }
     },
     { immediate: true }
@@ -544,13 +579,19 @@ watch(
         }
         if (authed && commentsOpen.value && props.visible) {
             await loadComments();
+            startCommentPolling();
         }
         if (!authed) {
             comments.value = [];
             commentsTotal.value = 0;
+            stopCommentPolling();
         }
     }
 );
+
+onBeforeUnmount(() => {
+    stopCommentPolling();
+});
 
 const toSnakeCase = (value = '') =>
     value
