@@ -1,18 +1,27 @@
 <template>
     <div class="auth-page">
+        <div class="auth-glow auth-glow--left"></div>
+        <div class="auth-glow auth-glow--right"></div>
+
         <section class="auth-card">
-            <h1>注册</h1>
-            <p class="subtitle">创建账户以便上传、收藏与管理图片</p>
+            <header class="auth-head">
+                <nav class="auth-switch" aria-label="认证页面切换">
+                    <router-link class="auth-switch__item" to="/login">登录</router-link>
+                    <router-link class="auth-switch__item is-active" to="/register">注册</router-link>
+                </nav>
+                <h1>创建账号</h1>
+                <p>注册后即可上传图片、修改信息并参与审核流程。</p>
+            </header>
 
             <el-form class="auth-form" label-position="top" :model="form" @submit.prevent>
                 <el-form-item label="昵称">
-                    <el-input v-model.trim="form.displayName" placeholder="将在站内展示" autocomplete="nickname" />
+                    <el-input v-model.trim="form.displayName" placeholder="站内展示名称" autocomplete="nickname" />
                 </el-form-item>
                 <el-form-item label="用户名">
-                    <el-input v-model.trim="form.username" placeholder="3-32 个字符" autocomplete="username" />
+                    <el-input v-model.trim="form.username" placeholder="3-32 位字符" autocomplete="username" />
                 </el-form-item>
                 <el-form-item label="邮箱">
-                    <el-input v-model.trim="form.email" placeholder="用于身份验证和找回密码" autocomplete="email" />
+                    <el-input v-model.trim="form.email" placeholder="用于验证和找回密码" autocomplete="email" />
                 </el-form-item>
                 <el-form-item label="邮箱验证码">
                     <div class="inline-row">
@@ -40,12 +49,12 @@
                         autocomplete="new-password"
                     />
                 </el-form-item>
+
                 <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
                 <div class="actions">
-                    <el-button type="primary" :loading="loading" @click="handleSubmit">
+                    <el-button class="submit-btn" type="primary" :loading="loading" @click="handleSubmit">
                         注册
                     </el-button>
-                    <router-link class="text-btn" to="/login">已经有账号？点此登录</router-link>
                 </div>
             </el-form>
         </section>
@@ -171,31 +180,100 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .auth-page {
-    min-height: calc(100vh - 160px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 32px 16px;
+    min-height: calc(100vh - 74px);
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: hidden;
+    padding: 36px 16px;
+    background: radial-gradient(circle at 88% 8%, #dbeafe 0%, #f8fafc 40%, #f1f5f9 100%);
+}
+
+.auth-glow {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(20px);
+    pointer-events: none;
+}
+
+.auth-glow--left {
+    width: 320px;
+    height: 320px;
+    left: -130px;
+    bottom: -110px;
+    background: rgba(14, 165, 233, 0.2);
+}
+
+.auth-glow--right {
+    width: 360px;
+    height: 360px;
+    right: -150px;
+    top: -120px;
+    background: rgba(37, 99, 235, 0.22);
 }
 
 .auth-card {
-    background: #fff;
-    width: min(460px, 100%);
-    padding: 32px;
+    position: relative;
+    z-index: 1;
+    width: min(500px, 100%);
     border-radius: 24px;
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
+    backdrop-filter: blur(12px);
 }
 
-.subtitle {
-    margin-top: 8px;
+.auth-head h1 {
+    margin: 16px 0 6px;
+    font-size: 1.5rem;
+    color: #0f172a;
+}
+
+.auth-head p {
+    margin: 0;
     color: #64748b;
 }
 
+.auth-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 4px;
+    background: #eef2ff;
+    border-radius: 999px;
+    gap: 4px;
+}
+
+.auth-switch__item {
+    text-align: center;
+    text-decoration: none;
+    color: #334155;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 8px 0;
+    transition: all 0.22s ease;
+}
+
+.auth-switch__item.is-active {
+    background: #2563eb;
+    color: #fff;
+    box-shadow: 0 10px 18px rgba(37, 99, 235, 0.24);
+}
+
 .auth-form {
-    margin-top: 24px;
+    margin-top: 20px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
+}
+
+.auth-form :deep(.el-form-item) {
+    margin-bottom: 8px;
+}
+
+.auth-form :deep(.el-form-item__label) {
+    padding-bottom: 4px;
+    line-height: 1.2;
 }
 
 .inline-row {
@@ -206,25 +284,30 @@ onBeforeUnmount(() => {
 }
 
 .actions {
-    margin-top: 8px;
+    margin-top: 4px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 
-.text-btn {
-    text-align: center;
-    color: #2563eb;
-    text-decoration: none;
-}
-
-.text-btn:visited {
-    color: #2563eb;
+.submit-btn {
+    height: 40px;
+    font-weight: 700;
 }
 
 .error-text {
     color: #b91c1c;
-    margin: -4px 0 4px;
+    margin: -4px 0 2px;
+}
+
+@media (max-width: 520px) {
+    .auth-page {
+        padding: 24px 12px;
+    }
+
+    .auth-card {
+        padding: 20px 16px 18px;
+        border-radius: 18px;
+    }
 }
 </style>
-

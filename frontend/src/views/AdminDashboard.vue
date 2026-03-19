@@ -51,10 +51,18 @@
                                 v-model="row.nextReviewRegionId"
                                 clearable
                                 filterable
+                                :filter-method="(keyword) => handleProvinceFilter(row, keyword)"
+                                @visible-change="(visible) => handleProvinceVisible(row, visible)"
                                 :disabled="row.nextRole !== 'REVIEWER' || isCurrentUser(row)"
+                                popper-class="province-select-popper"
                                 placeholder="审核员必选省级区域"
                             >
-                                <el-option v-for="option in provinceRegionOptions" :key="option.value" :label="option.label" :value="option.value" />
+                                <el-option
+                                    v-for="option in filteredProvinceOptions(row)"
+                                    :key="option.value"
+                                    :label="option.label"
+                                    :value="option.value"
+                                />
                             </el-select>
                         </template>
                     </el-table-column>
@@ -275,6 +283,15 @@ const regionRows = ref([]);
 const companyRows = ref([]);
 const brandRows = ref([]);
 const modelRows = ref([]);
+const PROVINCE_NAMES = [
+    '北京市', '天津市', '上海市', '重庆市',
+    '河北省', '山西省', '辽宁省', '吉林省', '黑龙江省',
+    '江苏省', '浙江省', '安徽省', '福建省', '江西省', '山东省',
+    '河南省', '湖北省', '湖南省', '广东省', '海南省',
+    '四川省', '贵州省', '云南省', '陕西省', '甘肃省', '青海省',
+    '内蒙古自治区', '广西壮族自治区', '西藏自治区', '宁夏回族自治区', '新疆维吾尔自治区',
+    '香港特别行政区', '澳门特别行政区', '台湾省'
+];
 
 const currentUserId = computed(() => Number(store.state.auth.profile?.id || 0));
 const regionOptions = computed(() =>
@@ -282,8 +299,15 @@ const regionOptions = computed(() =>
         .map((item) => ({ value: item.id, label: item.name, parentId: item.parentId, level: item.level }))
         .sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-CN'))
 );
+const normalizeKeyword = (value) => String(value || '').replace(/\s+/g, '').toLowerCase();
+const isProvinceLevelRegion = (item) => {
+    if (!item) return false;
+    if (Number(item.level) === 1 || item.parentId == null) return true;
+    const label = String(item.label || '').trim();
+    return PROVINCE_NAMES.some((name) => label === name || label.startsWith(name));
+};
 const provinceRegionOptions = computed(() =>
-    regionOptions.value.filter((item) => item.level === 1 || item.parentId == null)
+    regionOptions.value.filter(isProvinceLevelRegion)
 );
 const regionNameMap = computed(() =>
     regionRows.value.reduce((acc, item) => ({ ...acc, [item.id]: item.name }), {})
@@ -304,7 +328,8 @@ const isCurrentUser = (row) => Number(row.id) === currentUserId.value;
 const normalizeUserRow = (item) => ({
     ...item,
     nextRole: item.role || 'USER',
-    nextReviewRegionId: item.reviewRegionId || null
+    nextReviewRegionId: item.reviewRegionId || null,
+    _provinceKeyword: ''
 });
 
 const isUserDirty = (row) =>
@@ -314,7 +339,28 @@ const isUserDirty = (row) =>
 const handleRoleChange = (row) => {
     if (row.nextRole !== 'REVIEWER') {
         row.nextReviewRegionId = null;
+        row._provinceKeyword = '';
     }
+};
+
+const handleProvinceFilter = (row, keyword) => {
+    if (!row) return;
+    row._provinceKeyword = keyword || '';
+};
+
+const handleProvinceVisible = (row, visible) => {
+    if (!visible && row) {
+        row._provinceKeyword = '';
+    }
+};
+
+const filteredProvinceOptions = (row) => {
+    const keyword = normalizeKeyword(row?._provinceKeyword);
+    if (!keyword) return provinceRegionOptions.value;
+    return provinceRegionOptions.value.filter((item) => {
+        const label = normalizeKeyword(item.label);
+        return label.includes(keyword) || String(item.value).includes(keyword);
+    });
 };
 
 const saveUserRole = async (row) => {
@@ -578,5 +624,6 @@ onMounted(() => {
 .stat p { margin: 0; color: #64748b; font-size: .84rem; }
 .stat strong { display: block; margin-top: 6px; font-size: 1.25rem; color: #0f172a; }
 .state { text-align: center; padding: 26px 0; color: #94a3b8; }
+:deep(.province-select-popper .el-select-dropdown__wrap) { max-height: 280px; }
 @media (max-width: 900px) { .hero { flex-direction: column; align-items: flex-start; } }
 </style>

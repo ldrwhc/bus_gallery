@@ -785,13 +785,8 @@ onBeforeUnmount(() => {
         flex-wrap: nowrap;
         gap: 6px;
         min-width: 0;
-        max-width: 52vw;
-        overflow-x: auto;
-        scrollbar-width: none;
-    }
-
-    .header-actions::-webkit-scrollbar {
-        display: none;
+        max-width: none;
+        overflow: visible;
     }
 
     .ghost-btn,
@@ -807,7 +802,13 @@ onBeforeUnmount(() => {
     }
 
     .inbox-panel {
-        width: min(320px, 86vw);
+        position: fixed;
+        top: 82px;
+        right: 12px;
+        left: auto;
+        width: min(360px, calc(100vw - 24px));
+        max-height: min(68vh, 420px);
+        z-index: 120;
     }
 }
 
@@ -822,6 +823,15 @@ onBeforeUnmount(() => {
 
     .header-actions {
         max-width: 58vw;
+    }
+}
+
+@media (max-width: 640px) {
+    .inbox-panel {
+        top: 74px;
+        left: 12px;
+        right: 12px;
+        width: auto;
     }
 }
 </style>

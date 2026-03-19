@@ -31,12 +31,17 @@
                     <section class="detail">
                         <template v-if="selected">
                             <div class="preview">
-                                <img
+                                <el-image
                                     v-if="selected.imageThumbnailUrl || selected.imageUrl"
-                                    :src="selected.imageThumbnailUrl || selected.imageUrl"
+                                    class="preview-image"
+                                    :src="selected.imageUrl || selected.imageThumbnailUrl"
                                     alt="submission"
+                                    fit="contain"
+                                    :preview-src-list="previewImageList"
+                                    preview-teleported
                                 />
                                 <p v-else class="state">暂无图片预览</p>
+                                <p v-if="previewImageList.length" class="preview-tip">点击图片查看大图</p>
                             </div>
 
                             <el-form label-position="top" :model="form">
@@ -126,6 +131,15 @@
                                     <el-button type="success" :loading="submitting" @click="handleApprove">同意入库</el-button>
                                     <el-button type="danger" plain :loading="submitting" @click="rejectOpen = !rejectOpen">拒绝</el-button>
                                 </div>
+                                <div v-if="submitting || submitProgress > 0" class="submit-progress">
+                                    <span class="submit-progress__label">{{ submitProgressLabel }}</span>
+                                    <el-progress
+                                        :percentage="submitProgress"
+                                        :status="submitProgressStatus"
+                                        :stroke-width="8"
+                                        :show-text="false"
+                                    />
+                                </div>
 
                                 <div v-if="rejectOpen" class="reject-box">
                                     <el-select v-model="rejectCode" placeholder="请选择拒绝理由" style="width: 100%">
@@ -150,7 +164,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
@@ -167,6 +181,10 @@ const selected = ref(null);
 const rejectOpen = ref(false);
 const rejectCode = ref('');
 const rejectCustomReason = ref('');
+const submitProgress = ref(0);
+const submitProgressStatus = ref('');
+const submitProgressLabel = ref('');
+let submitProgressTimer = null;
 
 const fuelOptions = FUEL_OPTIONS;
 const brandOptions = computed(() => store.getters['brands/brandOptions'] || []);
@@ -174,6 +192,13 @@ const modelOptions = computed(() => store.getters['models/modelOptions'] || []);
 const companyOptions = computed(() => store.getters['companies/companyOptions'] || []);
 const regionOptions = computed(() => (store.state.regions.list || []).map((item) => ({ value: item.id, label: item.name, parentId: item.parentId })));
 const regionMap = computed(() => regionOptions.value.reduce((acc, item) => ({ ...acc, [item.value]: item }), {}));
+const previewImageList = computed(() => {
+    const imageUrl = selected.value?.imageUrl;
+    const thumbnailUrl = selected.value?.imageThumbnailUrl;
+    if (imageUrl) return [imageUrl];
+    if (thumbnailUrl) return [thumbnailUrl];
+    return [];
+});
 
 const regionDisplay = computed(() => {
     const city = regionMap.value[form.regionId];
@@ -296,6 +321,35 @@ const validatePayload = (payload) => {
     return '';
 };
 
+const stopSubmitProgressTimer = () => {
+    if (submitProgressTimer) {
+        clearInterval(submitProgressTimer);
+        submitProgressTimer = null;
+    }
+};
+
+const startSubmitProgress = (label) => {
+    submitProgressLabel.value = label;
+    submitProgressStatus.value = '';
+    submitProgress.value = 10;
+    stopSubmitProgressTimer();
+    submitProgressTimer = setInterval(() => {
+        if (submitProgress.value >= 90) return;
+        submitProgress.value += Math.max(1, Math.ceil((92 - submitProgress.value) / 6));
+    }, 150);
+};
+
+const finishSubmitProgress = (success) => {
+    stopSubmitProgressTimer();
+    submitProgress.value = 100;
+    submitProgressStatus.value = success ? 'success' : 'exception';
+    setTimeout(() => {
+        submitProgress.value = 0;
+        submitProgressStatus.value = '';
+        submitProgressLabel.value = '';
+    }, success ? 700 : 1400);
+};
+
 const handleApprove = async () => {
     if (!selected.value) return;
     const payload = buildPayload();
@@ -305,11 +359,14 @@ const handleApprove = async () => {
         return;
     }
     submitting.value = true;
+    startSubmitProgress('审核提交中');
     try {
         await approveSubmission(selected.value.id, payload);
-        ElMessage.success('审核通过，已入库');
         await loadPending();
+        finishSubmitProgress(true);
+        ElMessage.success('审核通过，已入库');
     } catch (error) {
+        finishSubmitProgress(false);
         ElMessage.error(error?.message || '审核通过失败');
     } finally {
         submitting.value = false;
@@ -330,11 +387,14 @@ const handleReject = async () => {
     }
 
     submitting.value = true;
+    startSubmitProgress('拒绝提交中');
     try {
         await rejectSubmission(selected.value.id, rejectCode.value, reason);
-        ElMessage.success('已拒绝该上传申请');
         await loadPending();
+        finishSubmitProgress(true);
+        ElMessage.success('已拒绝该上传申请');
     } catch (error) {
+        finishSubmitProgress(false);
         ElMessage.error(error?.message || '拒绝失败');
     } finally {
         submitting.value = false;
@@ -370,6 +430,10 @@ watch(
         loadPending();
     }
 );
+
+onBeforeUnmount(() => {
+    stopSubmitProgressTimer();
+});
 </script>
 
 <style scoped lang="scss">
@@ -384,10 +448,17 @@ watch(
 .row { width: 100%; margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; padding: 8px; display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer; }
 .row.active { border-color: #2563eb; background: #eff6ff; }
 .detail { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
-.preview { width: 100%; border-radius: 12px; overflow: hidden; background: #0f172a; margin-bottom: 12px; }
-.preview img { width: 100%; max-height: 260px; object-fit: cover; }
+.preview { width: 100%; border-radius: 12px; overflow: hidden; background: #0f172a; margin-bottom: 12px; padding: 10px 10px 8px; box-sizing: border-box; }
+.preview :deep(.el-image) { width: 100%; display: block; cursor: zoom-in; }
+.preview :deep(.el-image__inner) { width: 100%; height: auto; max-height: 70vh; object-fit: contain; display: block; }
+.preview-tip { margin: 8px 0 0; font-size: .82rem; color: #cbd5e1; text-align: right; }
 .actions { margin-top: 8px; display: flex; gap: 8px; }
+.submit-progress { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; }
+.submit-progress__label { color: #475569; font-size: .84rem; }
 .reject-box { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .state { color: #94a3b8; padding: 20px 0; text-align: center; }
-@media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+@media (max-width: 960px) {
+    .layout { grid-template-columns: 1fr; }
+    .preview :deep(.el-image__inner) { max-height: 52vh; }
+}
 </style>

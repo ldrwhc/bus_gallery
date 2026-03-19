@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -33,17 +34,20 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class HumanVerificationService {
 
     private static final String CAPTCHA_KEY_PREFIX = "busgallery:auth:captcha:";
     private static final String RISK_KEY_PREFIX = "busgallery:auth:risk:";
     private static final Set<String> SCENES = Set.of("login", "forgot");
     private static final String CAPTCHA_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private static final long REDIS_WARN_INTERVAL_MS = 60_000L;
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final AuthSecurityProperties properties;
     private final SecureRandom random = new SecureRandom();
+    private volatile long lastRedisWarnAt = 0L;
 
     public CaptchaChallengeResponse issueCaptcha(String scene, String clientIp) {
         ensureCaptchaEnabled();
@@ -99,9 +103,9 @@ public class HumanVerificationService {
         }
         String ip = normalizeIp(clientIp);
         String identifier = normalizeIdentifier(username);
-        redisTemplate.delete(riskKey("login-fail", "ip", ip));
+        safeDelete(riskKey("login-fail", "ip", ip));
         if (StringUtils.hasText(identifier)) {
-            redisTemplate.delete(riskKey("login-fail", "identifier", identifier));
+            safeDelete(riskKey("login-fail", "identifier", identifier));
         }
     }
 
@@ -191,7 +195,7 @@ public class HumanVerificationService {
 
     @Nullable
     private CaptchaPayload getCaptcha(String scene, String captchaId) {
-        String raw = redisTemplate.opsForValue().get(captchaKey(scene, captchaId));
+        String raw = safeGet(captchaKey(scene, captchaId));
         if (!StringUtils.hasText(raw)) {
             return null;
         }
@@ -204,7 +208,7 @@ public class HumanVerificationService {
     }
 
     private void deleteCaptcha(String scene, String captchaId) {
-        redisTemplate.delete(captchaKey(scene, captchaId));
+        safeDelete(captchaKey(scene, captchaId));
     }
 
     private String captchaKey(String scene, String captchaId) {
@@ -216,9 +220,9 @@ public class HumanVerificationService {
             return 0L;
         }
         String key = riskKey(scope, dimension, identity);
-        Long count = redisTemplate.opsForValue().increment(key);
+        Long count = safeIncrement(key);
         if (count != null && count == 1L) {
-            redisTemplate.expire(key, ttl);
+            safeExpire(key, ttl);
         }
         return count == null ? 0L : count;
     }
@@ -227,7 +231,7 @@ public class HumanVerificationService {
         if (!StringUtils.hasText(identity)) {
             return 0L;
         }
-        String value = redisTemplate.opsForValue().get(riskKey(scope, dimension, identity));
+        String value = safeGet(riskKey(scope, dimension, identity));
         if (!StringUtils.hasText(value)) {
             return 0L;
         }
@@ -250,6 +254,49 @@ public class HumanVerificationService {
         } catch (Exception ex) {
             return Integer.toHexString(value.hashCode());
         }
+    }
+
+    private void safeDelete(String key) {
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception ex) {
+            warnRedis("delete", ex);
+        }
+    }
+
+    private String safeGet(String key) {
+        try {
+            return redisTemplate.opsForValue().get(key);
+        } catch (Exception ex) {
+            warnRedis("get", ex);
+            return null;
+        }
+    }
+
+    private Long safeIncrement(String key) {
+        try {
+            return redisTemplate.opsForValue().increment(key);
+        } catch (Exception ex) {
+            warnRedis("increment", ex);
+            return null;
+        }
+    }
+
+    private void safeExpire(String key, Duration ttl) {
+        try {
+            redisTemplate.expire(key, ttl);
+        } catch (Exception ex) {
+            warnRedis("expire", ex);
+        }
+    }
+
+    private void warnRedis(String op, Exception ex) {
+        long now = System.currentTimeMillis();
+        if (now - lastRedisWarnAt < REDIS_WARN_INTERVAL_MS) {
+            return;
+        }
+        lastRedisWarnAt = now;
+        log.warn("HumanVerification redis {} fallback: {}", op, ex.getMessage());
     }
 
     private String generateCode(int length) {
