@@ -5,7 +5,11 @@ import com.busgallery.busgallery.dto.response.UserProfileResponse;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.User;
 import com.busgallery.busgallery.mapper.ImageMapper;
+import com.busgallery.busgallery.mapper.VehicleCommentMapper;
+import com.busgallery.busgallery.exception.BizException;
+import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.repository.UserRepository;
+import com.busgallery.busgallery.repository.VehicleSubmissionRepository;
 import com.busgallery.busgallery.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,8 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final ImageMapper imageMapper;
+    private final VehicleCommentMapper vehicleCommentMapper;
+    private final VehicleSubmissionRepository vehicleSubmissionRepository;
 
     /**
      * save方法用于处理save相关的业务逻辑。
@@ -131,6 +137,35 @@ public class UserServiceImpl implements UserService {
         user.setPasswordHash(passwordHash);
         user.setPasswordChangedAt(changedAt);
         return userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public User updateDisplayName(Long userId, String displayName) {
+        if (userId == null) {
+            return null;
+        }
+        if (!StringUtils.hasText(displayName)) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "昵称不能为空");
+        }
+        String normalized = displayName.trim();
+        if (normalized.length() < 2 || normalized.length() > 128) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "昵称长度需在 2-128 个字符之间");
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        if (normalized.equals(user.getDisplayName())) {
+            return user;
+        }
+        user.setDisplayName(normalized);
+        User saved = userRepository.save(user);
+        imageMapper.updateUploaderDisplayNameByUploaderId(userId, normalized);
+        vehicleCommentMapper.updateDisplayNameByUserId(userId, normalized);
+        vehicleSubmissionRepository.updateSubmitterDisplayNameByUserId(userId, normalized);
+        vehicleSubmissionRepository.updateReviewerDisplayNameByUserId(userId, normalized);
+        return saved;
     }
 
     /**

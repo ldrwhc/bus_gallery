@@ -44,4 +44,10 @@
             NOW()
         )
     </insert>
+
+    <update id="updateDisplayNameByUserId">
+        UPDATE vehicle_comment
+        SET display_name = #{displayName}
+        WHERE user_id = #{userId}
+    </update>
 </mapper>

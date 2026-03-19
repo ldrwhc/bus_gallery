@@ -117,6 +117,12 @@
         WHERE id = #{id}
     </update>
 
+    <update id="updateUploaderDisplayNameByUploaderId">
+        UPDATE image
+        SET uploader_display_name = #{displayName}
+        WHERE uploader_id = #{uploaderId}
+    </update>
+
     <select id="selectByUploader" resultMap="ImageResultMap">
         SELECT <include refid="AliasedWithVehicleColumnList"/>
         FROM image i

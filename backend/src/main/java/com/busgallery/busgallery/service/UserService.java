@@ -57,6 +57,8 @@ public interface UserService {
 
     User updatePassword(Long userId, String passwordHash, LocalDateTime changedAt);
 
+    User updateDisplayName(Long userId, String displayName);
+
     /**
      * countUserImages方法用于处理countUserImages相关的业务逻辑。
      * @param userId userId参数，详见调用方上下文。

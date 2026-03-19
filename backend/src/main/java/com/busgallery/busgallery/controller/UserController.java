@@ -3,6 +3,8 @@ package com.busgallery.busgallery.controller;
 import com.busgallery.busgallery.auth.AuthContextHolder;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.auth.UserSessionService;
+import com.busgallery.busgallery.dto.request.UserDisplayNameUpdateRequest;
 import com.busgallery.busgallery.dto.response.ImageResponse;
 import com.busgallery.busgallery.dto.response.PageResponse;
 import com.busgallery.busgallery.dto.response.UserProfileResponse;
@@ -11,6 +13,7 @@ import com.busgallery.busgallery.entity.User;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,6 +29,7 @@ import java.util.stream.Collectors;
 public class UserController {
 
     private final UserService userService;
+    private final UserSessionService userSessionService;
 
     /**
      * currentUser方法用于处理currentUser相关的业务逻辑。
@@ -39,6 +43,19 @@ public class UserController {
         if (user == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
         }
+        long uploads = userService.countUserImages(user.getId());
+        return userService.buildProfile(user, uploads);
+    }
+
+    @PutMapping("/me/display-name")
+    @RequireLogin
+    public UserProfileResponse updateDisplayName(@Valid @RequestBody UserDisplayNameUpdateRequest request) {
+        UserSession session = AuthContextHolder.requireUser();
+        User user = userService.updateDisplayName(session.getUserId(), request.getDisplayName());
+        if (user == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
+        }
+        userSessionService.refreshDisplayNameByUserId(user.getId(), user.getDisplayName());
         long uploads = userService.countUserImages(user.getId());
         return userService.buildProfile(user, uploads);
     }

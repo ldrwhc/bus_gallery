@@ -77,6 +77,9 @@ public interface ImageMapper {
      */
     int update(Image image);
 
+    int updateUploaderDisplayNameByUploaderId(@Param("uploaderId") Long uploaderId,
+                                              @Param("displayName") String displayName);
+
     /**
      * delete方法用于处理delete相关的业务逻辑。
      * @param id id参数，详见调用方上下文。

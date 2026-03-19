@@ -16,4 +16,7 @@ public interface VehicleCommentMapper {
     long countByVehicleId(@Param("vehicleId") Long vehicleId);
 
     int insert(VehicleComment comment);
+
+    int updateDisplayNameByUserId(@Param("userId") Long userId,
+                                  @Param("displayName") String displayName);
 }

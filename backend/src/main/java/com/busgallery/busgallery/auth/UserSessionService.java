@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -116,6 +117,41 @@ public class UserSessionService {
         removeAllLocalTokensByUserId(userId);
     }
 
+    public void refreshDisplayNameByUserId(Long userId, String displayName) {
+        if (userId == null || !StringUtils.hasText(displayName)) {
+            return;
+        }
+        Set<String> allTokens = new HashSet<>();
+        try {
+            Set<String> redisTokens = stringRedisTemplate.opsForSet().members(buildUserTokensKey(userId));
+            if (redisTokens != null && !redisTokens.isEmpty()) {
+                allTokens.addAll(redisTokens);
+            }
+        } catch (Exception ex) {
+            logRedisFallback("read-user-tokens", ex);
+        }
+        Set<String> localTokens = localUserTokens.get(userId);
+        if (localTokens != null && !localTokens.isEmpty()) {
+            allTokens.addAll(localTokens);
+        }
+        if (allTokens.isEmpty()) {
+            return;
+        }
+        for (String token : allTokens) {
+            if (!StringUtils.hasText(token)) {
+                continue;
+            }
+            UserSession session = getSession(token);
+            if (session == null) {
+                continue;
+            }
+            session.setDisplayName(displayName);
+            Duration ttl = resolveSessionTtl(token);
+            save(token, session, ttl);
+            bindTokenToUser(userId, token, ttl);
+        }
+    }
+
     private void save(String token, UserSession session, Duration ttl) {
         String payload;
         try {
@@ -159,6 +195,28 @@ public class UserSessionService {
 
     private String buildUserTokensKey(Long userId) {
         return USER_TOKENS_KEY_PREFIX + userId;
+    }
+
+    private Duration resolveSessionTtl(String token) {
+        if (!StringUtils.hasText(token)) {
+            return Duration.ofSeconds(Math.max(60L, authProperties.getTtlSeconds()));
+        }
+        try {
+            Long ttlSeconds = stringRedisTemplate.getExpire(buildKey(token));
+            if (ttlSeconds != null && ttlSeconds > 0) {
+                return Duration.ofSeconds(ttlSeconds);
+            }
+        } catch (Exception ex) {
+            logRedisFallback("resolve-session-ttl", ex);
+        }
+        LocalSessionRecord local = localSessionStore.get(token);
+        if (local != null) {
+            long remainMs = local.expireAt - System.currentTimeMillis();
+            if (remainMs > 0) {
+                return Duration.ofMillis(remainMs);
+            }
+        }
+        return Duration.ofSeconds(Math.max(60L, authProperties.getTtlSeconds()));
     }
 
     private void saveLocalSession(String token, UserSession session, Duration ttl) {

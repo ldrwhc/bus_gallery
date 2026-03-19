@@ -5,7 +5,47 @@
                 <div class="profile-main">
                     <div class="avatar">{{ avatarInitial }}</div>
                     <div>
-                        <h1>{{ profile.displayName || '未命名用户' }}</h1>
+                        <div class="display-name-row">
+                            <template v-if="isSelf && editingDisplayName">
+                                <el-input
+                                    v-model.trim="displayNameDraft"
+                                    class="display-name-input"
+                                    maxlength="128"
+                                    @keydown.enter.prevent="submitDisplayNameEdit"
+                                    @keydown.esc.prevent="cancelDisplayNameEdit"
+                                />
+                                <button
+                                    class="name-action-btn is-confirm"
+                                    type="button"
+                                    :disabled="!canSubmitDisplayName"
+                                    aria-label="提交昵称修改"
+                                    @click="submitDisplayNameEdit"
+                                >
+                                    <el-icon><Check /></el-icon>
+                                </button>
+                                <button
+                                    class="name-action-btn is-cancel"
+                                    type="button"
+                                    :disabled="displayNameSaving"
+                                    aria-label="取消昵称修改"
+                                    @click="cancelDisplayNameEdit"
+                                >
+                                    <el-icon><Close /></el-icon>
+                                </button>
+                            </template>
+                            <template v-else>
+                                <h1>{{ profile.displayName || '未命名用户' }}</h1>
+                                <button
+                                    v-if="isSelf"
+                                    class="name-action-btn"
+                                    type="button"
+                                    aria-label="修改昵称"
+                                    @click="startDisplayNameEdit"
+                                >
+                                    <el-icon><EditPen /></el-icon>
+                                </button>
+                            </template>
+                        </div>
                         <p class="muted">@{{ profile.username || 'unknown' }}</p>
                         <p class="muted">累计上传：{{ profile.uploadsCount || 0 }} 张</p>
                     </div>
@@ -239,7 +279,8 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, r
 import { useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
-import { fetchUserImages, fetchUserProfile } from '@/api/users';
+import { Check, Close, EditPen } from '@element-plus/icons-vue';
+import { fetchUserImages, fetchUserProfile, updateMyDisplayName } from '@/api/users';
 import { fetchFavorites } from '@/api/vehicles';
 import { submitVehicleUpdateReview } from '@/api/reviews';
 import { updateVehicle } from '@/api/vehicles';
@@ -268,6 +309,15 @@ const pagination = reactive({ page: 1, size: 12, total: 0 });
 const avatarInitial = computed(() => (profile.value?.displayName || profile.value?.username || '?').slice(0, 1).toUpperCase());
 const isNormalUser = computed(() => store.state.auth.profile?.role === 'USER');
 const isSelf = computed(() => Number(store.state.auth.profile?.id || 0) === Number(profile.value?.id || 0));
+const editingDisplayName = ref(false);
+const displayNameDraft = ref('');
+const displayNameSaving = ref(false);
+const canSubmitDisplayName = computed(() => {
+    if (displayNameSaving.value) return false;
+    const next = displayNameDraft.value.trim();
+    const current = (profile.value?.displayName || '').trim();
+    return next.length >= 2 && next.length <= 128 && next !== current;
+});
 
 const activeVehicleId = ref(null);
 const detailVisible = computed(() => Boolean(activeVehicleId.value));
@@ -358,6 +408,44 @@ const ensureUserId = () => {
         return false;
     }
     return true;
+};
+
+const startDisplayNameEdit = () => {
+    if (!isSelf.value || !profile.value) return;
+    displayNameDraft.value = (profile.value.displayName || '').trim();
+    editingDisplayName.value = true;
+};
+
+const cancelDisplayNameEdit = () => {
+    editingDisplayName.value = false;
+    displayNameDraft.value = '';
+};
+
+const submitDisplayNameEdit = async () => {
+    if (!isSelf.value || !profile.value) return;
+    const next = displayNameDraft.value.trim();
+    const current = (profile.value.displayName || '').trim();
+    if (next.length < 2 || next.length > 128) {
+        ElMessage.warning('昵称长度需在 2-128 个字符之间');
+        return;
+    }
+    if (!next || next === current) {
+        cancelDisplayNameEdit();
+        return;
+    }
+    displayNameSaving.value = true;
+    try {
+        const updated = await updateMyDisplayName({ displayName: next });
+        profile.value = updated || profile.value;
+        await store.dispatch('auth/fetchProfile');
+        editingDisplayName.value = false;
+        ElMessage.success('昵称已更新，正在刷新页面');
+        window.setTimeout(() => window.location.reload(), 200);
+    } catch (error) {
+        ElMessage.error(error?.message || '更新昵称失败');
+    } finally {
+        displayNameSaving.value = false;
+    }
 };
 
 const loadProfile = async () => {
@@ -711,6 +799,25 @@ onBeforeUnmount(() => {
 .profile-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: nowrap; }
 .profile-main { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto; }
 .profile-main > div { min-width: 0; }
+.display-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.display-name-row h1 { margin: 0; line-height: 1.2; }
+.display-name-input { width: min(280px, 60vw); }
+.name-action-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.name-action-btn.is-confirm { color: #15803d; border-color: rgba(21, 128, 61, 0.35); background: rgba(240, 253, 244, 0.9); }
+.name-action-btn.is-cancel { color: #b91c1c; border-color: rgba(185, 28, 28, 0.35); background: rgba(254, 242, 242, 0.95); }
+.name-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .avatar { width: 56px; height: 56px; border-radius: 50%; background: #1d4ed8; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .upload-cta { flex-shrink: 0; margin-left: auto; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -754,6 +861,10 @@ onBeforeUnmount(() => {
     }
 
     .profile-main {
+        width: 100%;
+    }
+
+    .display-name-input {
         width: 100%;
     }
 

@@ -9,3 +9,6 @@ export const fetchUserProfile = (userId) => http.get(`/users/${userId}`);
 
 export const fetchUserImages = (userId, params = {}) =>
     http.get(`/users/${userId}/images`, { params });
+
+export const updateMyDisplayName = (payload) =>
+    http.put('/users/me/display-name', payload);
