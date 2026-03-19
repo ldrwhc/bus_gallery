@@ -412,19 +412,36 @@ onBeforeUnmount(() => {
     display: none;
     flex-direction: column;
     gap: 4px;
-    background: none;
-    border: none;
+    background: #0f172a;
+    border: 1px solid rgba(15, 23, 42, 0.2);
+    border-radius: 10px;
     cursor: pointer;
     width: 32px;
     height: 32px;
     justify-content: center;
     align-items: center;
+    transition: background 0.2s ease, border-color 0.2s ease;
 
     span {
         width: 22px;
         height: 2px;
-        background: #0f172a;
+        background: #fff;
         border-radius: 999px;
+    }
+
+    &:hover {
+        background: #1e293b;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .menu-toggle {
+        background: #f8fafc;
+        border-color: rgba(248, 250, 252, 0.35);
+
+        span {
+            background: #0f172a;
+        }
     }
 }
 

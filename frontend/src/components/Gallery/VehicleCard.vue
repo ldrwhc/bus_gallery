@@ -117,6 +117,8 @@ const resolveRegionName = computed(() => {
     flex-direction: column;
     cursor: pointer;
     transition: transform 0.15s ease;
+    width: 100%;
+    min-width: 0;
 
     &:hover {
         transform: translateY(-2px);
@@ -125,7 +127,7 @@ const resolveRegionName = computed(() => {
 
 .card-cover {
     width: 100%;
-    height: 180px;
+    aspect-ratio: 16 / 10;
     background: #f3f4f6;
     display: flex;
     align-items: center;
@@ -137,6 +139,7 @@ const resolveRegionName = computed(() => {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        display: block;
     }
 
     .nav-btn {
@@ -181,12 +184,14 @@ const resolveRegionName = computed(() => {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
 
     .plate-number {
         margin: 0;
         font-size: 18px;
         font-weight: 600;
         color: #111827;
+        overflow-wrap: anywhere;
     }
 
     .meta-list {
@@ -197,15 +202,36 @@ const resolveRegionName = computed(() => {
         color: #4b5563;
 
         li {
-            display: flex;
+            display: grid;
+            grid-template-columns: 76px minmax(0, 1fr);
+            column-gap: 4px;
             line-height: 1.6;
+            min-width: 0;
 
             .label {
                 color: #9ca3af;
-                width: 80px;
+                width: auto;
+            }
+
+            span:last-child {
+                min-width: 0;
+                overflow-wrap: anywhere;
+                word-break: break-word;
             }
         }
     }
 
+}
+
+@media (max-width: 640px) {
+    .card-body {
+        padding: 12px;
+    }
+
+    .card-cover .nav-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 1rem;
+    }
 }
 </style>

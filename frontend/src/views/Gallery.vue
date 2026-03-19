@@ -371,5 +371,11 @@ onMounted(() => {
         background: rgba(37, 99, 235, 0.2);
     }
 }
+
+@media (max-width: 600px) {
+    .gallery-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
 </style>
 

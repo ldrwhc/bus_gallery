@@ -219,18 +219,29 @@ compose:
     grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
     gap: 16px;
     align-items: start;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .card__main {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    min-width: 0;
 }
 
 .card__main ul {
     padding-left: 16px;
     margin: 0;
     color: #475569;
+    overflow-wrap: anywhere;
+}
+
+.card__main h2,
+.card__main li,
+.subtitle {
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .card__side {
@@ -238,6 +249,8 @@ compose:
     padding: 12px;
     border: 1px solid #e2e8f0;
     background: #f8fafc;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .card__side h3 {
@@ -258,6 +271,7 @@ compose:
     margin: 0;
     color: #475569;
     line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
 .qa__q strong,
@@ -274,6 +288,8 @@ pre {
     font-size: 0.8rem;
     line-height: 1.45;
     overflow-x: auto;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .flow {
@@ -339,6 +355,11 @@ pre {
 @media (max-width: 980px) {
     .card {
         grid-template-columns: 1fr;
+    }
+
+    pre {
+        white-space: pre-wrap;
+        word-break: break-word;
     }
 }
 </style>

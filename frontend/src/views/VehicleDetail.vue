@@ -869,5 +869,21 @@ onBeforeUnmount(() => {
         display: none;
     }
 }
+
+@media (max-width: 417px) {
+    .detail-page {
+        padding: 12px;
+    }
+
+    :deep(.related-card .el-row) {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    :deep(.related-card .el-col) {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+}
 </style>
 
