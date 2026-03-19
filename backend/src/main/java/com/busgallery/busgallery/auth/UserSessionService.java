@@ -152,6 +152,42 @@ public class UserSessionService {
         }
     }
 
+    public void refreshRoleScopeByUserId(Long userId, UserRole role, Long reviewRegionId) {
+        if (userId == null || role == null) {
+            return;
+        }
+        Set<String> allTokens = new HashSet<>();
+        try {
+            Set<String> redisTokens = stringRedisTemplate.opsForSet().members(buildUserTokensKey(userId));
+            if (redisTokens != null && !redisTokens.isEmpty()) {
+                allTokens.addAll(redisTokens);
+            }
+        } catch (Exception ex) {
+            logRedisFallback("read-user-tokens", ex);
+        }
+        Set<String> localTokens = localUserTokens.get(userId);
+        if (localTokens != null && !localTokens.isEmpty()) {
+            allTokens.addAll(localTokens);
+        }
+        if (allTokens.isEmpty()) {
+            return;
+        }
+        for (String token : allTokens) {
+            if (!StringUtils.hasText(token)) {
+                continue;
+            }
+            UserSession session = getSession(token);
+            if (session == null) {
+                continue;
+            }
+            session.setRole(role);
+            session.setReviewRegionId(reviewRegionId);
+            Duration ttl = resolveSessionTtl(token);
+            save(token, session, ttl);
+            bindTokenToUser(userId, token, ttl);
+        }
+    }
+
     private void save(String token, UserSession session, Duration ttl) {
         String payload;
         try {

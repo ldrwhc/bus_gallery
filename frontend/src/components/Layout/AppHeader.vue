@@ -171,6 +171,7 @@ const inboxVisible = ref(false);
 const inboxLoading = ref(false);
 const inboxItems = ref([]);
 const dismissedInboxIds = ref(new Set());
+const seenInboxIds = ref(new Set());
 let inboxTimer = null;
 const INBOX_POLL_INTERVAL_MS = 90000;
 
@@ -178,10 +179,16 @@ const inboxStorageKey = computed(() => {
     const uid = profile.value?.id || 'guest';
     return `busGalleryInboxDismissed:${uid}`;
 });
+const inboxSeenStorageKey = computed(() => {
+    const uid = profile.value?.id || 'guest';
+    return `busGalleryInboxSeen:${uid}`;
+});
 const visibleInboxItems = computed(() =>
     inboxItems.value.filter((item) => !dismissedInboxIds.value.has(String(item.id || '')))
 );
-const inboxCount = computed(() => visibleInboxItems.value.length);
+const inboxCount = computed(() =>
+    visibleInboxItems.value.filter((item) => !seenInboxIds.value.has(String(item.id || ''))).length
+);
 const inboxTitle = computed(() => {
     if (role.value === 'REVIEWER' || role.value === 'STATION') {
         return '待审核消息';
@@ -202,6 +209,9 @@ const loadInbox = async () => {
     try {
         const list = await fetchReviewInbox();
         inboxItems.value = Array.isArray(list) ? list : [];
+        if (inboxVisible.value) {
+            markInboxSeen(inboxItems.value);
+        }
     } catch (error) {
         inboxItems.value = [];
     } finally {
@@ -225,14 +235,47 @@ const saveDismissedInboxIds = () => {
     window.localStorage.setItem(inboxStorageKey.value, JSON.stringify(Array.from(dismissedInboxIds.value)));
 };
 
+const loadSeenInboxIds = () => {
+    if (typeof window === 'undefined') return;
+    try {
+        const raw = window.localStorage.getItem(inboxSeenStorageKey.value);
+        const list = raw ? JSON.parse(raw) : [];
+        seenInboxIds.value = new Set(Array.isArray(list) ? list.map((id) => String(id)) : []);
+    } catch (error) {
+        seenInboxIds.value = new Set();
+    }
+};
+
+const saveSeenInboxIds = () => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(inboxSeenStorageKey.value, JSON.stringify(Array.from(seenInboxIds.value)));
+};
+
+const markInboxSeen = (items = []) => {
+    (Array.isArray(items) ? items : []).forEach((item) => {
+        if (item && item.id != null) {
+            seenInboxIds.value.add(String(item.id));
+        }
+    });
+    saveSeenInboxIds();
+};
+
 const clearInbox = () => {
-    visibleInboxItems.value.forEach((item) => dismissedInboxIds.value.add(String(item.id || '')));
+    visibleInboxItems.value.forEach((item) => {
+        const key = String(item.id || '');
+        dismissedInboxIds.value.add(key);
+        seenInboxIds.value.add(key);
+    });
     saveDismissedInboxIds();
+    saveSeenInboxIds();
 };
 
 const removeInboxItem = (item = {}) => {
-    dismissedInboxIds.value.add(String(item.id || ''));
+    const key = String(item.id || '');
+    dismissedInboxIds.value.add(key);
+    seenInboxIds.value.add(key);
     saveDismissedInboxIds();
+    saveSeenInboxIds();
 };
 
 const isDocumentVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
@@ -274,6 +317,7 @@ const toggleInbox = async () => {
     inboxVisible.value = !inboxVisible.value;
     if (inboxVisible.value) {
         await loadInbox();
+        markInboxSeen(visibleInboxItems.value);
     }
 };
 
@@ -321,10 +365,12 @@ watch(
         }
         if (val) {
             loadDismissedInboxIds();
+            loadSeenInboxIds();
             handleVisibilityChange();
         } else {
             inboxItems.value = [];
             dismissedInboxIds.value = new Set();
+            seenInboxIds.value = new Set();
             stopInboxPolling();
         }
     },
@@ -336,6 +382,7 @@ watch(
     () => {
         if (isAuthenticated.value) {
             loadDismissedInboxIds();
+            loadSeenInboxIds();
         }
     }
 );

@@ -3,6 +3,7 @@ package com.busgallery.busgallery.controller;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.RoleGuard;
 import com.busgallery.busgallery.auth.UserRole;
+import com.busgallery.busgallery.auth.UserSessionService;
 import com.busgallery.busgallery.dto.request.UserRoleUpdateRequest;
 import com.busgallery.busgallery.dto.response.AdminOverviewResponse;
 import com.busgallery.busgallery.dto.response.AdminUserResponse;
@@ -30,6 +31,7 @@ public class AdminController {
     private final BrandService brandService;
     private final ModelService modelService;
     private final VehicleSubmissionRepository submissionRepository;
+    private final UserSessionService userSessionService;
 
     @GetMapping("/overview")
     @RequireLogin
@@ -91,6 +93,7 @@ public class AdminController {
         }
 
         User saved = userService.updateRole(id, request.getRole(), reviewRegionId);
+        userSessionService.refreshRoleScopeByUserId(saved.getId(), saved.getRole(), saved.getReviewRegionId());
         return toUserResponse(saved);
     }
 

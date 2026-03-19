@@ -17,8 +17,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -207,17 +211,25 @@ public class SubmissionServiceImpl implements SubmissionService {
         if (reviewRegionId == null) {
             return Collections.emptyList();
         }
-        List<Long> ids = new java.util.ArrayList<>();
-        ids.add(reviewRegionId);
-        List<Region> children = regionService.findChildren(reviewRegionId);
-        if (children != null) {
+        Set<Long> visited = new HashSet<>();
+        ArrayDeque<Long> queue = new ArrayDeque<>();
+        queue.add(reviewRegionId);
+        while (!queue.isEmpty()) {
+            Long current = queue.poll();
+            if (current == null || !visited.add(current)) {
+                continue;
+            }
+            List<Region> children = regionService.findChildren(current);
+            if (children == null || children.isEmpty()) {
+                continue;
+            }
             for (Region child : children) {
-                if (child != null && child.getId() != null) {
-                    ids.add(child.getId());
+                if (child != null && child.getId() != null && !visited.contains(child.getId())) {
+                    queue.add(child.getId());
                 }
             }
         }
-        return ids;
+        return new ArrayList<>(visited);
     }
 
     private VehicleUpsertPayload parsePayload(String payloadJson) {

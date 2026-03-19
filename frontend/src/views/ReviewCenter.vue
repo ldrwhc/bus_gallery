@@ -6,7 +6,7 @@
                     <div>
                         <p class="eyebrow">Review</p>
                         <h1>审核中心</h1>
-                        <p class="muted">按地区处理待审核上传，支持编辑后通过/拒绝。</p>
+                        <p class="muted">当前审核地区：{{ currentReviewRegionLabel }}</p>
                     </div>
                     <el-button type="primary" :loading="loading" @click="loadPending">刷新列表</el-button>
                 </header>
@@ -205,6 +205,17 @@ const regionDisplay = computed(() => {
     if (!city) return '-';
     const parent = city.parentId ? regionMap.value[city.parentId] : null;
     return parent ? `${parent.label} / ${city.label}` : city.label;
+});
+const currentReviewRegionLabel = computed(() => {
+    const profile = store.state.auth.profile || {};
+    if (profile.role === 'STATION') return '全部地区（站长）';
+    if (profile.role !== 'REVIEWER') return '未登录审核身份';
+    const reviewRegionId = profile.reviewRegionId;
+    if (!reviewRegionId) return '未分配';
+    const region = regionMap.value[reviewRegionId];
+    if (!region) return `ID ${reviewRegionId}`;
+    const parent = region.parentId ? regionMap.value[region.parentId] : null;
+    return parent ? `${parent.label} / ${region.label}` : region.label;
 });
 
 const rejectReasons = [
@@ -417,6 +428,7 @@ watch(() => form.companyId, (id) => {
 });
 
 onMounted(() => {
+    if (store.getters['auth/hasToken']) store.dispatch('auth/fetchProfile').catch(() => {});
     store.dispatch('regions/loadRegions').catch(() => {});
     store.dispatch('brands/loadBrands').catch(() => {});
     store.dispatch('models/loadModels').catch(() => {});

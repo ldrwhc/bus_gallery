@@ -14,6 +14,9 @@
                                     @keydown.enter.prevent="submitDisplayNameEdit"
                                     @keydown.esc.prevent="cancelDisplayNameEdit"
                                 />
+                                <el-tooltip :content="roleMeta.tip" placement="top">
+                                    <span class="role-badge" :class="roleMeta.className">{{ roleMeta.label }}</span>
+                                </el-tooltip>
                                 <button
                                     class="name-action-btn is-confirm"
                                     type="button"
@@ -35,6 +38,9 @@
                             </template>
                             <template v-else>
                                 <h1>{{ profile.displayName || '未命名用户' }}</h1>
+                                <el-tooltip :content="roleMeta.tip" placement="top">
+                                    <span class="role-badge" :class="roleMeta.className">{{ roleMeta.label }}</span>
+                                </el-tooltip>
                                 <button
                                     v-if="isSelf"
                                     class="name-action-btn"
@@ -101,7 +107,7 @@
                         :disabled="!image.vehicleId"
                         @click.stop="openEditDialog(image)"
                     >
-                        {{ image.vehicleId ? '修改信息' : '未关联车辆' }}
+                        {{ resolveEditButtonText(image) }}
                     </button>
                 </article>
             </div>
@@ -282,7 +288,7 @@ import { ElMessage } from 'element-plus';
 import { Check, Close, EditPen } from '@element-plus/icons-vue';
 import { fetchUserImages, fetchUserProfile, updateMyDisplayName } from '@/api/users';
 import { fetchFavorites } from '@/api/vehicles';
-import { submitVehicleUpdateReview } from '@/api/reviews';
+import { fetchReviewInbox, submitVehicleUpdateReview } from '@/api/reviews';
 import { updateVehicle } from '@/api/vehicles';
 import {
     confirmBindEmail,
@@ -305,6 +311,7 @@ const images = ref([]);
 const imagesLoading = ref(false);
 const favorites = ref([]);
 const favoritesLoading = ref(false);
+const pendingImageIds = ref(new Set());
 const pagination = reactive({ page: 1, size: 12, total: 0 });
 const avatarInitial = computed(() => (profile.value?.displayName || profile.value?.username || '?').slice(0, 1).toUpperCase());
 const isNormalUser = computed(() => store.state.auth.profile?.role === 'USER');
@@ -317,6 +324,16 @@ const canSubmitDisplayName = computed(() => {
     const next = displayNameDraft.value.trim();
     const current = (profile.value?.displayName || '').trim();
     return next.length >= 2 && next.length <= 128 && next !== current;
+});
+const roleMeta = computed(() => {
+    const role = profile.value?.role || 'USER';
+    if (role === 'STATION') {
+        return { label: '站长', tip: '站长：可配置审核员权限与目标审核地区', className: 'is-station' };
+    }
+    if (role === 'REVIEWER') {
+        return { label: '审核', tip: '审核员：可审核上传并修改车辆信息', className: 'is-reviewer' };
+    }
+    return { label: '普通', tip: '普通用户：上传与修改信息需经审核通过', className: 'is-user' };
 });
 
 const activeVehicleId = ref(null);
@@ -482,6 +499,25 @@ const loadFavorites = async () => {
     }
 };
 
+const loadPendingInbox = async () => {
+    if (!isSelf.value) {
+        pendingImageIds.value = new Set();
+        return;
+    }
+    try {
+        const list = await fetchReviewInbox();
+        const next = new Set();
+        (Array.isArray(list) ? list : []).forEach((item) => {
+            if (item?.status === 'PENDING' && item?.imageId != null) {
+                next.add(Number(item.imageId));
+            }
+        });
+        pendingImageIds.value = next;
+    } catch (error) {
+        pendingImageIds.value = new Set();
+    }
+};
+
 const handlePageChange = (page) => {
     pagination.page = page;
     loadImages();
@@ -504,6 +540,12 @@ const closeVehicleDetail = () => {
 };
 
 const goUpload = () => router.push({ name: 'Upload' });
+
+const isImagePendingReview = (image) => pendingImageIds.value.has(Number(image?.id || 0));
+const resolveEditButtonText = (image) => {
+    if (image?.vehicleId) return '修改信息';
+    return isImagePendingReview(image) ? '审核中' : '未关联车辆';
+};
 
 const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -774,6 +816,7 @@ watch(
         pagination.page = 1;
         await loadProfile();
         await loadImages();
+        await loadPendingInbox();
         await loadFavorites();
     },
     { immediate: true }
@@ -802,6 +845,34 @@ onBeforeUnmount(() => {
 .display-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .display-name-row h1 { margin: 0; line-height: 1.2; }
 .display-name-input { width: min(280px, 60vw); }
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid transparent;
+    cursor: help;
+    user-select: none;
+}
+.role-badge.is-station {
+    color: #9a3412;
+    background: #ffedd5;
+    border-color: #fdba74;
+}
+.role-badge.is-reviewer {
+    color: #1d4ed8;
+    background: #dbeafe;
+    border-color: #93c5fd;
+}
+.role-badge.is-user {
+    color: #0f766e;
+    background: #ccfbf1;
+    border-color: #5eead4;
+}
 .name-action-btn {
     width: 30px;
     height: 30px;
