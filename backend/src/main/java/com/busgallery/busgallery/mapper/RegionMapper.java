@@ -52,6 +52,13 @@ public interface RegionMapper {
      */
     List<Region> selectByParentId(@Param("parentId") Long parentId);
 
+    List<Region> selectByProvinceId(@Param("provinceId") Long provinceId);
+
+    Region selectProvinceByName(@Param("name") String name);
+
+    Region selectCityByNameAndProvince(@Param("name") String name,
+                                       @Param("provinceId") Long provinceId);
+
     /**
      * insert方法用于处理insert相关的业务逻辑。
      * @param region region参数，详见调用方上下文。

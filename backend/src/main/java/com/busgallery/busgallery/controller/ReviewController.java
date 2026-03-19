@@ -133,6 +133,8 @@ public class ReviewController {
                 .reviewerUsername(item.getReviewerUsername())
                 .reviewerDisplayName(item.getReviewerDisplayName())
                 .regionId(item.getRegionId())
+                .provinceRegionId(item.getProvinceRegionId())
+                .cityRegionId(item.getCityRegionId())
                 .vehicleId(item.getVehicleId())
                 .imageId(item.getImageId())
                 .imageUrl(image != null ? image.getUrl() : null)

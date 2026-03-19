@@ -84,10 +84,11 @@ public class AdminController {
             if (region == null) {
                 throw new BizException(ErrorCode.NOT_FOUND, "Review region not found");
             }
-            // Province-level划分：仅允许父级为空或level=1的区域作为审核目标区域
-            if (region.getParentId() != null && (region.getLevel() == null || region.getLevel() > 1)) {
-                throw new BizException(ErrorCode.INVALID_PARAM, "Reviewer region must be province-level");
+            Long normalizedProvinceId = regionService.resolveProvinceId(region.getId());
+            if (normalizedProvinceId == null) {
+                throw new BizException(ErrorCode.INVALID_PARAM, "Unable to resolve reviewer province region");
             }
+            reviewRegionId = normalizedProvinceId;
         } else {
             reviewRegionId = null;
         }
@@ -333,6 +334,8 @@ public class AdminController {
         row.setName(region.getName());
         row.setParentId(region.getParentId());
         row.setParentName(parent != null ? parent.getName() : null);
+        row.setProvinceId(region.getProvinceId());
+        row.setRegionType(region.getRegionType());
         row.setLevel(region.getLevel());
         return row;
     }
@@ -408,6 +411,8 @@ public class AdminController {
         private String name;
         private Long parentId;
         private String parentName;
+        private Long provinceId;
+        private String regionType;
         private Integer level;
     }
 

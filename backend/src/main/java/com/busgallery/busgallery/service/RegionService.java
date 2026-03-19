@@ -29,6 +29,14 @@ public interface RegionService {
      */
     List<Region> findChildren(Long parentId);
 
+    List<Region> findByProvinceId(Long provinceId);
+
+    Region findProvinceByName(String name);
+
+    Region findCityByNameAndProvince(String cityName, Long provinceId);
+
+    Long resolveProvinceId(Long regionId);
+
     /**
      * create方法用于处理create相关的业务逻辑。
      * @param region region参数，详见调用方上下文。

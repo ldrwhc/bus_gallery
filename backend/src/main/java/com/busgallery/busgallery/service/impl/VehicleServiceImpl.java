@@ -303,48 +303,58 @@ public class VehicleServiceImpl implements VehicleService {
 
     private Long findOrCreateRegion(String provinceName, String cityName) {
         String cityTrim = cityName.trim();
-        Region existingByName = regionMapper.selectByName(cityTrim);
-        if (existingByName != null) {
-            return existingByName.getId();
-        }
 
         Long provinceId = null;
         String provinceTrim = StringUtils.hasText(provinceName) ? provinceName.trim() : null;
         if (provinceTrim != null) {
             if (provinceTrim.equals(cityTrim)) {
-                Region existingProvince = regionMapper.selectByName(provinceTrim);
+                Region existingProvince = regionMapper.selectProvinceByName(provinceTrim);
                 if (existingProvince != null) {
                     return existingProvince.getId();
                 }
-                Region province = new Region();
-                province.setName(provinceTrim);
-                province.setParentId(null);
-                province.setLevel(1);
-                regionMapper.insert(province);
-                return province.getId();
+                return createProvince(provinceTrim);
             }
-            Region existingProvince = regionMapper.selectByName(provinceTrim);
+            Region existingProvince = regionMapper.selectProvinceByName(provinceTrim);
             if (existingProvince != null) {
                 provinceId = existingProvince.getId();
             } else {
-                Region province = new Region();
-                province.setName(provinceTrim);
-                province.setParentId(null);
-                province.setLevel(1);
-                regionMapper.insert(province);
-                provinceId = province.getId();
+                provinceId = createProvince(provinceTrim);
             }
         }
 
-        Region existingCity = regionMapper.selectByNameAndParent(cityTrim, provinceId);
+        Region existingCity = regionMapper.selectCityByNameAndProvince(cityTrim, provinceId);
+        if (existingCity == null) {
+            existingCity = regionMapper.selectByNameAndParent(cityTrim, provinceId);
+        }
         if (existingCity != null) {
             return existingCity.getId();
         }
 
+        if (provinceId == null) {
+            return createProvince(cityTrim);
+        }
+        return createCity(provinceId, cityTrim);
+    }
+
+    private Long createProvince(String provinceName) {
+        Region province = new Region();
+        province.setName(provinceName);
+        province.setParentId(null);
+        province.setLevel(1);
+        province.setRegionType("PROVINCE");
+        regionMapper.insert(province);
+        province.setProvinceId(province.getId());
+        regionMapper.update(province);
+        return province.getId();
+    }
+
+    private Long createCity(Long provinceId, String cityName) {
         Region city = new Region();
-        city.setName(cityTrim);
+        city.setName(cityName);
         city.setParentId(provinceId);
-        city.setLevel(provinceId == null ? 1 : 2);
+        city.setProvinceId(provinceId);
+        city.setLevel(2);
+        city.setRegionType("CITY");
         regionMapper.insert(city);
         return city.getId();
     }

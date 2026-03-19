@@ -122,7 +122,142 @@ PREPARE stmt FROM @ddl_user_email_index;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @region_table_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'region'
+);
+
+SET @region_province_id_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'region'
+      AND COLUMN_NAME = 'province_id'
+);
+
+SET @ddl_region_province_id := IF(
+        @region_table_exists > 0 AND @region_province_id_exists = 0,
+        'ALTER TABLE `region` ADD COLUMN `province_id` BIGINT UNSIGNED NULL AFTER `parent_id`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_region_province_id;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @region_type_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'region'
+      AND COLUMN_NAME = 'region_type'
+);
+
+SET @ddl_region_type := IF(
+        @region_table_exists > 0 AND @region_type_exists = 0,
+        'ALTER TABLE `region` ADD COLUMN `region_type` VARCHAR(16) NULL AFTER `level`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_region_type;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_region_province_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'region'
+      AND INDEX_NAME = 'idx_region_province_id'
+);
+
+SET @ddl_idx_region_province := IF(
+        @region_table_exists > 0 AND @idx_region_province_exists = 0,
+        'ALTER TABLE `region` ADD KEY `idx_region_province_id` (`province_id`)',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_idx_region_province;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_region_type_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'region'
+      AND INDEX_NAME = 'idx_region_type'
+);
+
+SET @ddl_idx_region_type := IF(
+        @region_table_exists > 0 AND @idx_region_type_exists = 0,
+        'ALTER TABLE `region` ADD KEY `idx_region_type` (`region_type`)',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_idx_region_type;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_region_backfill_root := IF(
+        @region_table_exists > 0,
+        'UPDATE `region`
+         SET `province_id` = IFNULL(`province_id`, `id`),
+             `region_type` = IFNULL(`region_type`, ''PROVINCE''),
+             `level` = IFNULL(NULLIF(`level`, 0), 1)
+         WHERE `parent_id` IS NULL',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_region_backfill_root;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_region_backfill_child := IF(
+        @region_table_exists > 0,
+        'UPDATE `region` r
+         LEFT JOIN `region` p ON r.parent_id = p.id
+         SET r.`province_id` = IFNULL(r.`province_id`, IFNULL(p.`province_id`, p.`id`)),
+             r.`region_type` = IFNULL(r.`region_type`, ''CITY''),
+             r.`level` = IFNULL(NULLIF(r.`level`, 0), 2)
+         WHERE r.`parent_id` IS NOT NULL',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_region_backfill_child;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_region_backfill_orphan := IF(
+        @region_table_exists > 0,
+        'UPDATE `region`
+         SET `province_id` = IFNULL(`province_id`, `id`),
+             `region_type` = IFNULL(`region_type`, ''PROVINCE''),
+             `level` = IFNULL(NULLIF(`level`, 0), 1)
+         WHERE `province_id` IS NULL',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_region_backfill_orphan;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 UPDATE `app_user` SET `role` = 'USER' WHERE `role` IS NULL OR `role` = '';
+
+SET @ddl_user_review_region_normalize := IF(
+        @region_table_exists > 0,
+        'UPDATE `app_user` u
+         LEFT JOIN `region` r ON u.review_region_id = r.id
+         SET u.review_region_id = COALESCE(r.province_id, r.id, u.review_region_id)
+         WHERE u.review_region_id IS NOT NULL',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_user_review_region_normalize;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 UPDATE `vehicle_config` SET `fuel_type` = '汽油' WHERE LOWER(TRIM(`fuel_type`)) = 'gasoline';
 UPDATE `vehicle_config` SET `fuel_type` = '柴油' WHERE LOWER(TRIM(`fuel_type`)) = 'diesel';
@@ -236,3 +371,94 @@ CREATE TABLE IF NOT EXISTS `vehicle_submission` (
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci
   COMMENT = 'pending submissions for upload/update review workflow';
+
+SET @vs_province_region_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'vehicle_submission'
+      AND COLUMN_NAME = 'province_region_id'
+);
+
+SET @ddl_vs_province_region := IF(
+        @vs_province_region_exists = 0,
+        'ALTER TABLE `vehicle_submission` ADD COLUMN `province_region_id` BIGINT UNSIGNED NULL AFTER `region_id`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_vs_province_region;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @vs_city_region_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'vehicle_submission'
+      AND COLUMN_NAME = 'city_region_id'
+);
+
+SET @ddl_vs_city_region := IF(
+        @vs_city_region_exists = 0,
+        'ALTER TABLE `vehicle_submission` ADD COLUMN `city_region_id` BIGINT UNSIGNED NULL AFTER `province_region_id`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_vs_city_region;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_vs_status_province_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'vehicle_submission'
+      AND INDEX_NAME = 'idx_vehicle_submission_status_province'
+);
+
+SET @ddl_idx_vs_status_province := IF(
+        @idx_vs_status_province_exists = 0,
+        'ALTER TABLE `vehicle_submission` ADD KEY `idx_vehicle_submission_status_province` (`status`, `province_region_id`)',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_idx_vs_status_province;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_vs_status_city_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'vehicle_submission'
+      AND INDEX_NAME = 'idx_vehicle_submission_status_city'
+);
+
+SET @ddl_idx_vs_status_city := IF(
+        @idx_vs_status_city_exists = 0,
+        'ALTER TABLE `vehicle_submission` ADD KEY `idx_vehicle_submission_status_city` (`status`, `city_region_id`)',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_idx_vs_status_city;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_vs_backfill_region_fields := IF(
+        @region_table_exists > 0,
+        'UPDATE `vehicle_submission` s
+         LEFT JOIN `region` r ON s.region_id = r.id
+         SET s.province_region_id = COALESCE(s.province_region_id, r.province_id, IF(r.parent_id IS NULL, r.id, r.parent_id)),
+             s.city_region_id = COALESCE(s.city_region_id, IF(r.parent_id IS NULL, NULL, r.id))
+         WHERE s.region_id IS NOT NULL
+           AND (s.province_region_id IS NULL OR s.city_region_id IS NULL)',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_vs_backfill_region_fields;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE `vehicle_submission`
+SET `region_id` = COALESCE(`region_id`, `city_region_id`, `province_region_id`)
+WHERE `region_id` IS NULL;

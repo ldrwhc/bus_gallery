@@ -7,7 +7,9 @@ import com.busgallery.busgallery.service.RegionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * RegionController类用于封装RegionController相关的领域职责（所在包：com.busgallery.busgallery.controller）。
@@ -26,11 +28,27 @@ public class RegionController {
      * @return 返回List<Region>类型结果。
      */
     @GetMapping
-    public List<Region> list(@RequestParam(value = "parentId", required = false) Long parentId) {
-        if (parentId == null) {
-            return regionService.findAll();
+    public List<Region> list(@RequestParam(value = "parentId", required = false) Long parentId,
+                             @RequestParam(value = "provinceId", required = false) Long provinceId,
+                             @RequestParam(value = "level", required = false) Integer level) {
+        List<Region> regions;
+        if (parentId != null) {
+            regions = regionService.findChildren(parentId);
+        } else if (provinceId != null) {
+            regions = regionService.findByProvinceId(provinceId);
+        } else {
+            regions = regionService.findAll();
         }
-        return regionService.findChildren(parentId);
+        if (level == null) {
+            return regions;
+        }
+        List<Region> filtered = new ArrayList<>();
+        for (Region region : regions) {
+            if (region != null && Objects.equals(region.getLevel(), level)) {
+                filtered.add(region);
+            }
+        }
+        return filtered;
     }
 
     /**

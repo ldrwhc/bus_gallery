@@ -5,7 +5,6 @@ import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserRole;
 import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.entity.Image;
-import com.busgallery.busgallery.entity.Region;
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
@@ -23,7 +22,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -131,20 +129,9 @@ public class ImageController {
         if (targetRegionId == null || session.getReviewRegionId() == null) {
             return false;
         }
-        if (targetRegionId.equals(session.getReviewRegionId())) {
-            return true;
-        }
-        List<Long> scopeIds = new ArrayList<>();
-        scopeIds.add(session.getReviewRegionId());
-        List<Region> children = regionService.findChildren(session.getReviewRegionId());
-        if (children != null) {
-            for (Region child : children) {
-                if (child != null && child.getId() != null) {
-                    scopeIds.add(child.getId());
-                }
-            }
-        }
-        return scopeIds.contains(targetRegionId);
+        Long reviewerProvinceId = regionService.resolveProvinceId(session.getReviewRegionId());
+        Long targetProvinceId = regionService.resolveProvinceId(targetRegionId);
+        return reviewerProvinceId != null && reviewerProvinceId.equals(targetProvinceId);
     }
 
     @Data

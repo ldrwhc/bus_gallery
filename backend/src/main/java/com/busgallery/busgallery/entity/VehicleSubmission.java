@@ -45,6 +45,12 @@ public class VehicleSubmission {
     @Column(name = "region_id")
     private Long regionId;
 
+    @Column(name = "province_region_id")
+    private Long provinceRegionId;
+
+    @Column(name = "city_region_id")
+    private Long cityRegionId;
+
     @Column(name = "vehicle_id")
     private Long vehicleId;
 

@@ -17,6 +17,8 @@ public interface VehicleSubmissionRepository extends JpaRepository<VehicleSubmis
 
     List<VehicleSubmission> findByStatusAndRegionIdOrderByCreatedAtAsc(SubmissionStatus status, Long regionId);
     List<VehicleSubmission> findByStatusAndRegionIdInOrderByCreatedAtAsc(SubmissionStatus status, List<Long> regionIds);
+    List<VehicleSubmission> findByStatusAndProvinceRegionIdInOrderByCreatedAtAsc(SubmissionStatus status, List<Long> provinceRegionIds);
+    List<VehicleSubmission> findByStatusAndRegionIdIsNullOrderByCreatedAtAsc(SubmissionStatus status);
 
     long countByStatus(SubmissionStatus status);
 

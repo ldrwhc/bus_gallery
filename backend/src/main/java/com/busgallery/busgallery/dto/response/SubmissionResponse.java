@@ -24,6 +24,8 @@ public class SubmissionResponse {
     private String reviewerDisplayName;
 
     private Long regionId;
+    private Long provinceRegionId;
+    private Long cityRegionId;
     private Long vehicleId;
     private Long imageId;
     private String imageUrl;

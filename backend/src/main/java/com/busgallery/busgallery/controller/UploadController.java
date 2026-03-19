@@ -75,7 +75,7 @@ public class UploadController {
 
     private UploadResultResponse handleUpload(MultipartFile file, VehicleUpsertPayload payload, UserSession session) {
         payload.validate();
-        assertUploadRegionAllowed(session, payload.getRegionId());
+        assertUploadRegionAllowed(session, payload);
         Image metadata = new Image();
         metadata.setUploadUser(StringUtils.hasText(session.getDisplayName()) ? session.getDisplayName() : session.getUsername());
         metadata.setUploaderId(session.getUserId());
@@ -111,25 +111,47 @@ public class UploadController {
         return UploadResultResponse.approved(VehicleController.assembleDetail(detailVehicle, detailConfig, detailImages));
     }
 
-    private void assertUploadRegionAllowed(UserSession session, Long regionId) {
+    private void assertUploadRegionAllowed(UserSession session, VehicleUpsertPayload payload) {
         if (session.getRole() != UserRole.REVIEWER) {
             return;
         }
-        if (session.getReviewRegionId() == null || regionId == null) {
+        Long reviewerProvinceId = regionService.resolveProvinceId(session.getReviewRegionId());
+        Long targetProvinceId = resolvePayloadProvinceId(payload);
+        if (reviewerProvinceId == null || targetProvinceId == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "审核员只能上传到已分配地区");
         }
-        if (regionId.equals(session.getReviewRegionId())) {
-            return;
+        if (!reviewerProvinceId.equals(targetProvinceId)) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "该地区不在你的审核范围");
         }
-        List<Region> children = regionService.findChildren(session.getReviewRegionId());
-        if (children != null) {
-            for (Region child : children) {
-                if (child != null && regionId.equals(child.getId())) {
-                    return;
-                }
+    }
+
+    private Long resolvePayloadProvinceId(VehicleUpsertPayload payload) {
+        if (payload == null) {
+            return null;
+        }
+        if (payload.getRegionId() != null) {
+            return regionService.resolveProvinceId(payload.getRegionId());
+        }
+        String provinceName = StringUtils.hasText(payload.getRegionProvince()) ? payload.getRegionProvince().trim() : null;
+        String cityName = StringUtils.hasText(payload.getRegionCity()) ? payload.getRegionCity().trim() : null;
+
+        if (StringUtils.hasText(provinceName)) {
+            Region province = regionService.findProvinceByName(provinceName);
+            if (province != null) {
+                return province.getId();
             }
         }
-        throw new BizException(ErrorCode.UNAUTHORIZED, "该地区不在你的审核范围");
+        if (StringUtils.hasText(cityName)) {
+            Region city = regionService.findCityByNameAndProvince(cityName, null);
+            if (city != null) {
+                return regionService.resolveProvinceId(city.getId());
+            }
+            Region province = regionService.findProvinceByName(cityName);
+            if (province != null) {
+                return province.getId();
+            }
+        }
+        return null;
     }
 
     private VehicleUpsertPayload parsePayload(String payloadJson) {

@@ -33,8 +33,16 @@ public class Region {
     @Column(name = "parent_id")
     private Long parentId;
 
+    /** 所属省级ID：省本身等于自身ID，市级指向所属省 */
+    @Column(name = "province_id")
+    private Long provinceId;
+
     /** 行政级别：1-省、2-市、3-区县...（匹配SQL的TINYINT类型） */
     private Integer level;
+
+    /** 地区类型：PROVINCE / CITY */
+    @Column(name = "region_type", length = 16)
+    private String regionType;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id", insertable = false, updatable = false)

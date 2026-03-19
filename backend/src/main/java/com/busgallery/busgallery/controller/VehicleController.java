@@ -195,18 +195,11 @@ public class VehicleController {
         if (session.getReviewRegionId() == null || targetRegionId == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "无法确认审核地区权限");
         }
-        if (targetRegionId.equals(session.getReviewRegionId())) {
-            return;
+        Long reviewerProvinceId = regionService.resolveProvinceId(session.getReviewRegionId());
+        Long targetProvinceId = regionService.resolveProvinceId(targetRegionId);
+        if (reviewerProvinceId == null || targetProvinceId == null || !reviewerProvinceId.equals(targetProvinceId)) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "目标车辆不在你的审核地区");
         }
-        List<Region> children = regionService.findChildren(session.getReviewRegionId());
-        if (children != null) {
-            for (Region child : children) {
-                if (child != null && targetRegionId.equals(child.getId())) {
-                    return;
-                }
-            }
-        }
-        throw new BizException(ErrorCode.UNAUTHORIZED, "目标车辆不在你的审核地区");
     }
 
     private VehicleDetailResponse buildVehicleDetail(Long vehicleId) {

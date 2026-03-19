@@ -19,9 +19,13 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -73,11 +77,42 @@ public class SubmissionServiceImpl implements SubmissionService {
         if (session.getRole() != UserRole.REVIEWER || session.getReviewRegionId() == null) {
             return Collections.emptyList();
         }
-        List<Long> scopeIds = resolveReviewScopeRegionIds(session.getReviewRegionId());
-        if (scopeIds.isEmpty()) {
+
+        Long reviewProvinceId = resolveProvinceRegionId(session.getReviewRegionId());
+        if (reviewProvinceId == null) {
             return Collections.emptyList();
         }
-        return submissionRepository.findByStatusAndRegionIdInOrderByCreatedAtAsc(SubmissionStatus.PENDING, scopeIds);
+        List<Long> scopeIds = resolveReviewScopeRegionIds(reviewProvinceId);
+        if (scopeIds.isEmpty()) {
+            scopeIds = List.of(reviewProvinceId);
+        }
+
+        Map<Long, VehicleSubmission> merged = new LinkedHashMap<>();
+        mergeSubmissions(
+                merged,
+                submissionRepository.findByStatusAndProvinceRegionIdInOrderByCreatedAtAsc(
+                        SubmissionStatus.PENDING,
+                        List.of(reviewProvinceId)
+                ),
+                false
+        );
+        mergeSubmissions(
+                merged,
+                submissionRepository.findByStatusAndRegionIdInOrderByCreatedAtAsc(SubmissionStatus.PENDING, scopeIds),
+                true
+        );
+        mergeSubmissions(
+                merged,
+                submissionRepository.findByStatusAndRegionIdIsNullOrderByCreatedAtAsc(SubmissionStatus.PENDING),
+                true
+        );
+
+        return merged.values().stream()
+                .filter(item -> isInReviewerProvince(item, reviewProvinceId))
+                .sorted(Comparator
+                        .comparing(VehicleSubmission::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(VehicleSubmission::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
     }
 
     @Override
@@ -167,13 +202,16 @@ public class SubmissionServiceImpl implements SubmissionService {
                                                Long imageId,
                                                Long vehicleId,
                                                SubmissionActionType actionType) {
+        RegionResolution resolution = resolveRegionFromPayload(payload);
         VehicleSubmission submission = new VehicleSubmission();
         submission.setActionType(actionType);
         submission.setStatus(SubmissionStatus.PENDING);
         submission.setSubmitterId(session.getUserId());
         submission.setSubmitterUsername(session.getUsername());
         submission.setSubmitterDisplayName(session.getDisplayName());
-        submission.setRegionId(payload.getRegionId());
+        submission.setRegionId(resolution.regionId);
+        submission.setProvinceRegionId(resolution.provinceRegionId);
+        submission.setCityRegionId(resolution.cityRegionId);
         submission.setVehicleId(vehicleId);
         submission.setImageId(imageId);
         submission.setRequestPayload(writePayload(payload));
@@ -198,11 +236,12 @@ public class SubmissionServiceImpl implements SubmissionService {
         if (reviewer.getRole() != UserRole.REVIEWER) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "Review permission required");
         }
-        if (reviewer.getReviewRegionId() == null || submission.getRegionId() == null) {
+        Long reviewerProvinceId = resolveProvinceRegionId(reviewer.getReviewRegionId());
+        if (reviewerProvinceId == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "No review region assigned");
         }
-        List<Long> scopeIds = resolveReviewScopeRegionIds(reviewer.getReviewRegionId());
-        if (!scopeIds.contains(submission.getRegionId())) {
+        RegionResolution resolution = normalizeSubmissionRegion(submission, true);
+        if (resolution.provinceRegionId == null || !reviewerProvinceId.equals(resolution.provinceRegionId)) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "Submission is outside your review region");
         }
     }
@@ -232,6 +271,177 @@ public class SubmissionServiceImpl implements SubmissionService {
         return new ArrayList<>(visited);
     }
 
+    private void mergeSubmissions(Map<Long, VehicleSubmission> merged,
+                                  List<VehicleSubmission> source,
+                                  boolean normalizeRegion) {
+        if (source == null || source.isEmpty()) {
+            return;
+        }
+        for (VehicleSubmission item : source) {
+            if (item == null || item.getId() == null) {
+                continue;
+            }
+            if (normalizeRegion) {
+                normalizeSubmissionRegion(item, true);
+            }
+            merged.putIfAbsent(item.getId(), item);
+        }
+    }
+
+    private boolean isInReviewerProvince(VehicleSubmission submission, Long reviewerProvinceId) {
+        if (submission == null || reviewerProvinceId == null) {
+            return false;
+        }
+        RegionResolution resolution = normalizeSubmissionRegion(submission, true);
+        return reviewerProvinceId.equals(resolution.provinceRegionId);
+    }
+
+    private Long resolveProvinceRegionId(Long regionId) {
+        if (regionId == null) {
+            return null;
+        }
+        Long provinceId = regionService.resolveProvinceId(regionId);
+        return provinceId != null ? provinceId : regionId;
+    }
+
+    private RegionResolution normalizeSubmissionRegion(VehicleSubmission submission, boolean persist) {
+        if (submission == null) {
+            return RegionResolution.empty();
+        }
+        RegionResolution resolved = resolveRegionFromSubmission(submission);
+        boolean changed = !Objects.equals(submission.getRegionId(), resolved.regionId)
+                || !Objects.equals(submission.getProvinceRegionId(), resolved.provinceRegionId)
+                || !Objects.equals(submission.getCityRegionId(), resolved.cityRegionId);
+        if (changed) {
+            submission.setRegionId(resolved.regionId);
+            submission.setProvinceRegionId(resolved.provinceRegionId);
+            submission.setCityRegionId(resolved.cityRegionId);
+            if (persist && submission.getId() != null) {
+                submissionRepository.save(submission);
+            }
+        }
+        return resolved;
+    }
+
+    private RegionResolution resolveRegionFromSubmission(VehicleSubmission submission) {
+        Long regionId = submission.getRegionId();
+        Long provinceRegionId = submission.getProvinceRegionId();
+        Long cityRegionId = submission.getCityRegionId();
+
+        RegionResolution payloadResolution = resolveRegionFromPayload(parsePayloadQuietly(submission.getRequestPayload()));
+        if (regionId == null) {
+            regionId = payloadResolution.regionId;
+        }
+        if (provinceRegionId == null) {
+            provinceRegionId = payloadResolution.provinceRegionId;
+        }
+        if (cityRegionId == null) {
+            cityRegionId = payloadResolution.cityRegionId;
+        }
+
+        if (regionId != null) {
+            Long regionProvinceId = resolveProvinceRegionId(regionId);
+            if (provinceRegionId == null) {
+                provinceRegionId = regionProvinceId;
+            }
+            Region region = regionService.findById(regionId);
+            if (region != null && region.getParentId() != null && cityRegionId == null) {
+                cityRegionId = regionId;
+            }
+        }
+
+        if (cityRegionId != null && provinceRegionId == null) {
+            provinceRegionId = resolveProvinceRegionId(cityRegionId);
+        }
+        if (regionId == null) {
+            regionId = cityRegionId != null ? cityRegionId : provinceRegionId;
+        }
+        if (provinceRegionId == null && regionId != null) {
+            provinceRegionId = resolveProvinceRegionId(regionId);
+        }
+        if (cityRegionId == null && regionId != null && provinceRegionId != null && !regionId.equals(provinceRegionId)) {
+            cityRegionId = regionId;
+        }
+
+        return new RegionResolution(regionId, provinceRegionId, cityRegionId);
+    }
+
+    private RegionResolution resolveRegionFromPayload(VehicleUpsertPayload payload) {
+        if (payload == null) {
+            return RegionResolution.empty();
+        }
+        Long regionId = payload.getRegionId();
+        Long provinceRegionId = null;
+        Long cityRegionId = null;
+
+        if (regionId != null) {
+            Region region = regionService.findById(regionId);
+            if (region != null) {
+                provinceRegionId = resolveProvinceRegionId(regionId);
+                if (region.getParentId() != null && (provinceRegionId == null || !regionId.equals(provinceRegionId))) {
+                    cityRegionId = regionId;
+                }
+                if (provinceRegionId == null) {
+                    provinceRegionId = regionId;
+                }
+                return new RegionResolution(regionId, provinceRegionId, cityRegionId);
+            }
+        }
+
+        String provinceName = trimToNull(payload.getRegionProvince());
+        String cityName = trimToNull(payload.getRegionCity());
+        if (provinceName == null && cityName == null) {
+            return RegionResolution.empty();
+        }
+
+        Region province = provinceName == null ? null : regionService.findProvinceByName(provinceName);
+        if (province == null && cityName != null) {
+            province = regionService.findProvinceByName(cityName);
+        }
+        if (province != null) {
+            provinceRegionId = province.getId();
+        }
+
+        Region city = null;
+        if (cityName != null) {
+            city = regionService.findCityByNameAndProvince(cityName, provinceRegionId);
+            if (city != null) {
+                cityRegionId = city.getId();
+                if (provinceRegionId == null) {
+                    provinceRegionId = resolveProvinceRegionId(cityRegionId);
+                }
+            }
+        }
+
+        regionId = cityRegionId != null ? cityRegionId : provinceRegionId;
+        if (provinceRegionId == null && regionId != null) {
+            provinceRegionId = resolveProvinceRegionId(regionId);
+        }
+        if (cityRegionId == null && regionId != null && provinceRegionId != null && !regionId.equals(provinceRegionId)) {
+            cityRegionId = regionId;
+        }
+        return new RegionResolution(regionId, provinceRegionId, cityRegionId);
+    }
+
+    private VehicleUpsertPayload parsePayloadQuietly(String payloadJson) {
+        if (!StringUtils.hasText(payloadJson)) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(payloadJson, VehicleUpsertPayload.class);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String trimToNull(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        String value = text.trim();
+        return value.isEmpty() ? null : value;
+    }
+
     private VehicleUpsertPayload parsePayload(String payloadJson) {
         if (!StringUtils.hasText(payloadJson)) {
             return null;
@@ -258,6 +468,22 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
         if (imageId != null && payload.getImageIds().stream().noneMatch(imageId::equals)) {
             payload.getImageIds().add(imageId);
+        }
+    }
+
+    private static final class RegionResolution {
+        private final Long regionId;
+        private final Long provinceRegionId;
+        private final Long cityRegionId;
+
+        private RegionResolution(Long regionId, Long provinceRegionId, Long cityRegionId) {
+            this.regionId = regionId;
+            this.provinceRegionId = provinceRegionId;
+            this.cityRegionId = cityRegionId;
+        }
+
+        private static RegionResolution empty() {
+            return new RegionResolution(null, null, null);
         }
     }
 }

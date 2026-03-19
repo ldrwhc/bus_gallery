@@ -8,13 +8,15 @@
         <id property="id" column="id"/>
         <result property="name" column="name"/>
         <result property="parentId" column="parent_id"/>
+        <result property="provinceId" column="province_id"/>
         <result property="level" column="level"/>
+        <result property="regionType" column="region_type"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
     <sql id="BaseColumnList">
-        id, name, parent_id, level, created_at, updated_at
+        id, name, parent_id, province_id, level, region_type, created_at, updated_at
     </sql>
 
     <select id="selectById" parameterType="long" resultMap="RegionResultMap">
@@ -56,10 +58,47 @@
         ORDER BY name
     </select>
 
+    <select id="selectByProvinceId" parameterType="long" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        WHERE province_id = #{provinceId}
+        ORDER BY
+            CASE WHEN id = #{provinceId} THEN 0 ELSE 1 END,
+            level,
+            name
+    </select>
+
+    <select id="selectProvinceByName" parameterType="string" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        WHERE name = #{name}
+          AND (
+              region_type = 'PROVINCE'
+              OR parent_id IS NULL
+              OR level = 1
+          )
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectCityByNameAndProvince" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        WHERE name = #{name}
+        <if test="provinceId != null">
+            AND (province_id = #{provinceId} OR parent_id = #{provinceId})
+        </if>
+        <if test="provinceId == null">
+            AND parent_id IS NOT NULL
+        </if>
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
     <insert id="insert" parameterType="com.busgallery.busgallery.entity.Region"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO region (name, parent_id, level)
-        VALUES (#{name}, #{parentId}, #{level})
+        INSERT INTO region (name, parent_id, province_id, level, region_type)
+        VALUES (#{name}, #{parentId}, #{provinceId}, #{level}, #{regionType})
     </insert>
 
     <update id="update" parameterType="com.busgallery.busgallery.entity.Region">
@@ -67,7 +106,9 @@
         SET
         name = #{name},
         parent_id = #{parentId},
-        level = #{level}
+        province_id = #{provinceId},
+        level = #{level},
+        region_type = #{regionType}
         WHERE id = #{id}
     </update>
 
