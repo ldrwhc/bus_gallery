@@ -6,6 +6,9 @@ export const register = (payload) => http.post('/auth/register', payload);
 
 export const logout = () => http.post('/auth/logout');
 
+export const issueCaptcha = (scene = 'login') =>
+    http.get('/auth/captcha', { params: { scene } });
+
 export const sendRegisterEmailCode = (payload) => http.post('/auth/register/send-email-code', payload);
 
 export const sendPasswordChangeEmailCode = (payload) => http.post('/auth/password/change/send-email-code', payload);

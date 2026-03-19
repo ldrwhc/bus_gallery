@@ -8,6 +8,19 @@
                 <el-form-item label="用户名或邮箱">
                     <el-input v-model.trim="form.usernameOrEmail" placeholder="请输入用户名或绑定邮箱" />
                 </el-form-item>
+                <el-form-item v-if="captcha.required" label="图形验证码">
+                    <div class="inline-row">
+                        <el-input v-model.trim="form.captchaCode" placeholder="输入图形验证码" />
+                        <img
+                            v-if="captcha.imageBase64"
+                            class="captcha-image"
+                            :src="captcha.imageBase64"
+                            alt="captcha"
+                            @click="refreshCaptcha"
+                        />
+                        <el-button v-else @click="refreshCaptcha">获取验证码</el-button>
+                    </div>
+                </el-form-item>
                 <el-form-item label="邮箱验证码">
                     <div class="inline-row">
                         <el-input v-model.trim="form.emailCode" placeholder="输入邮箱验证码" />
@@ -51,6 +64,7 @@ import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import {
+    issueCaptcha,
     resetForgotPassword,
     sendForgotPasswordEmailCode,
     verifyForgotPasswordEmailCode
@@ -64,7 +78,14 @@ const form = reactive({
     emailCode: '',
     resetTicket: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    captchaId: '',
+    captchaCode: ''
+});
+
+const captcha = reactive({
+    required: false,
+    imageBase64: ''
 });
 
 const sendingCode = ref(false);
@@ -89,6 +110,16 @@ const startCountdown = (seconds = 60) => {
     }, 1000);
 };
 
+const refreshCaptcha = async () => {
+    try {
+        const data = await issueCaptcha('forgot');
+        form.captchaId = data?.captchaId || '';
+        captcha.imageBase64 = data?.imageBase64 || '';
+    } catch (error) {
+        localError.value = error?.message || '获取图形验证码失败';
+    }
+};
+
 const handleSendCode = async () => {
     localError.value = '';
     if (!form.usernameOrEmail) {
@@ -97,12 +128,24 @@ const handleSendCode = async () => {
     }
     sendingCode.value = true;
     try {
-        const data = await sendForgotPasswordEmailCode({ usernameOrEmail: form.usernameOrEmail });
+        const data = await sendForgotPasswordEmailCode({
+            usernameOrEmail: form.usernameOrEmail,
+            captchaId: form.captchaId,
+            captchaCode: form.captchaCode
+        });
         form.challengeId = data?.challengeId || '';
         startCountdown(Number(data?.resendAfterSeconds || 60));
         ElMessage.success('如果账号已绑定邮箱，验证码将发送到邮箱');
+        captcha.required = false;
+        captcha.imageBase64 = '';
+        form.captchaId = '';
+        form.captchaCode = '';
     } catch (error) {
         localError.value = error?.message || '发送验证码失败';
+        if ((error?.message || '').includes('图形验证码')) {
+            captcha.required = true;
+            await refreshCaptcha();
+        }
     } finally {
         sendingCode.value = false;
     }
@@ -192,6 +235,15 @@ onBeforeUnmount(() => {
     gap: 10px;
 }
 
+.captcha-image {
+    width: 128px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+}
+
 .actions {
     margin-top: 8px;
     display: flex;
@@ -214,4 +266,3 @@ onBeforeUnmount(() => {
     margin: -4px 0 4px;
 }
 </style>
-

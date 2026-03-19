@@ -6,7 +6,7 @@ spring:
     name: bus-gallery
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${DB_URL:jdbc:mysql://localhost:3306/bus_gallery?useSSL=false&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/bus_gallery?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
     hikari:
@@ -59,11 +59,11 @@ mybatis:
 
 minio:
   endpoint: ${MINIO_ENDPOINT:http://minio:9000}        # 后端内部访问地址
-  bucket: bus-gallery
-  access-key: admin
-  secret-key: 12345678
+  bucket: ${MINIO_BUCKET:bus-gallery}
+  access-key: ${MINIO_ACCESS_KEY:admin}
+  secret-key: ${MINIO_SECRET_KEY:12345678}
   # 对外可访问的统一地址，例如 http://localhost/bus-gallery 或 https://your-domain.com/bus-gallery
-  cdn-host: 
+  cdn-host: ${MINIO_CDN_HOST:}
 
 auth:
   session:
@@ -76,10 +76,19 @@ auth:
     reset-ticket-ttl-seconds: ${AUTH_SECURITY_RESET_TICKET_TTL_SECONDS:600}
     mail-enabled: ${AUTH_SECURITY_MAIL_ENABLED:false}
     mail-from: ${AUTH_SECURITY_MAIL_FROM:}
+    captcha-enabled: ${AUTH_SECURITY_CAPTCHA_ENABLED:true}
+    captcha-ttl-seconds: ${AUTH_SECURITY_CAPTCHA_TTL_SECONDS:180}
+    captcha-code-length: ${AUTH_SECURITY_CAPTCHA_CODE_LENGTH:4}
+    captcha-max-attempts: ${AUTH_SECURITY_CAPTCHA_MAX_ATTEMPTS:5}
+    login-captcha-failure-threshold: ${AUTH_SECURITY_LOGIN_CAPTCHA_FAILURE_THRESHOLD:5}
+    forgot-captcha-request-threshold: ${AUTH_SECURITY_FORGOT_CAPTCHA_REQUEST_THRESHOLD:6}
     rate-limit:
       auth-global-per-minute: ${AUTH_RATE_AUTH_GLOBAL_PER_MINUTE:1200}
       send-code-ip-per-minute: ${AUTH_RATE_SEND_CODE_IP_PER_MINUTE:30}
       send-code-email-per-hour: ${AUTH_RATE_SEND_CODE_EMAIL_PER_HOUR:12}
+      send-code-ip-per-day: ${AUTH_RATE_SEND_CODE_IP_PER_DAY:200}
+      send-code-email-per-day: ${AUTH_RATE_SEND_CODE_EMAIL_PER_DAY:40}
+      send-code-account-per-day: ${AUTH_RATE_SEND_CODE_ACCOUNT_PER_DAY:40}
       register-ip-per-minute: ${AUTH_RATE_REGISTER_IP_PER_MINUTE:20}
       register-email-per-hour: ${AUTH_RATE_REGISTER_EMAIL_PER_HOUR:8}
       login-ip-per-minute: ${AUTH_RATE_LOGIN_IP_PER_MINUTE:120}
@@ -105,3 +114,17 @@ busgallery:
       liked-ttl-seconds: 30
     comments:
       ttl-seconds: 30
+  upload-security:
+    max-file-bytes: ${UPLOAD_SECURITY_MAX_FILE_BYTES:15728640}
+    max-image-width: ${UPLOAD_SECURITY_MAX_IMAGE_WIDTH:8192}
+    max-image-height: ${UPLOAD_SECURITY_MAX_IMAGE_HEIGHT:8192}
+    max-image-pixels: ${UPLOAD_SECURITY_MAX_IMAGE_PIXELS:24000000}
+    upload-ip-per-minute: ${UPLOAD_SECURITY_IP_PER_MINUTE:30}
+    upload-user-per-minute: ${UPLOAD_SECURITY_USER_PER_MINUTE:20}
+    upload-global-per-minute: ${UPLOAD_SECURITY_GLOBAL_PER_MINUTE:300}
+    upload-user-per-day: ${UPLOAD_SECURITY_USER_PER_DAY:120}
+    pending-per-user-max: ${UPLOAD_SECURITY_PENDING_PER_USER_MAX:30}
+    pending-global-max: ${UPLOAD_SECURITY_PENDING_GLOBAL_MAX:5000}
+    allowed-mime-types:
+      - image/jpeg
+      - image/png

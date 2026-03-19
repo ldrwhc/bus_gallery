@@ -2,13 +2,15 @@
     <div class="user-profile-page">
         <section v-if="profile" class="card">
             <div class="profile-row">
-                <div class="avatar">{{ avatarInitial }}</div>
-                <div>
-                    <h1>{{ profile.displayName || '未命名用户' }}</h1>
-                    <p class="muted">@{{ profile.username || 'unknown' }}</p>
-                    <p class="muted">累计上传：{{ profile.uploadsCount || 0 }} 张</p>
+                <div class="profile-main">
+                    <div class="avatar">{{ avatarInitial }}</div>
+                    <div>
+                        <h1>{{ profile.displayName || '未命名用户' }}</h1>
+                        <p class="muted">@{{ profile.username || 'unknown' }}</p>
+                        <p class="muted">累计上传：{{ profile.uploadsCount || 0 }} 张</p>
+                    </div>
                 </div>
-                <el-button v-if="isSelf" type="primary" @click="goUpload">继续上传</el-button>
+                <el-button v-if="isSelf" class="upload-cta" type="primary" @click="goUpload">继续上传</el-button>
             </div>
         </section>
 
@@ -706,17 +708,67 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .user-profile-page { width: min(1100px, 100%); margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 20px; }
 .card { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08); }
-.profile-row { display: flex; align-items: center; gap: 14px; }
+.profile-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: nowrap; }
+.profile-main { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto; }
+.profile-main > div { min-width: 0; }
 .avatar { width: 56px; height: 56px; border-radius: 50%; background: #1d4ed8; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.upload-cta { flex-shrink: 0; margin-left: auto; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .muted { color: #64748b; margin: 4px 0; }
 .security-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-.security-item { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.security-item { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title action" "status action"; column-gap: 10px; row-gap: 6px; align-items: center; }
+.security-item > p { grid-area: title; margin: 0; }
+.security-item > strong { grid-area: status; min-width: 0; }
+.security-item > .el-button { grid-area: action; justify-self: end; align-self: center; padding: 7px 12px; min-height: 34px; font-size: 12px; line-height: 1.2; max-width: 100%; }
 .inline-code { display: grid; grid-template-columns: 1fr auto; gap: 10px; width: 100%; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
 .item { background: #f8fafc; border-radius: 14px; padding: 10px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2); }
-.item img { width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 8px; }
+.item img { width: 100%; aspect-ratio: 16 / 10; height: auto; object-fit: cover; border-radius: 10px; margin-bottom: 8px; display: block; }
 .edit-btn { width: 100%; border: 1px solid rgba(37, 99, 235, 0.28); background: rgba(37, 99, 235, 0.08); color: #1d4ed8; border-radius: 10px; padding: 6px; font-size: 12px; cursor: pointer; }
 .edit-btn:disabled { cursor: not-allowed; color: #94a3b8; border-color: #e2e8f0; background: #f8fafc; }
 .state { text-align: center; padding: 40px 0; color: #94a3b8; }
+
+@media (max-width: 768px) {
+    .profile-row {
+        align-items: center;
+        gap: 10px;
+    }
+
+    .profile-main {
+        gap: 10px;
+    }
+
+    .upload-cta {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 560px) {
+    .profile-row {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .avatar {
+        display: none;
+    }
+
+    .profile-main {
+        width: 100%;
+    }
+
+    .upload-cta {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .security-item {
+        grid-template-columns: 1fr;
+        grid-template-areas: "title" "status" "action";
+    }
+
+    .security-item > .el-button {
+        justify-self: start;
+    }
+}
 </style>

@@ -81,8 +81,23 @@
                                 <p v-else class="inbox-empty">暂无消息</p>
                             </div>
                         </div>
-                        <router-link v-if="role === 'REVIEWER' || role === 'STATION'" class="ghost-btn ghost-btn--sm" to="/review">
-                            审核页
+                        <router-link
+                            v-if="role === 'REVIEWER' || role === 'STATION'"
+                            class="ghost-btn ghost-btn--sm icon-btn"
+                            to="/review"
+                            title="审核页"
+                            aria-label="审核页"
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    d="M7 3h10a2 2 0 0 1 2 2v14l-3.3-1.8a1.6 1.6 0 0 0-1.5 0L11 19l-3.2-1.8a1.6 1.6 0 0 0-1.5 0L3 19V5a2 2 0 0 1 2-2z"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                    stroke-linejoin="round"
+                                />
+                                <path d="M8 8h8M8 12h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                            </svg>
                         </router-link>
                         <router-link v-if="role === 'STATION'" class="ghost-btn ghost-btn--sm" to="/dashboard">
                             后台
@@ -90,8 +105,29 @@
                         <router-link class="user-pill" to="/account">
                             {{ displayName }}
                         </router-link>
-                        <button class="ghost-btn ghost-btn--sm" type="button" @click="handleLogout">
-                            退出登录
+                        <button
+                            class="ghost-btn ghost-btn--sm icon-btn logout-btn"
+                            type="button"
+                            title="退出"
+                            aria-label="退出"
+                            @click="handleLogout"
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    d="M12 3v8"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                />
+                                <path
+                                    d="M7.8 5.9A8 8 0 1 0 16.2 5.9"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                />
+                            </svg>
                         </button>
                     </template>
                     <template v-else>
@@ -351,6 +387,7 @@ onBeforeUnmount(() => {
     text-decoration: none;
     color: inherit;
     flex-shrink: 0;
+    min-height: 44px;
 
     &__logo {
         width: 44px;
@@ -437,16 +474,17 @@ onBeforeUnmount(() => {
     background: rgba(37, 99, 235, 0.12);
     color: #2563eb;
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    flex: 0 0 34px;
 
     svg {
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
     }
 
     &:hover {
@@ -627,6 +665,21 @@ onBeforeUnmount(() => {
     }
 }
 
+.icon-btn {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
 .primary-btn {
     border: none;
     background: #2563eb;
@@ -655,9 +708,11 @@ onBeforeUnmount(() => {
     color: #0f172a;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1054px) {
     .app-header__inner {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        gap: 8px;
+        position: relative;
     }
 
     .header-utility {
@@ -666,11 +721,12 @@ onBeforeUnmount(() => {
         justify-content: flex-end;
         flex-wrap: nowrap;
         white-space: nowrap;
-        gap: 10px;
+        gap: 12px;
+        margin-left: auto;
+        min-width: 0;
     }
 
     .search-btn {
-        order: 3;
         margin-left: 0;
     }
 
@@ -705,18 +761,48 @@ onBeforeUnmount(() => {
     }
 
     .header-actions {
-        width: 100%;
+        width: auto;
         justify-content: flex-end;
         flex-wrap: nowrap;
         gap: 6px;
-        position: sticky;
-        bottom: 0;
-        background: #fff;
-        padding-top: 8px;
+        min-width: 0;
+        max-width: 52vw;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .header-actions::-webkit-scrollbar {
+        display: none;
+    }
+
+    .ghost-btn,
+    .primary-btn,
+    .user-pill {
+        padding: 6px 10px;
+    }
+
+    .user-pill {
+        max-width: 96px;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .inbox-panel {
         width: min(320px, 86vw);
+    }
+}
+
+@media (max-width: 925px) {
+    .brand {
+        gap: 12px;
+
+        &__text {
+            display: none;
+        }
+    }
+
+    .header-actions {
+        max-width: 58vw;
     }
 }
 </style>

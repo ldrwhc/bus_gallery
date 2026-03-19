@@ -57,4 +57,6 @@ public interface VehicleImageMapper {
      * @return 返回int类型结果。
      */
     int deleteByImageId(@Param("imageId") Long imageId);
+
+    Long selectPrimaryVehicleIdByImageId(@Param("imageId") Long imageId);
 }

@@ -141,6 +141,14 @@
         WHERE uploader_id = #{uploaderId}
     </select>
 
+    <select id="countByUploaderBetween" resultType="long">
+        SELECT COUNT(1)
+        FROM image
+        WHERE uploader_id = #{uploaderId}
+          AND created_at &gt;= #{startAt}
+          AND created_at &lt; #{endAt}
+    </select>
+
     <delete id="delete" parameterType="long">
         DELETE FROM image WHERE id = #{id}
     </delete>

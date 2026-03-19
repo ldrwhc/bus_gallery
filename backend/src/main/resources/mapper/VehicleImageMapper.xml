@@ -56,4 +56,12 @@
         DELETE FROM vehicle_image WHERE image_id = #{imageId}
     </delete>
 
+    <select id="selectPrimaryVehicleIdByImageId" resultType="long">
+        SELECT vehicle_id
+        FROM vehicle_image
+        WHERE image_id = #{imageId}
+        ORDER BY is_cover DESC, sort_order ASC, vehicle_id ASC
+        LIMIT 1
+    </select>
+
 </mapper>

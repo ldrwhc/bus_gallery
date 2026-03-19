@@ -60,4 +60,24 @@ const year = new Date().getFullYear();
         text-align: right;
     }
 }
+
+@media (max-width: 900px) {
+    .app-footer {
+        position: static;
+
+        &__brand {
+            display: none;
+        }
+
+        &__inner {
+            justify-content: center;
+        }
+
+        &__meta {
+            margin-left: 0;
+            justify-content: center;
+            text-align: center;
+        }
+    }
+}
 </style>

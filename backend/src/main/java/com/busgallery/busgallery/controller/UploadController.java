@@ -6,14 +6,18 @@ import com.busgallery.busgallery.auth.UserRole;
 import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.dto.request.VehicleUpsertPayload;
 import com.busgallery.busgallery.entity.Image;
+import com.busgallery.busgallery.entity.Region;
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.entity.VehicleSubmission;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.service.IdempotencyService;
 import com.busgallery.busgallery.service.ImageService;
+import com.busgallery.busgallery.service.RegionService;
 import com.busgallery.busgallery.service.SubmissionService;
+import com.busgallery.busgallery.service.UploadSecurityService;
 import com.busgallery.busgallery.service.VehicleService;
+import com.busgallery.busgallery.util.RequestIpUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,6 +30,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -40,6 +45,8 @@ public class UploadController {
     private final ImageService imageService;
     private final SubmissionService submissionService;
     private final IdempotencyService idempotencyService;
+    private final UploadSecurityService uploadSecurityService;
+    private final RegionService regionService;
     private final ObjectMapper objectMapper;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -48,24 +55,27 @@ public class UploadController {
     public UploadResultResponse uploadVehicle(
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "payload", required = false) String payloadJson,
-            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest httpRequest
     ) {
         VehicleUpsertPayload payload = parsePayload(payloadJson);
         log.info("Upload request received: fileName={}, size={}, plate={}",
                 file != null ? file.getOriginalFilename() : "null",
                 file != null ? file.getSize() : -1,
                 payload != null ? payload.getPlateNumber() : "null");
+        UserSession session = AuthContextHolder.requireUser();
+        String clientIp = RequestIpUtil.resolveClientIp(httpRequest);
+        uploadSecurityService.checkUploadQuotaAndRate(session, clientIp);
         return idempotencyService.runOnce(
                 idempotencyKey,
                 Duration.ofMinutes(10),
-                () -> handleUpload(file, payload)
+                () -> handleUpload(file, payload, session)
         );
     }
 
-    private UploadResultResponse handleUpload(MultipartFile file, VehicleUpsertPayload payload) {
+    private UploadResultResponse handleUpload(MultipartFile file, VehicleUpsertPayload payload, UserSession session) {
         payload.validate();
-
-        UserSession session = AuthContextHolder.requireUser();
+        assertUploadRegionAllowed(session, payload.getRegionId());
         Image metadata = new Image();
         metadata.setUploadUser(StringUtils.hasText(session.getDisplayName()) ? session.getDisplayName() : session.getUsername());
         metadata.setUploaderId(session.getUserId());
@@ -99,6 +109,27 @@ public class UploadController {
         List<Image> detailImages = imageService.listByVehicle(saved.getId());
 
         return UploadResultResponse.approved(VehicleController.assembleDetail(detailVehicle, detailConfig, detailImages));
+    }
+
+    private void assertUploadRegionAllowed(UserSession session, Long regionId) {
+        if (session.getRole() != UserRole.REVIEWER) {
+            return;
+        }
+        if (session.getReviewRegionId() == null || regionId == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "审核员只能上传到已分配地区");
+        }
+        if (regionId.equals(session.getReviewRegionId())) {
+            return;
+        }
+        List<Region> children = regionService.findChildren(session.getReviewRegionId());
+        if (children != null) {
+            for (Region child : children) {
+                if (child != null && regionId.equals(child.getId())) {
+                    return;
+                }
+            }
+        }
+        throw new BizException(ErrorCode.UNAUTHORIZED, "该地区不在你的审核范围");
     }
 
     private VehicleUpsertPayload parsePayload(String payloadJson) {

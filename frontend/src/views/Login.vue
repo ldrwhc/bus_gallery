@@ -17,6 +17,19 @@
                         autocomplete="current-password"
                     />
                 </el-form-item>
+                <el-form-item v-if="captcha.required" label="图形验证码">
+                    <div class="captcha-row">
+                        <el-input v-model.trim="form.captchaCode" placeholder="输入图形验证码" />
+                        <img
+                            v-if="captcha.imageBase64"
+                            class="captcha-image"
+                            :src="captcha.imageBase64"
+                            alt="captcha"
+                            @click="refreshCaptcha"
+                        />
+                        <el-button v-else @click="refreshCaptcha">获取验证码</el-button>
+                    </div>
+                </el-form-item>
                 <p v-if="error" class="error-text">{{ error }}</p>
                 <div class="actions">
                     <el-button type="primary" :loading="loading" @click="handleSubmit">
@@ -34,6 +47,7 @@
 import { reactive, computed } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
+import { issueCaptcha } from '@/api/auth';
 
 const store = useStore();
 const route = useRoute();
@@ -41,7 +55,14 @@ const router = useRouter();
 
 const form = reactive({
     username: '',
-    password: ''
+    password: '',
+    captchaId: '',
+    captchaCode: ''
+});
+
+const captcha = reactive({
+    required: false,
+    imageBase64: ''
 });
 
 const loading = computed(() => store.state.auth.loading);
@@ -53,10 +74,28 @@ const handleSubmit = async () => {
     }
     try {
         await store.dispatch('auth/login', { ...form });
+        captcha.required = false;
+        captcha.imageBase64 = '';
+        form.captchaId = '';
+        form.captchaCode = '';
         const redirect = route.query.redirect || '/account';
         router.replace(redirect);
     } catch (e) {
-        // error handled in store
+        const message = e?.message || '';
+        if (message.includes('图形验证码')) {
+            captcha.required = true;
+            await refreshCaptcha();
+        }
+    }
+};
+
+const refreshCaptcha = async () => {
+    try {
+        const data = await issueCaptcha('login');
+        form.captchaId = data?.captchaId || '';
+        captcha.imageBase64 = data?.imageBase64 || '';
+    } catch (e) {
+        // keep silent, error displayed by request interceptor
     }
 };
 </script>
@@ -110,5 +149,22 @@ const handleSubmit = async () => {
 .error-text {
     color: #b91c1c;
     margin: -4px 0 4px;
+}
+
+.captcha-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 128px;
+    gap: 10px;
+    align-items: center;
+}
+
+.captcha-image {
+    width: 128px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
 }
 </style>

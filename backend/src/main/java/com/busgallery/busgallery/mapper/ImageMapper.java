@@ -4,6 +4,7 @@ import com.busgallery.busgallery.entity.Image;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -57,6 +58,10 @@ public interface ImageMapper {
      * @return 返回long类型结果。
      */
     long countByUploader(@Param("uploaderId") Long uploaderId);
+
+    long countByUploaderBetween(@Param("uploaderId") Long uploaderId,
+                                @Param("startAt") LocalDateTime startAt,
+                                @Param("endAt") LocalDateTime endAt);
 
     /**
      * insert方法用于处理insert相关的业务逻辑。

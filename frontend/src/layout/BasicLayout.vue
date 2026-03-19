@@ -60,11 +60,8 @@ onBeforeUnmount(() => lockBody(false));
 }
 
 .app-shell__footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
+    position: static;
     width: 100%;
-    z-index: 90;
 }
 
 .app-shell__main {
@@ -73,13 +70,6 @@ onBeforeUnmount(() => lockBody(false));
     max-width: 100vw;
     box-sizing: border-box;
     padding-top: 96px;
-    padding-bottom: 96px;
-}
-
-@media (max-width: 768px) {
-    .app-shell__main {
-        padding-top: 120px;
-        padding-bottom: 120px;
-    }
+    padding-bottom: 24px;
 }
 </style>

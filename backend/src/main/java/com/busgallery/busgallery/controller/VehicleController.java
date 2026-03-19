@@ -2,8 +2,13 @@ package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.RoleGuard;
+import com.busgallery.busgallery.auth.UserRole;
+import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.entity.*;
+import com.busgallery.busgallery.exception.BizException;
+import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.service.ImageService;
+import com.busgallery.busgallery.service.RegionService;
 import com.busgallery.busgallery.service.VehicleService;
 import com.busgallery.busgallery.util.ExifUtils;
 import com.busgallery.busgallery.util.FuelTypeNormalizer;
@@ -32,6 +37,7 @@ public class VehicleController {
 
     private final VehicleService vehicleService;
     private final ImageService imageService;
+    private final RegionService regionService;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -120,7 +126,8 @@ public class VehicleController {
     @PostMapping
     @RequireLogin
     public VehicleDetailResponse create(@Valid @RequestBody VehicleRequest request) {
-        RoleGuard.requireReviewerOrStation();
+        UserSession session = RoleGuard.requireReviewerOrStation();
+        assertRegionWriteAllowed(session, request.getRegionId());
         Vehicle vehicle = request.toVehicle();
         VehicleConfig config = request.toVehicleConfig();
         Vehicle saved = vehicleService.create(
@@ -140,7 +147,15 @@ public class VehicleController {
     @PutMapping("/{id}")
     @RequireLogin
     public VehicleDetailResponse update(@PathVariable Long id, @Valid @RequestBody VehicleRequest request) {
-        RoleGuard.requireReviewerOrStation();
+        UserSession session = RoleGuard.requireReviewerOrStation();
+        Vehicle existing = vehicleService.findById(id);
+        if (existing == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "车辆不存在");
+        }
+        assertRegionWriteAllowed(session, existing.getRegion() != null ? existing.getRegion().getId() : null);
+        if (request.getRegionId() != null) {
+            assertRegionWriteAllowed(session, request.getRegionId());
+        }
         Vehicle vehicle = request.toVehicle();
         vehicle.setId(id);
         VehicleConfig config = request.toVehicleConfig();
@@ -161,8 +176,37 @@ public class VehicleController {
     @DeleteMapping("/{id}")
     @RequireLogin
     public void delete(@PathVariable Long id) {
-        RoleGuard.requireReviewerOrStation();
+        UserSession session = RoleGuard.requireReviewerOrStation();
+        Vehicle existing = vehicleService.findById(id);
+        if (existing == null) {
+            return;
+        }
+        assertRegionWriteAllowed(session, existing.getRegion() != null ? existing.getRegion().getId() : null);
         vehicleService.delete(id);
+    }
+
+    private void assertRegionWriteAllowed(UserSession session, Long targetRegionId) {
+        if (session == null || session.getRole() == UserRole.STATION) {
+            return;
+        }
+        if (session.getRole() != UserRole.REVIEWER) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "当前角色无权修改车辆信息");
+        }
+        if (session.getReviewRegionId() == null || targetRegionId == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "无法确认审核地区权限");
+        }
+        if (targetRegionId.equals(session.getReviewRegionId())) {
+            return;
+        }
+        List<Region> children = regionService.findChildren(session.getReviewRegionId());
+        if (children != null) {
+            for (Region child : children) {
+                if (child != null && targetRegionId.equals(child.getId())) {
+                    return;
+                }
+            }
+        }
+        throw new BizException(ErrorCode.UNAUTHORIZED, "目标车辆不在你的审核地区");
     }
 
     private VehicleDetailResponse buildVehicleDetail(Long vehicleId) {

@@ -6,6 +6,7 @@ import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.mapper.ImageMapper;
 import com.busgallery.busgallery.mapper.VehicleImageMapper;
 import com.busgallery.busgallery.service.ImageService;
+import com.busgallery.busgallery.service.UploadSecurityService;
 import com.busgallery.busgallery.service.storage.StorageObject;
 import com.busgallery.busgallery.service.storage.StorageService;
 import com.busgallery.busgallery.util.ExifExtractor;
@@ -42,6 +43,7 @@ public class ImageServiceImpl implements ImageService {
     private final ImageMapper imageMapper;
     private final VehicleImageMapper vehicleImageMapper;
     private final StorageService storageService;
+    private final UploadSecurityService uploadSecurityService;
 
     public Image findById(Long id) {
         return imageMapper.selectById(id);
@@ -81,7 +83,8 @@ public class ImageServiceImpl implements ImageService {
         Image meta = metadata != null ? metadata : new Image();
         String objectName = buildObjectName(file.getOriginalFilename());
         try {
-            byte[] data = file.getBytes();
+            UploadSecurityService.ValidatedImage validated = uploadSecurityService.validateAndRead(file);
+            byte[] data = validated.getData();
             Map<String, String> exif = ExifExtractor.extract(data);
             String exifJson = ExifUtils.toJson(exif);
 
@@ -89,7 +92,7 @@ public class ImageServiceImpl implements ImageService {
             StorageObject thumbObject = null;
             try (ByteArrayInputStream inputStream = new ByteArrayInputStream(data)) {
                 storageObject = storageService.upload(
-                        objectName, inputStream, file.getSize(), file.getContentType()
+                        objectName, inputStream, data.length, validated.getMimeType()
                 );
             }
             byte[] thumbBytes = createThumbnail(data);
@@ -106,8 +109,10 @@ public class ImageServiceImpl implements ImageService {
             image.setObjectName(storageObject.getObjectName());
             image.setUrl(storageObject.getUrl());
             image.setThumbnailUrl(thumbObject != null ? thumbObject.getUrl() : storageObject.getThumbnailUrl());
-            image.setSizeBytes(file.getSize());
-            image.setMimeType(file.getContentType());
+            image.setSizeBytes((long) data.length);
+            image.setMimeType(validated.getMimeType());
+            image.setWidth(validated.getWidth());
+            image.setHeight(validated.getHeight());
             image.setUploadUser(meta.getUploadUser());
             image.setUploaderId(meta.getUploaderId());
             image.setUploaderUsername(meta.getUploaderUsername());

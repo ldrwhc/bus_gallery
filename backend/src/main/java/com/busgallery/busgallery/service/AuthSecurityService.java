@@ -28,4 +28,3 @@ public interface AuthSecurityService {
 
     void confirmBindEmail(UserSession session, String challengeId, String email, String emailCode);
 }
-

@@ -1,13 +1,11 @@
-version: "3.9"
-
 services:
   mysql:
     image: registry.cn-hangzhou.aliyuncs.com/xfg-studio/mysql:8.0.32
     container_name: bus-gallery-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: bus_gallery
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bus_gallery}
       MYSQL_ROOT_HOST: '%'
     ports:
       - "13306:3306"
@@ -15,7 +13,7 @@ services:
       - mysql-data:/var/lib/mysql
       - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p123456" ]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD:-123456}" ]
       interval: 5s
       timeout: 5s
       retries: 1
@@ -29,7 +27,10 @@ services:
         "redis-server",
         "/usr/local/etc/redis/redis.conf",
         "--requirepass", "${REDIS_PASSWORD:-12345678}",
-        "--appendonly", "yes"
+        "--appendonly", "yes",
+        "--save", "",
+        "--stop-writes-on-bgsave-error", "no",
+        "--dir", "/data"
       ]
     environment:
       TZ: Asia/Shanghai
@@ -45,16 +46,15 @@ services:
       - redis-data:/data
 
   minio:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/quay.io/minio/minio:RELEASE.2024-12-13T22-19-12Z-linuxarm64
-    platform: linux/arm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/quay.io/minio/minio:RELEASE.2025-04-08T15-41-24Z
     container_name: minio
     restart: always
     ports:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: 12345678
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-12345678}
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
@@ -73,19 +73,21 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      redis:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:mysql://mysql:3306/bus_gallery?useSSL=false&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      DB_USERNAME: root
-      DB_PASSWORD: 123456
+      DB_URL: ${DB_URL:-jdbc:mysql://mysql:3306/bus_gallery?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: admin
-      MINIO_SECRET_KEY: 12345678
-      MINIO_BUCKET: bus-gallery
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-12345678}
+      MINIO_BUCKET: ${MINIO_BUCKET:-bus-gallery}
       MINIO_CDN_HOST: ${MINIO_CDN_HOST:-http://localhost/bus-gallery}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: 12345678
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-12345678}
       AUTH_SESSION_TTL_SECONDS: 86400
       MAIL_HOST: ${MAIL_HOST:-}
       MAIL_PORT: ${MAIL_PORT:-587}
@@ -95,6 +97,25 @@ services:
       MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS_ENABLE:-true}
       AUTH_SECURITY_MAIL_ENABLED: ${AUTH_SECURITY_MAIL_ENABLED:-false}
       AUTH_SECURITY_MAIL_FROM: ${AUTH_SECURITY_MAIL_FROM:-}
+      AUTH_SECURITY_CAPTCHA_ENABLED: ${AUTH_SECURITY_CAPTCHA_ENABLED:-true}
+      AUTH_SECURITY_CAPTCHA_TTL_SECONDS: ${AUTH_SECURITY_CAPTCHA_TTL_SECONDS:-180}
+      AUTH_SECURITY_CAPTCHA_CODE_LENGTH: ${AUTH_SECURITY_CAPTCHA_CODE_LENGTH:-4}
+      AUTH_SECURITY_CAPTCHA_MAX_ATTEMPTS: ${AUTH_SECURITY_CAPTCHA_MAX_ATTEMPTS:-5}
+      AUTH_SECURITY_LOGIN_CAPTCHA_FAILURE_THRESHOLD: ${AUTH_SECURITY_LOGIN_CAPTCHA_FAILURE_THRESHOLD:-5}
+      AUTH_SECURITY_FORGOT_CAPTCHA_REQUEST_THRESHOLD: ${AUTH_SECURITY_FORGOT_CAPTCHA_REQUEST_THRESHOLD:-6}
+      AUTH_RATE_SEND_CODE_IP_PER_DAY: ${AUTH_RATE_SEND_CODE_IP_PER_DAY:-200}
+      AUTH_RATE_SEND_CODE_EMAIL_PER_DAY: ${AUTH_RATE_SEND_CODE_EMAIL_PER_DAY:-40}
+      AUTH_RATE_SEND_CODE_ACCOUNT_PER_DAY: ${AUTH_RATE_SEND_CODE_ACCOUNT_PER_DAY:-40}
+      UPLOAD_SECURITY_MAX_FILE_BYTES: ${UPLOAD_SECURITY_MAX_FILE_BYTES:-15728640}
+      UPLOAD_SECURITY_MAX_IMAGE_WIDTH: ${UPLOAD_SECURITY_MAX_IMAGE_WIDTH:-8192}
+      UPLOAD_SECURITY_MAX_IMAGE_HEIGHT: ${UPLOAD_SECURITY_MAX_IMAGE_HEIGHT:-8192}
+      UPLOAD_SECURITY_MAX_IMAGE_PIXELS: ${UPLOAD_SECURITY_MAX_IMAGE_PIXELS:-24000000}
+      UPLOAD_SECURITY_IP_PER_MINUTE: ${UPLOAD_SECURITY_IP_PER_MINUTE:-30}
+      UPLOAD_SECURITY_USER_PER_MINUTE: ${UPLOAD_SECURITY_USER_PER_MINUTE:-20}
+      UPLOAD_SECURITY_GLOBAL_PER_MINUTE: ${UPLOAD_SECURITY_GLOBAL_PER_MINUTE:-300}
+      UPLOAD_SECURITY_USER_PER_DAY: ${UPLOAD_SECURITY_USER_PER_DAY:-120}
+      UPLOAD_SECURITY_PENDING_PER_USER_MAX: ${UPLOAD_SECURITY_PENDING_PER_USER_MAX:-30}
+      UPLOAD_SECURITY_PENDING_GLOBAL_MAX: ${UPLOAD_SECURITY_PENDING_GLOBAL_MAX:-5000}
     ports:
       - "8080:8080"
     extra_hosts:

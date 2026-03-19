@@ -2,9 +2,20 @@ package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
 import com.busgallery.busgallery.auth.RequireLogin;
+import com.busgallery.busgallery.auth.UserRole;
 import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.entity.Image;
+import com.busgallery.busgallery.entity.Region;
+import com.busgallery.busgallery.entity.Vehicle;
+import com.busgallery.busgallery.exception.BizException;
+import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.mapper.VehicleImageMapper;
 import com.busgallery.busgallery.service.ImageService;
+import com.busgallery.busgallery.service.RegionService;
+import com.busgallery.busgallery.service.UploadSecurityService;
+import com.busgallery.busgallery.service.VehicleService;
+import com.busgallery.busgallery.util.RequestIpUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -12,59 +23,43 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
 
-/**
- * ImageController类用于封装ImageController相关的领域职责（所在包：com.busgallery.busgallery.controller）。
- */
 @RestController
 @RequestMapping("/api/images")
 @RequiredArgsConstructor
 public class ImageController {
 
     private final ImageService imageService;
+    private final UploadSecurityService uploadSecurityService;
+    private final VehicleImageMapper vehicleImageMapper;
+    private final VehicleService vehicleService;
+    private final RegionService regionService;
 
-    /**
-     * detail方法用于处理detail相关的业务逻辑。
-     * @param id id参数，详见调用方上下文。
-     * @return 返回Image类型结果。
-     */
     @GetMapping("/{id}")
     public Image detail(@PathVariable Long id) {
         return imageService.findById(id);
     }
 
-    /**
-     * latest方法用于处理latest相关的业务逻辑。
-     * @param limit limit参数，详见调用方上下文。
-     * @return 返回List<Image>类型结果。
-     */
     @GetMapping("/latest")
     public List<Image> latest(@RequestParam(defaultValue = "12") int limit) {
         return imageService.listLatest(limit);
     }
 
-    /**
-     * listByVehicle方法用于处理listByVehicle相关的业务逻辑。
-     * @param vehicleId vehicleId参数，详见调用方上下文。
-     * @return 返回List<Image>类型结果。
-     */
     @GetMapping("/vehicle/{vehicleId}")
     public List<Image> listByVehicle(@PathVariable Long vehicleId) {
         return imageService.listByVehicle(vehicleId);
     }
 
-    /**
-     * upload方法用于处理upload相关的业务逻辑。
-     * @param file file参数，详见调用方上下文。
-     * @param uploadUser uploadUser参数，详见调用方上下文。
-     * @return 返回Image类型结果。
-     */
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequireLogin
     public Image upload(@RequestPart("file") MultipartFile file,
-                        @RequestParam(value = "uploadUser", required = false) String uploadUser) {
+                        @RequestParam(value = "uploadUser", required = false) String uploadUser,
+                        HttpServletRequest httpRequest) {
         UserSession session = AuthContextHolder.requireUser();
+        uploadSecurityService.checkUploadQuotaAndRate(session, RequestIpUtil.resolveClientIp(httpRequest));
+
         Image metadata = new Image();
         metadata.setUploadUser(StringUtils.hasText(uploadUser)
                 ? uploadUser
@@ -75,18 +70,16 @@ public class ImageController {
         return imageService.uploadAndSave(file, metadata);
     }
 
-    /**
-     * update方法用于处理update相关的业务逻辑。
-     * @param id id参数，详见调用方上下文。
-     * @param request request参数，详见调用方上下文。
-     * @return 返回Image类型结果。
-     */
     @PutMapping("/{id}")
+    @RequireLogin
     public Image update(@PathVariable Long id, @RequestBody ImageUpdateRequest request) {
         Image image = imageService.findById(id);
         if (image == null) {
-            return null;
+            throw new BizException(ErrorCode.NOT_FOUND, "图片不存在");
         }
+        UserSession session = AuthContextHolder.requireUser();
+        assertImageWritePermission(session, image);
+
         image.setUploadUser(request.getUploadUser());
         if (request.getUploaderDisplayName() != null) {
             image.setUploaderDisplayName(request.getUploaderDisplayName());
@@ -94,19 +87,66 @@ public class ImageController {
         return imageService.update(image);
     }
 
-    /**
-     * delete方法用于处理delete相关的业务逻辑。
-     * @param id id参数，详见调用方上下文。
-     * @return 无返回值。
-     */
     @DeleteMapping("/{id}")
+    @RequireLogin
     public void delete(@PathVariable Long id) {
+        Image image = imageService.findById(id);
+        if (image == null) {
+            return;
+        }
+        UserSession session = AuthContextHolder.requireUser();
+        assertImageWritePermission(session, image);
         imageService.delete(id);
     }
 
-    /**
-     * ImageUpdateRequest类用于封装ImageUpdateRequest相关的领域职责（所在包：com.busgallery.busgallery.controller）。
-     */
+    private void assertImageWritePermission(UserSession session, Image image) {
+        if (session.getRole() == UserRole.STATION) {
+            return;
+        }
+        if (session.getRole() == UserRole.USER) {
+            if (!session.getUserId().equals(image.getUploaderId())) {
+                throw new BizException(ErrorCode.UNAUTHORIZED, "只能修改自己上传的图片");
+            }
+            return;
+        }
+        if (session.getRole() == UserRole.REVIEWER) {
+            if (session.getUserId().equals(image.getUploaderId())) {
+                return;
+            }
+            Long vehicleId = vehicleImageMapper.selectPrimaryVehicleIdByImageId(image.getId());
+            if (vehicleId == null) {
+                throw new BizException(ErrorCode.UNAUTHORIZED, "无权修改该图片");
+            }
+            Vehicle vehicle = vehicleService.findById(vehicleId);
+            Long regionId = vehicle != null && vehicle.getRegion() != null ? vehicle.getRegion().getId() : null;
+            if (!isRegionInReviewerScope(session, regionId)) {
+                throw new BizException(ErrorCode.UNAUTHORIZED, "该图片不在你的审核地区");
+            }
+            return;
+        }
+        throw new BizException(ErrorCode.UNAUTHORIZED, "无权修改该图片");
+    }
+
+    private boolean isRegionInReviewerScope(UserSession session, Long targetRegionId) {
+        if (targetRegionId == null || session.getReviewRegionId() == null) {
+            return false;
+        }
+        if (targetRegionId.equals(session.getReviewRegionId())) {
+            return true;
+        }
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(session.getReviewRegionId());
+        List<Region> children = regionService.findChildren(session.getReviewRegionId());
+        if (children != null) {
+            for (Region child : children) {
+                if (child != null && child.getId() != null) {
+                    scopeIds.add(child.getId());
+                }
+            }
+        }
+        return scopeIds.contains(targetRegionId);
+    }
+
     @Data
     public static class ImageUpdateRequest {
         private String uploadUser;

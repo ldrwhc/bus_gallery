@@ -639,8 +639,8 @@ onMounted(() => {
     align-items: center;
     background: #f8fafc;
     white-space: normal;
-    min-width: 300px;
     justify-content: space-between;
+    min-width: 0;
 
     img {
         width: 80px;
@@ -657,12 +657,15 @@ onMounted(() => {
 
 .company-name {
     font-weight: 600;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
 }
 
 .company-region {
     color: #475569;
-    white-space: nowrap;
+    white-space: normal;
+    line-height: 1.35;
 }
 
 .company-actions {
@@ -680,6 +683,70 @@ onMounted(() => {
     font-weight: 600;
     cursor: pointer;
     margin-left: auto;
+}
+
+@media (max-width: 900px) {
+    .company-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .model-block {
+        padding: 18px;
+    }
+
+    .model-block__header {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .company-pill {
+        padding: 12px;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .company-pill img {
+        width: 70px;
+        height: 52px;
+        flex: 0 0 auto;
+    }
+
+    .company-pill__body {
+        min-width: 0;
+    }
+
+    .company-actions {
+        margin-left: 0;
+        align-self: flex-start;
+    }
+
+    .text-btn,
+    .text-btn:visited {
+        margin-left: 0;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 560px) {
+    .company-pill {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px 10px;
+    }
+
+    .company-pill img {
+        display: none;
+    }
+
+    .company-pill__body {
+        grid-column: 1 / 2;
+    }
+
+    .company-actions {
+        grid-column: 2 / 3;
+        grid-row: 1 / 2;
+        justify-self: end;
+    }
 }
 
 .model-detail {
