@@ -314,10 +314,11 @@ npm run dev</code></pre></div>
               <div v-for="(evt, idx) in currentFlow.events" :key="currentFlow.id + evt.title + idx" class="stripe-event">
                 <div class="event-order">{{ idx + 1 }}</div>
                 <div class="event-stack" :style="eventSpanStyle(evt)">
-                <div
-                  class="event-line"
-                  :class="{ reverse: evt.from > evt.to, self: evt.from === evt.to, active: eventTouchesLane(evt, activeLane) }"
-                ></div>
+                  <div
+                    class="event-line"
+                    :class="{ reverse: evt.from > evt.to, self: evt.from === evt.to, active: eventTouchesLane(evt, activeLane) }"
+                  ></div>
+                  <div class="event-connector" :class="[eventConnectorClass(evt), { active: eventTouchesLane(evt, activeLane) }]"></div>
                   <div class="event-card" :class="{ active: eventTouchesLane(evt, activeLane) }">
                     <div class="row">
                       <h4>{{ evt.title }}</h4>
@@ -1308,6 +1309,10 @@ function eventTouchesLane(evt, laneIdx) {
   const max = Math.max(evt.from, evt.to);
   return laneIdx >= min && laneIdx <= max;
 }
+function eventConnectorClass(evt) {
+  if (evt.from === evt.to) return 'connector--center';
+  return evt.from > evt.to ? 'connector--left' : 'connector--right';
+}
 function handleSeqMousemove(event) {
   const host = event.currentTarget;
   if (!host || typeof host.querySelectorAll !== 'function') return;
@@ -1818,10 +1823,11 @@ th {
   z-index: 6;
   background: #fff;
   padding-bottom: 6px;
+  border-bottom: 1px solid transparent;
 }
 
 .stripe-head.active {
-  border-bottom: 1px solid #dbe3ee;
+  border-bottom-color: #dbe3ee;
   box-shadow: 0 6px 12px rgba(15, 23, 42, 0.06);
 }
 
@@ -1975,59 +1981,36 @@ th {
 
 .event-line {
   height: 2px;
-  background: linear-gradient(90deg, #cbd5e1 0%, #60a5fa 80%);
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.75) 0%, rgba(96, 165, 250, 0.9) 82%);
   margin: 8px 10px 0;
   border-radius: 999px;
   position: relative;
-}
-
-.event-line::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  right: 0;
-  height: 14px;
-  border-left: 1px dashed rgba(96, 165, 250, 0.8);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25) inset;
 }
 
 .event-line.reverse {
-  background: linear-gradient(90deg, #60a5fa, #cbd5e1);
-}
-
-.event-line.reverse::after {
-  right: auto;
-  left: 0;
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.9), rgba(148, 163, 184, 0.75));
 }
 
 .event-line.self {
-  background: #60a5fa;
+  background: rgba(96, 165, 250, 0.95);
   width: 70%;
 }
 
-.event-line.self::after {
-  right: auto;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
 .event-line.active {
-  height: 3px;
-  background: linear-gradient(90deg, #60a5fa 0%, #2563eb 100%);
-}
-
-.event-line.active::after {
-  border-left-color: rgba(37, 99, 235, 0.95);
-  height: 14px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.95) 0%, rgba(37, 99, 235, 1) 100%);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
 }
 
 .event-card {
   position: relative;
-  border: 1px solid #dbe3ee;
-  border-radius: 12px;
-  background: #fff;
-  padding: 11px;
+  border: 1px solid #d6e1ec;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  padding: 12px;
   margin-top: 14px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 8px 20px -18px rgba(30, 41, 59, 0.6), 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .event-stack {
@@ -2037,10 +2020,47 @@ th {
   min-width: 0;
 }
 
+.event-connector {
+  --conn-color: rgba(96, 165, 250, 0.92);
+  position: relative;
+  width: 0;
+  height: 14px;
+  margin-top: -1px;
+  border-left: 2px dashed var(--conn-color);
+}
+
+.event-connector.active {
+  --conn-color: rgba(37, 99, 235, 1);
+}
+
+.event-connector::after {
+  content: '';
+  position: absolute;
+  left: -5px;
+  bottom: -6px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--conn-color);
+}
+
+.connector--right {
+  align-self: flex-end;
+  margin-right: 10px;
+}
+
+.connector--left {
+  align-self: flex-start;
+  margin-left: 10px;
+}
+
+.connector--center {
+  align-self: center;
+}
+
 .event-card.active {
   border-color: #60a5fa;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
-  background: #f8fbff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12), 0 10px 20px -16px rgba(37, 99, 235, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
 }
 
 .event-card h4 {
