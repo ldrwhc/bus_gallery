@@ -163,7 +163,6 @@ public class AdminController {
         Company company = new Company();
         company.setName(request.getName().trim());
         company.setDescription(request.getDescription());
-        company.setLogoUrl(request.getLogoUrl());
         if (request.getRegionId() != null) {
             Region region = new Region();
             region.setId(request.getRegionId());
@@ -183,7 +182,6 @@ public class AdminController {
         }
         existing.setName(request.getName().trim());
         existing.setDescription(request.getDescription());
-        existing.setLogoUrl(request.getLogoUrl());
         if (request.getRegionId() != null) {
             Region region = new Region();
             region.setId(request.getRegionId());
@@ -216,7 +214,6 @@ public class AdminController {
         Brand brand = new Brand();
         brand.setName(request.getName().trim());
         brand.setChnName(request.getChnName());
-        brand.setCountry(request.getCountry());
         brand.setDescription(request.getDescription());
         return toBrandRow(brandService.create(brand));
     }
@@ -232,7 +229,6 @@ public class AdminController {
         }
         existing.setName(request.getName().trim());
         existing.setChnName(request.getChnName());
-        existing.setCountry(request.getCountry());
         existing.setDescription(request.getDescription());
         return toBrandRow(brandService.update(existing));
     }
@@ -258,9 +254,7 @@ public class AdminController {
         validateModelRequest(request);
         Model model = new Model();
         model.setName(request.getName().trim());
-        model.setModelCode(request.getModelCode());
         model.setDescription(request.getDescription());
-        model.setReleaseYear(request.getReleaseYear());
         Brand brand = new Brand();
         brand.setId(request.getBrandId());
         model.setBrand(brand);
@@ -277,9 +271,7 @@ public class AdminController {
             throw new BizException(ErrorCode.NOT_FOUND, "Model not found");
         }
         existing.setName(request.getName().trim());
-        existing.setModelCode(request.getModelCode());
         existing.setDescription(request.getDescription());
-        existing.setReleaseYear(request.getReleaseYear());
         Brand brand = new Brand();
         brand.setId(request.getBrandId());
         existing.setBrand(brand);
@@ -345,7 +337,6 @@ public class AdminController {
         row.setId(company.getId());
         row.setName(company.getName());
         row.setDescription(company.getDescription());
-        row.setLogoUrl(company.getLogoUrl());
         row.setRegionId(company.getRegion() != null ? company.getRegion().getId() : null);
         row.setRegionName(company.getRegion() != null ? company.getRegion().getName() : null);
         return row;
@@ -356,7 +347,6 @@ public class AdminController {
         row.setId(brand.getId());
         row.setName(brand.getName());
         row.setChnName(brand.getChnName());
-        row.setCountry(brand.getCountry());
         row.setDescription(brand.getDescription());
         return row;
     }
@@ -365,9 +355,7 @@ public class AdminController {
         AdminModelRow row = new AdminModelRow();
         row.setId(model.getId());
         row.setName(model.getName());
-        row.setModelCode(model.getModelCode());
         row.setDescription(model.getDescription());
-        row.setReleaseYear(model.getReleaseYear());
         row.setBrandId(model.getBrand() != null ? model.getBrand().getId() : null);
         row.setBrandName(model.getBrand() != null ? model.getBrand().getName() : null);
         return row;
@@ -384,7 +372,6 @@ public class AdminController {
     public static class CompanyUpsertRequest {
         private String name;
         private String description;
-        private String logoUrl;
         private Long regionId;
     }
 
@@ -392,16 +379,13 @@ public class AdminController {
     public static class BrandUpsertRequest {
         private String name;
         private String chnName;
-        private String country;
         private String description;
     }
 
     @Data
     public static class ModelUpsertRequest {
         private String name;
-        private String modelCode;
         private String description;
-        private Integer releaseYear;
         private Long brandId;
     }
 
@@ -421,7 +405,6 @@ public class AdminController {
         private Long id;
         private String name;
         private String description;
-        private String logoUrl;
         private Long regionId;
         private String regionName;
     }
@@ -431,7 +414,6 @@ public class AdminController {
         private Long id;
         private String name;
         private String chnName;
-        private String country;
         private String description;
     }
 
@@ -439,9 +421,7 @@ public class AdminController {
     public static class AdminModelRow {
         private Long id;
         private String name;
-        private String modelCode;
         private String description;
-        private Integer releaseYear;
         private Long brandId;
         private String brandName;
     }

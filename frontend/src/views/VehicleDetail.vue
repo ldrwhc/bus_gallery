@@ -16,6 +16,16 @@
                                 {{ vehicleData.vehicle?.manufacturer || '未注明厂商' }}
                                 <span v-if="vehicleData.vehicle?.modelName"> · {{ vehicleData.vehicle.modelName }}</span>
                             </p>
+                            <p class="brand-line" v-if="currentBrand.brandId">
+                                品牌：
+                                <router-link
+                                    class="brand-link"
+                                    :to="{ name: 'BrandCatalog', params: { brandId: currentBrand.brandId } }"
+                                >
+                                    {{ currentBrand.brandLabel }}
+                                </router-link>
+                            </p>
+                            <p class="brand-line" v-else>品牌：待补充</p>
                         </div>
                         <div class="hero-uploader" v-if="vehicleData.images?.[0]?.uploaderUsername">
                             <router-link
@@ -171,6 +181,25 @@ const currentImageIndex = ref(0);
 const currentVariantIndex = ref(0);
 const vehicleData = computed(() => variants.value[currentVariantIndex.value] || null);
 const sameCompany = ref([]);
+const currentBrand = computed(() => {
+    const detail = vehicleData.value;
+    const modelBrandId = detail?.vehicle?.model?.brandId;
+    const configBrandId = detail?.vehicleConfig?.brandId;
+    const brandId = modelBrandId || configBrandId || null;
+    const brandById = brandId ? store.getters['brands/brandById'](brandId) : null;
+    const brandChnName =
+        detail?.vehicle?.model?.brandChnName ||
+        detail?.vehicleConfig?.brandChnName ||
+        brandById?.chnName;
+    const brandName =
+        detail?.vehicle?.model?.brandName ||
+        detail?.vehicleConfig?.brandName ||
+        brandById?.name;
+    return {
+        brandId,
+        brandLabel: brandChnName || brandName || '未知品牌'
+    };
+});
 
 const commentsOpen = ref(false);
 const comments = ref([]);
@@ -505,6 +534,7 @@ watch(isAuthenticated, async (val) => {
 });
 
 onMounted(() => {
+    store.dispatch('brands/loadBrands').catch(() => {});
     resizeHandler();
     window.addEventListener('resize', resizeHandler);
 });
@@ -560,6 +590,22 @@ onBeforeUnmount(() => {
 .hero-title .muted {
     margin: 4px 0 0;
     color: #cbd5e1;
+}
+
+.brand-line {
+    margin: 8px 0 0;
+    color: #cbd5e1;
+    font-size: 0.95rem;
+}
+
+.brand-link {
+    color: #67e8f9;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.brand-link:hover {
+    text-decoration: underline;
 }
 
 .muted {

@@ -43,6 +43,7 @@
             <association property="brand" javaType="com.busgallery.busgallery.entity.Brand">
                 <id property="id" column="b_id"/>
                 <result property="name" column="b_name"/>
+                <result property="chnName" column="b_chn_name"/>
             </association>
         </association>
         <association property="company" javaType="com.busgallery.busgallery.entity.Company">
@@ -81,7 +82,7 @@
             v.factory_date, v.launch_date, v.air_conditioned, v.source, v.remark,
             v.created_at, v.updated_at,
             m.id AS m_id, m.name AS m_name, m.brand_id AS m_brand_id,
-            b.id AS b_id, b.name AS b_name,
+            b.id AS b_id, b.name AS b_name, b.chn_name AS b_chn_name,
             c.id AS c_id, c.name AS c_name, c.region_id AS c_region_id,
             cr.id AS cr_id, cr.name AS cr_name, cr.parent_id AS cr_parent_id, cr.level AS cr_level,
             r.id AS r_id, r.name AS r_name, r.parent_id AS r_parent_id, r.level AS r_level
@@ -113,7 +114,7 @@
             v.factory_date, v.launch_date, v.air_conditioned, v.source, v.remark,
             v.created_at, v.updated_at,
             m.id AS m_id, m.name AS m_name, m.brand_id AS m_brand_id,
-            b.id AS b_id, b.name AS b_name,
+            b.id AS b_id, b.name AS b_name, b.chn_name AS b_chn_name,
             c.id AS c_id, c.name AS c_name, c.region_id AS c_region_id,
             cr.id AS cr_id, cr.name AS cr_name, cr.parent_id AS cr_parent_id, cr.level AS cr_level,
             r.id AS r_id, r.name AS r_name, r.parent_id AS r_parent_id, r.level AS r_level

@@ -111,7 +111,6 @@
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="名称" min-width="180" />
                             <el-table-column prop="regionName" label="地区" min-width="140" />
-                            <el-table-column prop="logoUrl" label="Logo URL" min-width="220" />
                             <el-table-column label="操作" width="180" fixed="right">
                                 <template #default="{ row }">
                                     <el-button size="small" @click="openCompanyEditor(row)">编辑</el-button>
@@ -130,7 +129,6 @@
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="英文名" min-width="140" />
                             <el-table-column prop="chnName" label="中文名" min-width="140" />
-                            <el-table-column prop="country" label="国家/地区" min-width="120" />
                             <el-table-column label="操作" width="180" fixed="right">
                                 <template #default="{ row }">
                                     <el-button size="small" @click="openBrandEditor(row)">编辑</el-button>
@@ -149,8 +147,6 @@
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="车型名" min-width="180" />
                             <el-table-column prop="brandName" label="品牌" min-width="140" />
-                            <el-table-column prop="modelCode" label="型号编码" min-width="140" />
-                            <el-table-column prop="releaseYear" label="发布年份" width="110" />
                             <el-table-column label="操作" width="180" fixed="right">
                                 <template #default="{ row }">
                                     <el-button size="small" @click="openModelEditor(row)">编辑</el-button>
@@ -187,7 +183,6 @@
                         <el-option v-for="option in regionOptions" :key="option.value" :label="option.label" :value="option.value" />
                     </el-select>
                 </el-form-item>
-                <el-form-item label="Logo URL"><el-input v-model="companyEditor.logoUrl" /></el-form-item>
                 <el-form-item label="描述"><el-input v-model="companyEditor.description" type="textarea" /></el-form-item>
             </el-form>
             <template #footer>
@@ -200,7 +195,6 @@
             <el-form label-position="top">
                 <el-form-item label="英文名"><el-input v-model="brandEditor.name" /></el-form-item>
                 <el-form-item label="中文名"><el-input v-model="brandEditor.chnName" /></el-form-item>
-                <el-form-item label="国家/地区"><el-input v-model="brandEditor.country" /></el-form-item>
                 <el-form-item label="描述"><el-input v-model="brandEditor.description" type="textarea" /></el-form-item>
             </el-form>
             <template #footer>
@@ -217,8 +211,6 @@
                         <el-option v-for="option in brandOptions" :key="option.value" :label="option.label" :value="option.value" />
                     </el-select>
                 </el-form-item>
-                <el-form-item label="型号编码"><el-input v-model="modelEditor.modelCode" /></el-form-item>
-                <el-form-item label="发布年份"><el-input-number v-model="modelEditor.releaseYear" :min="1950" :max="2100" /></el-form-item>
                 <el-form-item label="描述"><el-input v-model="modelEditor.description" type="textarea" /></el-form-item>
             </el-form>
             <template #footer>
@@ -230,7 +222,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
@@ -440,9 +432,9 @@ const reloadAll = async () => {
 };
 
 const regionEditor = reactive({ visible: false, saving: false, id: null, name: '', parentId: null, level: 1 });
-const companyEditor = reactive({ visible: false, saving: false, id: null, name: '', regionId: null, logoUrl: '', description: '' });
-const brandEditor = reactive({ visible: false, saving: false, id: null, name: '', chnName: '', country: '', description: '' });
-const modelEditor = reactive({ visible: false, saving: false, id: null, name: '', brandId: null, modelCode: '', releaseYear: null, description: '' });
+const companyEditor = reactive({ visible: false, saving: false, id: null, name: '', regionId: null, description: '' });
+const brandEditor = reactive({ visible: false, saving: false, id: null, name: '', chnName: '', description: '' });
+const modelEditor = reactive({ visible: false, saving: false, id: null, name: '', brandId: null, description: '' });
 
 const openRegionEditor = (row = null) => {
     regionEditor.visible = true;
@@ -456,7 +448,6 @@ const openCompanyEditor = (row = null) => {
     companyEditor.id = row?.id || null;
     companyEditor.name = row?.name || '';
     companyEditor.regionId = row?.regionId || null;
-    companyEditor.logoUrl = row?.logoUrl || '';
     companyEditor.description = row?.description || '';
 };
 const openBrandEditor = (row = null) => {
@@ -464,7 +455,6 @@ const openBrandEditor = (row = null) => {
     brandEditor.id = row?.id || null;
     brandEditor.name = row?.name || '';
     brandEditor.chnName = row?.chnName || '';
-    brandEditor.country = row?.country || '';
     brandEditor.description = row?.description || '';
 };
 const openModelEditor = (row = null) => {
@@ -472,8 +462,6 @@ const openModelEditor = (row = null) => {
     modelEditor.id = row?.id || null;
     modelEditor.name = row?.name || '';
     modelEditor.brandId = row?.brandId || null;
-    modelEditor.modelCode = row?.modelCode || '';
-    modelEditor.releaseYear = row?.releaseYear || null;
     modelEditor.description = row?.description || '';
 };
 
@@ -507,7 +495,6 @@ const saveCompany = async () => {
         const payload = {
             name: companyEditor.name,
             regionId: companyEditor.regionId,
-            logoUrl: companyEditor.logoUrl || null,
             description: companyEditor.description || null
         };
         if (companyEditor.id) await updateAdminCompany(companyEditor.id, payload);
@@ -532,7 +519,6 @@ const saveBrand = async () => {
         const payload = {
             name: brandEditor.name,
             chnName: brandEditor.chnName || null,
-            country: brandEditor.country || null,
             description: brandEditor.description || null
         };
         if (brandEditor.id) await updateAdminBrand(brandEditor.id, payload);
@@ -557,8 +543,6 @@ const saveModel = async () => {
         const payload = {
             name: modelEditor.name,
             brandId: modelEditor.brandId,
-            modelCode: modelEditor.modelCode || null,
-            releaseYear: modelEditor.releaseYear || null,
             description: modelEditor.description || null
         };
         if (modelEditor.id) await updateAdminModel(modelEditor.id, payload);
@@ -605,6 +589,32 @@ const removeModel = (row) =>
         await loadModelTable();
         ElMessage.success('车型已删除');
     }).catch(() => {});
+
+const refreshTabData = async (tab) => {
+    if (tab === 'regions') {
+        await loadRegionTable();
+        return;
+    }
+    if (tab === 'companies') {
+        await Promise.all([loadRegionTable(), loadCompanyTable()]);
+        return;
+    }
+    if (tab === 'brands') {
+        await loadBrandTable();
+        return;
+    }
+    if (tab === 'models') {
+        await Promise.all([loadBrandTable(), loadModelTable()]);
+    }
+};
+
+watch(activeTab, async (tab) => {
+    try {
+        await refreshTabData(tab);
+    } catch (error) {
+        ElMessage.error(error?.message || '表格刷新失败');
+    }
+});
 
 onMounted(() => {
     reloadAll();

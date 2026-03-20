@@ -7,7 +7,7 @@
                     <h1>按品牌浏览车型</h1>
                     <p class="subtitle">收录 {{ catalog.length }} 个品牌 / {{ totalModels }} 款车型</p>
                 </div>
-                <button v-if="selectedBrandId" class="ghost-btn" type="button" @click="clearBrandFilter">
+                <button v-if="selectedBrandId" class="ghost-btn catalog-back-btn" type="button" @click="clearBrandFilter">
                     返回全部品牌
                 </button>
             </header>
@@ -71,7 +71,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
@@ -128,6 +128,13 @@ const viewBrand = (brandId) => {
 const clearBrandFilter = () => {
     router.push({ name: 'BrandCatalog' });
 };
+
+watch(
+    () => selectedBrandId.value,
+    () => {
+        initialFilter.value = '';
+    }
+);
 
 const regionsById = computed(() => {
     const map = {};
@@ -347,20 +354,32 @@ onMounted(() => {
 }
 
 .ghost-btn {
-    border: 1px solid rgba(99, 102, 241, 0.4);
+    border: 1px solid rgba(99, 102, 241, 0.28);
     border-radius: 999px;
-    background: transparent;
-    padding: 8px 18px;
-    color: #4c1d95;
+    height: 30px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    background: rgba(99, 102, 241, 0.06);
+    color: #4338ca;
+    font-weight: 500;
+    font-size: 0.78rem;
+    line-height: 1;
     cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 
     &--sm {
         padding: 6px 12px;
         font-size: 0.8rem;
+        height: 28px;
     }
 
     &:hover {
-        background: rgba(99, 102, 241, 0.1);
+        background: rgba(99, 102, 241, 0.12);
+        border-color: rgba(99, 102, 241, 0.4);
+        color: #3730a3;
     }
 }
 </style>

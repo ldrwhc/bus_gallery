@@ -8,7 +8,7 @@
                     <p class="subtitle">收录 {{ catalog.length }} 款车型 / {{ totalCompanies }} 家运营公司</p>
                 </div>
 
-                <button v-if="selectedModelId" class="ghost-btn" type="button" @click="clearModelFilter">
+                <button v-if="selectedModelId" class="ghost-btn catalog-back-btn" type="button" @click="clearModelFilter">
                     返回全部车型
                 </button>
             </header>
@@ -532,6 +532,33 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     margin-bottom: 24px;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ghost-btn {
+    border: 1px solid rgba(37, 99, 235, 0.3);
+    border-radius: 999px;
+    height: 30px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    background: rgba(37, 99, 235, 0.06);
+    color: #1d4ed8;
+    font-weight: 500;
+    font-size: 0.78rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+
+    &:hover {
+        background: rgba(37, 99, 235, 0.12);
+        border-color: rgba(37, 99, 235, 0.42);
+        color: #1e40af;
+    }
 }
 
 .filter-bar {
@@ -810,6 +837,8 @@ onMounted(() => {
     padding: 16px;
     background: #f9fafb;
     position: relative;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .detail-card__title-row {
@@ -861,6 +890,7 @@ onMounted(() => {
         display: flex;
         flex-direction: column;
         font-size: 0.85rem;
+        min-width: 0;
 
         span {
             color: #94a3b8;
@@ -877,6 +907,7 @@ onMounted(() => {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    min-width: 0;
 }
 
 .count-badge {
@@ -888,6 +919,12 @@ onMounted(() => {
     color: #1d4ed8;
     border-radius: 12px;
     font-weight: 600;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+    flex: 0 1 auto;
 
     strong {
         color: #0f172a;
@@ -895,6 +932,7 @@ onMounted(() => {
         padding: 2px 6px;
         border-radius: 8px;
         box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.15);
+        flex-shrink: 0;
     }
 }
 

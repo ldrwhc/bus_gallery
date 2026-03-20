@@ -4,14 +4,20 @@ import org.springframework.util.StringUtils;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class FuelTypeNormalizer {
 
+    private static final Set<String> DISABLED_FUEL_VALUES = Set.of(
+            "汽油",
+            "混动",
+            "gasoline",
+            "hybrid"
+    );
+
     private static final Map<String, String> FUEL_MAP = Map.ofEntries(
-            Map.entry("gasoline", "汽油"),
             Map.entry("diesel", "柴油"),
             Map.entry("electric", "纯电"),
-            Map.entry("hybrid", "混动"),
             Map.entry("gas", "燃气"),
             Map.entry("diesel_electric", "柴油+电"),
             Map.entry("cng", "压缩天然气"),
@@ -30,7 +36,12 @@ public final class FuelTypeNormalizer {
             return raw;
         }
         String trimmed = raw.trim();
-        String mapped = FUEL_MAP.get(trimmed.toLowerCase(Locale.ROOT));
-        return mapped != null ? mapped : trimmed;
+        String lowered = trimmed.toLowerCase(Locale.ROOT);
+        if (DISABLED_FUEL_VALUES.contains(trimmed) || DISABLED_FUEL_VALUES.contains(lowered)) {
+            return null;
+        }
+        String mapped = FUEL_MAP.get(lowered);
+        String normalized = mapped != null ? mapped : trimmed;
+        return DISABLED_FUEL_VALUES.contains(normalized) ? null : normalized;
     }
 }

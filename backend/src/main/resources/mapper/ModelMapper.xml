@@ -7,9 +7,7 @@
     <resultMap id="ModelResultMap" type="com.busgallery.busgallery.entity.Model">
         <id property="id" column="id"/>
         <result property="name" column="name"/>
-        <result property="modelCode" column="model_code"/>
         <result property="description" column="description"/>
-        <result property="releaseYear" column="release_year"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
         <association property="brand" javaType="com.busgallery.busgallery.entity.Brand">
@@ -18,7 +16,7 @@
     </resultMap>
 
     <sql id="BaseColumnList">
-        id, brand_id, name, model_code, description, release_year, created_at, updated_at
+        id, brand_id, name, description, created_at, updated_at
     </sql>
 
     <select id="selectById" parameterType="long" resultMap="ModelResultMap">
@@ -50,17 +48,15 @@
 
     <insert id="insert" parameterType="com.busgallery.busgallery.entity.Model"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO model (name, model_code, description, release_year, brand_id)
-        VALUES (#{name}, #{modelCode}, #{description}, #{releaseYear}, #{brand.id})
+        INSERT INTO model (name, description, brand_id)
+        VALUES (#{name}, #{description}, #{brand.id})
     </insert>
 
     <update id="update" parameterType="com.busgallery.busgallery.entity.Model">
         UPDATE model
         SET
         name = #{name},
-        model_code = #{modelCode},
         description = #{description},
-        release_year = #{releaseYear},
         brand_id = #{brand.id}
         WHERE id = #{id}
     </update>

@@ -259,10 +259,81 @@ PREPARE stmt FROM @ddl_user_review_region_normalize;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
-UPDATE `vehicle_config` SET `fuel_type` = '汽油' WHERE LOWER(TRIM(`fuel_type`)) = 'gasoline';
+
+SET @company_logo_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'company'
+      AND COLUMN_NAME = 'logo_url'
+);
+
+SET @ddl_drop_company_logo := IF(
+        @company_logo_exists > 0,
+        'ALTER TABLE `company` DROP COLUMN `logo_url`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_drop_company_logo;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @brand_country_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'brand'
+      AND COLUMN_NAME = 'country'
+);
+
+SET @ddl_drop_brand_country := IF(
+        @brand_country_exists > 0,
+        'ALTER TABLE `brand` DROP COLUMN `country`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_drop_brand_country;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @model_code_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'model'
+      AND COLUMN_NAME = 'model_code'
+);
+
+SET @ddl_drop_model_code := IF(
+        @model_code_exists > 0,
+        'ALTER TABLE `model` DROP COLUMN `model_code`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_drop_model_code;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @model_release_year_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'model'
+      AND COLUMN_NAME = 'release_year'
+);
+
+SET @ddl_drop_model_release_year := IF(
+        @model_release_year_exists > 0,
+        'ALTER TABLE `model` DROP COLUMN `release_year`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_drop_model_release_year;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 UPDATE `vehicle_config` SET `fuel_type` = '柴油' WHERE LOWER(TRIM(`fuel_type`)) = 'diesel';
 UPDATE `vehicle_config` SET `fuel_type` = '纯电' WHERE LOWER(TRIM(`fuel_type`)) = 'electric';
-UPDATE `vehicle_config` SET `fuel_type` = '混动' WHERE LOWER(TRIM(`fuel_type`)) = 'hybrid';
 UPDATE `vehicle_config` SET `fuel_type` = '燃气' WHERE LOWER(TRIM(`fuel_type`)) = 'gas';
 UPDATE `vehicle_config` SET `fuel_type` = '柴油+电' WHERE LOWER(TRIM(`fuel_type`)) = 'diesel_electric';
 UPDATE `vehicle_config` SET `fuel_type` = '压缩天然气' WHERE LOWER(TRIM(`fuel_type`)) = 'cng';
@@ -274,6 +345,10 @@ UPDATE `vehicle_config` SET `fuel_type` = '柴油+电' WHERE TRIM(`fuel_type`) =
 UPDATE `vehicle_config` SET `fuel_type` = '压缩天然气+电' WHERE TRIM(`fuel_type`) = '压缩天然气 + 电';
 UPDATE `vehicle_config` SET `fuel_type` = '液化天然气+电' WHERE TRIM(`fuel_type`) = '液化天然气 + 电';
 UPDATE `vehicle_config` SET `fuel_type` = '压缩氢气+电' WHERE TRIM(`fuel_type`) = '压缩氢气 + 电';
+UPDATE `vehicle_config`
+SET `fuel_type` = NULL
+WHERE LOWER(TRIM(`fuel_type`)) IN ('gasoline', 'hybrid')
+   OR TRIM(`fuel_type`) IN ('汽油', '混动');
 
 -- MySQL 5.7 does not support ADD COLUMN IF NOT EXISTS, so emulate the guard.
 SET @column_exists := (

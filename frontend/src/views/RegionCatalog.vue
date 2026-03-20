@@ -9,7 +9,7 @@
                         覆盖 {{ cityCatalog.length }} 个地级市 / {{ totalCompanies }} 家公交企业
                     </p>
                 </div>
-                <button v-if="selectedRegionId" class="ghost-btn" type="button" @click="clearRegionFilter">
+                <button v-if="selectedRegionId" class="ghost-btn catalog-back-btn" type="button" @click="clearRegionFilter">
                     返回全部地区
                 </button>
             </header>

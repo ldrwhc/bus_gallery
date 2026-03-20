@@ -8,7 +8,6 @@
         <id property="id" column="id"/>
         <result property="name" column="name"/>
         <result property="description" column="description"/>
-        <result property="logoUrl" column="logo_url"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
         <association property="region" javaType="com.busgallery.busgallery.entity.Region">
@@ -17,7 +16,7 @@
     </resultMap>
 
     <sql id="BaseColumnList">
-        id, name, region_id, description, logo_url, created_at, updated_at
+        id, name, region_id, description, created_at, updated_at
     </sql>
 
     <select id="selectById" parameterType="long" resultMap="CompanyResultMap">
@@ -48,7 +47,7 @@
 
     <insert id="insert" parameterType="com.busgallery.busgallery.entity.Company"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO company (name, region_id, description, logo_url)
+        INSERT INTO company (name, region_id, description)
         VALUES (
         #{name},
         <choose>
@@ -59,8 +58,7 @@
                 NULL
             </otherwise>
         </choose>,
-        #{description},
-        #{logoUrl}
+        #{description}
         )
     </insert>
 
@@ -77,8 +75,7 @@
                 NULL
             </otherwise>
         </choose>,
-        description = #{description},
-        logo_url = #{logoUrl}
+        description = #{description}
         WHERE id = #{id}
     </update>
 

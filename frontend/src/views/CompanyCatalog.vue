@@ -8,7 +8,7 @@
                     <p class="subtitle">共 {{ catalog.length }} 家公司 / {{ modelsCount }} 种车型</p>
                 </div>
 
-                <button v-if="selectedCompanyId" class="ghost-btn" type="button" @click="clearCompanyFilter">
+                <button v-if="selectedCompanyId" class="ghost-btn catalog-back-btn" type="button" @click="clearCompanyFilter">
                     返回全部公司
                 </button>
             </header>

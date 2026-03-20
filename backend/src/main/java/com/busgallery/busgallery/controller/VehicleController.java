@@ -249,6 +249,7 @@ public class VehicleController {
         dto.setName(source.getName());
         dto.setBrandId(source.getBrand() != null ? source.getBrand().getId() : null);
         dto.setBrandName(source.getBrand() != null ? source.getBrand().getName() : null);
+        dto.setBrandChnName(source.getBrand() != null ? source.getBrand().getChnName() : null);
         return dto;
     }
 
@@ -285,6 +286,7 @@ public class VehicleController {
         dto.setVehicleId(source.getVehicle() != null ? source.getVehicle().getId() : null);
         dto.setBrandId(source.getBrand() != null ? source.getBrand().getId() : null);
         dto.setBrandName(source.getBrand() != null ? source.getBrand().getName() : null);
+        dto.setBrandChnName(source.getBrand() != null ? source.getBrand().getChnName() : null);
         dto.setModelId(source.getModel() != null ? source.getModel().getId() : null);
         dto.setModelName(source.getModel() != null ? source.getModel().getName() : null);
         dto.setMotor(source.getMotor());
@@ -479,6 +481,7 @@ public class VehicleController {
         private String name;
         private Long brandId;
         private String brandName;
+        private String brandChnName;
     }
 
     @Data
@@ -503,6 +506,7 @@ public class VehicleController {
         private Long vehicleId;
         private Long brandId;
         private String brandName;
+        private String brandChnName;
         private Long modelId;
         private String modelName;
         private String motor;

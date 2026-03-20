@@ -1,8 +1,13 @@
+const disabledFuelValues = new Set([
+    '汽油',
+    '混动',
+    'gasoline',
+    'hybrid'
+]);
+
 const fuelAliasMap = {
-    gasoline: '汽油',
     diesel: '柴油',
     electric: '纯电',
-    hybrid: '混动',
     gas: '燃气',
     diesel_electric: '柴油+电',
     cng: '压缩天然气',
@@ -18,10 +23,8 @@ const fuelAliasMap = {
 };
 
 export const FUEL_OPTIONS = [
-    { label: '汽油', value: '汽油' },
     { label: '柴油', value: '柴油' },
     { label: '纯电', value: '纯电' },
-    { label: '混动', value: '混动' },
     { label: '燃气', value: '燃气' },
     { label: '柴油+电', value: '柴油+电' },
     { label: '压缩天然气', value: '压缩天然气' },
@@ -34,7 +37,12 @@ export const FUEL_OPTIONS = [
 export const normalizeFuelType = (raw) => {
     if (!raw) return '';
     const trimmed = String(raw).trim();
-    return fuelAliasMap[trimmed] || fuelAliasMap[trimmed.toLowerCase()] || trimmed;
+    const lowered = trimmed.toLowerCase();
+    if (disabledFuelValues.has(trimmed) || disabledFuelValues.has(lowered)) {
+        return '';
+    }
+    const mapped = fuelAliasMap[trimmed] || fuelAliasMap[lowered] || trimmed;
+    return disabledFuelValues.has(mapped) ? '' : mapped;
 };
 
 export const isElectricFuel = (raw) => {
@@ -44,10 +52,5 @@ export const isElectricFuel = (raw) => {
 
 export const isCombustionFuel = (raw) => {
     const value = normalizeFuelType(raw);
-    return (
-        value.includes('柴油') ||
-        value.includes('汽油') ||
-        value.includes('天然气') ||
-        value.includes('燃气')
-    );
+    return value.includes('柴油') || value.includes('天然气') || value.includes('燃气');
 };
