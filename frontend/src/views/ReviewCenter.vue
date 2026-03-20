@@ -53,65 +53,63 @@
 
                                 <el-row :gutter="12">
                                     <el-col :sm="12" :xs="24">
-                                        <el-form-item label="品牌（中文）">
+                                        <el-form-item label="品牌（库内选择）">
                                             <el-select v-model="form.brandId" clearable filterable placeholder="可搜索品牌">
                                                 <el-option v-for="option in brandOptions" :key="option.value" :label="option.label" :value="option.value" />
                                             </el-select>
                                         </el-form-item>
                                     </el-col>
-                                    <el-col :sm="12" :xs="24"><el-form-item label="品牌名称"><el-input v-model="form.brandName" /></el-form-item></el-col>
+                                    <el-col :sm="12" :xs="24"><el-form-item label="品牌名称（手动输入）"><el-input v-model="form.brandName" /></el-form-item></el-col>
                                 </el-row>
 
                                 <el-row :gutter="12">
                                     <el-col :sm="12" :xs="24">
-                                        <el-form-item label="车型（中文）">
+                                        <el-form-item label="车型（库内选择）">
                                             <el-select v-model="form.modelId" clearable filterable placeholder="可搜索车型">
                                                 <el-option v-for="option in modelOptions" :key="option.value" :label="option.label" :value="option.value" />
                                             </el-select>
                                         </el-form-item>
                                     </el-col>
-                                    <el-col :sm="12" :xs="24"><el-form-item label="车型名称（必填）" required><el-input v-model="form.modelName" /></el-form-item></el-col>
+                                    <el-col :sm="12" :xs="24"><el-form-item label="车型名称（必填，可手填）" required><el-input v-model="form.modelName" /></el-form-item></el-col>
                                 </el-row>
 
                                 <el-row :gutter="12">
                                     <el-col :sm="12" :xs="24">
-                                        <el-form-item label="运营公司（中文）">
+                                        <el-form-item label="运营公司（库内选择）">
                                             <el-select v-model="form.companyId" clearable filterable placeholder="可搜索公司">
                                                 <el-option v-for="option in companyOptions" :key="option.value" :label="option.label" :value="option.value" />
                                             </el-select>
                                         </el-form-item>
                                     </el-col>
-                                    <el-col :sm="12" :xs="24"><el-form-item label="运营公司名称（必填）" required><el-input v-model="form.companyName" /></el-form-item></el-col>
+                                    <el-col :sm="12" :xs="24"><el-form-item label="运营公司名称（必填，可手填）" required><el-input v-model="form.companyName" /></el-form-item></el-col>
                                 </el-row>
 
                                 <el-row :gutter="12">
                                     <el-col :sm="12" :xs="24">
-                                        <el-form-item label="地区（中文）">
-                                            <el-select v-model="form.regionId" clearable filterable placeholder="可搜索地区">
-                                                <el-option v-for="option in regionOptions" :key="option.value" :label="option.label" :value="option.value" />
-                                            </el-select>
+                                        <el-form-item label="地区（省/市）">
+                                            <RegionSelector v-model="form.regionId" :regions="regions" />
                                         </el-form-item>
                                     </el-col>
                                     <el-col :sm="12" :xs="24"><el-form-item label="地区显示"><el-input :model-value="regionDisplay" disabled /></el-form-item></el-col>
                                 </el-row>
 
                                 <el-row :gutter="12">
-                                    <el-col :sm="12" :xs="24"><el-form-item label="出厂日期"><el-date-picker v-model="form.factoryDate" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item></el-col>
-                                    <el-col :sm="12" :xs="24"><el-form-item label="上线日期"><el-date-picker v-model="form.launchDate" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item></el-col>
+                                    <el-col :sm="12" :xs="24"><el-form-item label="出厂日期"><el-date-picker v-model="form.factoryDate" type="month" value-format="YYYY-MM" placeholder="选择出厂年月" style="width:100%" /></el-form-item></el-col>
+                                    <el-col :sm="12" :xs="24"><el-form-item label="上线日期"><el-date-picker v-model="form.launchDate" type="month" value-format="YYYY-MM" placeholder="选择上线年月" style="width:100%" /></el-form-item></el-col>
                                 </el-row>
                                 <el-form-item label="空调"><el-switch v-model="form.airConditioned" /></el-form-item>
                                 <el-form-item label="来源"><el-input v-model="form.source" /></el-form-item>
                                 <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" /></el-form-item>
 
                                 <h3>配置信息</h3>
-                                <el-row :gutter="12">
-                                    <el-col :sm="12" :xs="24"><el-form-item label="电机"><el-input v-model="form.config.motor" /></el-form-item></el-col>
-                                    <el-col :sm="12" :xs="24"><el-form-item label="发动机"><el-input v-model="form.config.engine" /></el-form-item></el-col>
+                                <el-row v-if="showMotorField || showEngineField" :gutter="12">
+                                    <el-col v-if="showMotorField" :sm="showEngineField ? 12 : 24" :xs="24"><el-form-item label="电机"><el-input v-model="form.config.motor" /></el-form-item></el-col>
+                                    <el-col v-if="showEngineField" :sm="showMotorField ? 12 : 24" :xs="24"><el-form-item label="发动机"><el-input v-model="form.config.engine" /></el-form-item></el-col>
                                 </el-row>
                                 <el-row :gutter="12">
                                     <el-col :sm="12" :xs="24">
                                         <el-form-item label="燃料类型（中文）">
-                                            <el-select v-model="form.config.fuelType" clearable filterable allow-create default-first-option placeholder="请选择或输入">
+                                            <el-select v-model="form.config.fuelType" clearable filterable placeholder="请选择燃料">
                                                 <el-option v-for="option in fuelOptions" :key="option.value" :label="option.label" :value="option.value" />
                                             </el-select>
                                         </el-form-item>
@@ -169,7 +167,12 @@ import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import { approveSubmission, fetchPendingSubmissions, rejectSubmission } from '@/api/reviews';
-import { FUEL_OPTIONS, normalizeFuelType } from '@/utils/fuel';
+import { FUEL_OPTIONS, isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
+import RegionSelector from '@/components/Region/RegionSelector.vue';
+import {
+    formatRegionLabel,
+    splitProvinceCity
+} from '@/utils/region';
 
 const store = useStore();
 const route = useRoute();
@@ -190,8 +193,7 @@ const fuelOptions = FUEL_OPTIONS;
 const brandOptions = computed(() => store.getters['brands/brandOptions'] || []);
 const modelOptions = computed(() => store.getters['models/modelOptions'] || []);
 const companyOptions = computed(() => store.getters['companies/companyOptions'] || []);
-const regionOptions = computed(() => (store.state.regions.list || []).map((item) => ({ value: item.id, label: item.name, parentId: item.parentId })));
-const regionMap = computed(() => regionOptions.value.reduce((acc, item) => ({ ...acc, [item.value]: item }), {}));
+const regions = computed(() => store.state.regions.list || []);
 const previewImageList = computed(() => {
     const imageUrl = selected.value?.imageUrl;
     const thumbnailUrl = selected.value?.imageThumbnailUrl;
@@ -199,12 +201,8 @@ const previewImageList = computed(() => {
     if (thumbnailUrl) return [thumbnailUrl];
     return [];
 });
-
 const regionDisplay = computed(() => {
-    const city = regionMap.value[form.regionId];
-    if (!city) return '-';
-    const parent = city.parentId ? regionMap.value[city.parentId] : null;
-    return parent ? `${parent.label} / ${city.label}` : city.label;
+    return formatRegionLabel(form.regionId, regions.value);
 });
 const currentReviewRegionLabel = computed(() => {
     const profile = store.state.auth.profile || {};
@@ -212,10 +210,8 @@ const currentReviewRegionLabel = computed(() => {
     if (profile.role !== 'REVIEWER') return '未登录审核身份';
     const reviewRegionId = profile.reviewRegionId;
     if (!reviewRegionId) return '未分配';
-    const region = regionMap.value[reviewRegionId];
-    if (!region) return `ID ${reviewRegionId}`;
-    const parent = region.parentId ? regionMap.value[region.parentId] : null;
-    return parent ? `${parent.label} / ${region.label}` : region.label;
+    const label = formatRegionLabel(reviewRegionId, regions.value);
+    return label === '-' ? `ID ${reviewRegionId}` : label;
 });
 
 const rejectReasons = [
@@ -260,12 +256,16 @@ const blankPayload = () => ({
 });
 
 const form = reactive(blankPayload());
+const showMotorField = computed(() => isElectricFuel(form.config.fuelType));
+const showEngineField = computed(() => isCombustionFuel(form.config.fuelType));
 
 const fillForm = (payload = {}) => {
     const base = blankPayload();
     Object.assign(base, payload || {});
     base.config = { ...blankPayload().config, ...(payload?.config || {}) };
     base.config.fuelType = normalizeFuelType(base.config.fuelType || '');
+    base.factoryDate = toMonthValue(base.factoryDate);
+    base.launchDate = toMonthValue(base.launchDate);
     Object.assign(form, base);
     form.config = base.config;
 };
@@ -310,17 +310,32 @@ const cleanText = (value) => {
     return text || null;
 };
 
+const toMonthValue = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    if (/^\d{4}-\d{2}$/.test(text)) return text;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text.slice(0, 7);
+    if (/^\d{4}-\d{2}/.test(text)) return text.slice(0, 7);
+    return '';
+};
+
+const normalizeMonthToDate = (value) => {
+    const month = toMonthValue(value);
+    return month ? `${month}-01` : null;
+};
+
 const buildPayload = () => {
     const copy = JSON.parse(JSON.stringify(form));
     copy.vehicleId = selected.value?.vehicleId || copy.vehicleId || null;
     copy.config.fuelType = normalizeFuelType(copy.config.fuelType || '');
+    copy.factoryDate = normalizeMonthToDate(copy.factoryDate);
+    copy.launchDate = normalizeMonthToDate(copy.launchDate);
     copy.imageIds = Array.isArray(copy.imageIds) ? copy.imageIds : [];
     if (!copy.imageIds.length && selected.value?.imageId) copy.imageIds = [selected.value.imageId];
 
-    const city = regionMap.value[copy.regionId];
-    const province = city?.parentId ? regionMap.value[city.parentId] : null;
-    copy.regionProvince = copy.regionProvince || province?.label || city?.label || null;
-    copy.regionCity = copy.regionCity || city?.label || null;
+    const { provinceName, cityName } = splitProvinceCity(copy.regionId, regions.value);
+    copy.regionProvince = copy.regionProvince || provinceName || null;
+    copy.regionCity = copy.regionCity || cityName || null;
     return copy;
 };
 
@@ -373,6 +388,12 @@ const handleApprove = async () => {
     startSubmitProgress('审核提交中');
     try {
         await approveSubmission(selected.value.id, payload);
+        await Promise.all([
+            store.dispatch('regions/loadRegions').catch(() => {}),
+            store.dispatch('brands/loadBrands').catch(() => {}),
+            store.dispatch('models/loadModels').catch(() => {}),
+            store.dispatch('companies/loadCompanies').catch(() => {})
+        ]);
         await loadPending();
         finishSubmitProgress(true);
         ElMessage.success('审核通过，已入库');
@@ -412,20 +433,56 @@ const handleReject = async () => {
     }
 };
 
+const findOptionIdByLabel = (options, label) => {
+    const text = String(label || '').trim();
+    if (!text) return null;
+    const hit = (options || []).find((item) => String(item.label || '').trim() === text);
+    return hit ? hit.value : null;
+};
+
 watch(() => form.brandId, (id) => {
     const hit = brandOptions.value.find((item) => item.value === id);
     if (hit) form.brandName = hit.label;
     form.config.brandId = id || null;
 });
+watch(
+    () => form.brandName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(brandOptions.value, name);
+        if (form.brandId !== matchedId) {
+            form.brandId = matchedId;
+            form.config.brandId = matchedId;
+        }
+    }
+);
 watch(() => form.modelId, (id) => {
     const hit = modelOptions.value.find((item) => item.value === id);
     if (hit) form.modelName = hit.label;
     form.config.modelId = id || null;
 });
+watch(
+    () => form.modelName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(modelOptions.value, name);
+        if (form.modelId !== matchedId) {
+            form.modelId = matchedId;
+            form.config.modelId = matchedId;
+        }
+    }
+);
 watch(() => form.companyId, (id) => {
     const hit = companyOptions.value.find((item) => item.value === id);
     if (hit) form.companyName = hit.label;
 });
+watch(
+    () => form.companyName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(companyOptions.value, name);
+        if (form.companyId !== matchedId) {
+            form.companyId = matchedId;
+        }
+    }
+);
 
 onMounted(() => {
     if (store.getters['auth/hasToken']) store.dispatch('auth/fetchProfile').catch(() => {});

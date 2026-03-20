@@ -540,7 +540,7 @@ const resolveRegionNames = () => {
         const city = regionMap.value[form.regionId];
         if (city) {
             if (!city.parentId) {
-                return { provinceName: city.name, cityName: city.name };
+                return { provinceName: city.name, cityName: null };
             }
             const province = regionMap.value[city.parentId];
             return {

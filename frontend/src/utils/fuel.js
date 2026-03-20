@@ -25,7 +25,6 @@ const fuelAliasMap = {
 export const FUEL_OPTIONS = [
     { label: '柴油', value: '柴油' },
     { label: '纯电', value: '纯电' },
-    { label: '燃气', value: '燃气' },
     { label: '柴油+电', value: '柴油+电' },
     { label: '压缩天然气', value: '压缩天然气' },
     { label: '压缩天然气+电', value: '压缩天然气+电' },

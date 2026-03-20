@@ -148,65 +148,70 @@
 
                 <el-row :gutter="12">
                     <el-col :sm="12" :xs="24">
-                        <el-form-item label="品牌（中文）">
+                        <el-form-item label="品牌（库内选择）">
                             <el-select v-model="editForm.brandId" clearable filterable placeholder="可搜索品牌">
                                 <el-option v-for="option in brandOptions" :key="option.value" :label="option.label" :value="option.value" />
                             </el-select>
                         </el-form-item>
                     </el-col>
-                    <el-col :sm="12" :xs="24"><el-form-item label="品牌名称"><el-input v-model="editForm.brandName" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="品牌名称（手动输入）"><el-input v-model="editForm.brandName" /></el-form-item></el-col>
                 </el-row>
 
                 <el-row :gutter="12">
                     <el-col :sm="12" :xs="24">
-                        <el-form-item label="车型（中文）">
+                        <el-form-item label="车型（库内选择）">
                             <el-select v-model="editForm.modelId" clearable filterable placeholder="可搜索车型">
                                 <el-option v-for="option in modelOptions" :key="option.value" :label="option.label" :value="option.value" />
                             </el-select>
                         </el-form-item>
                     </el-col>
-                    <el-col :sm="12" :xs="24"><el-form-item label="车型名称（必填）" required><el-input v-model="editForm.modelName" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="车型名称（必填，可手填）" required><el-input v-model="editForm.modelName" /></el-form-item></el-col>
                 </el-row>
 
                 <el-row :gutter="12">
                     <el-col :sm="12" :xs="24">
-                        <el-form-item label="运营公司（中文）">
+                        <el-form-item label="运营公司（库内选择）">
                             <el-select v-model="editForm.companyId" clearable filterable placeholder="可搜索公司">
                                 <el-option v-for="option in companyOptions" :key="option.value" :label="option.label" :value="option.value" />
                             </el-select>
                         </el-form-item>
                     </el-col>
-                    <el-col :sm="12" :xs="24"><el-form-item label="运营公司名称（必填）" required><el-input v-model="editForm.companyName" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="运营公司名称（必填，可手填）" required><el-input v-model="editForm.companyName" /></el-form-item></el-col>
                 </el-row>
 
                 <el-row :gutter="12">
                     <el-col :sm="12" :xs="24">
-                        <el-form-item label="地区（中文）">
-                            <el-select v-model="editForm.regionId" clearable filterable placeholder="可搜索地区">
-                                <el-option v-for="option in regionOptions" :key="option.value" :label="option.label" :value="option.value" />
-                            </el-select>
+                        <el-form-item label="地区（省/市）">
+                            <el-cascader
+                                v-model="editRegionPath"
+                                :options="allChinaRegionOptions"
+                                :props="{ checkStrictly: true, emitPath: true }"
+                                filterable
+                                clearable
+                                placeholder="请选择省份 / 城市"
+                                style="width: 100%"
+                            />
                         </el-form-item>
                     </el-col>
                     <el-col :sm="12" :xs="24"><el-form-item label="地区显示"><el-input :model-value="regionDisplay" disabled /></el-form-item></el-col>
                 </el-row>
 
                 <el-row :gutter="12">
-                    <el-col :sm="12" :xs="24"><el-form-item label="出厂日期"><el-date-picker v-model="editForm.factoryDate" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item></el-col>
-                    <el-col :sm="12" :xs="24"><el-form-item label="上线日期"><el-date-picker v-model="editForm.launchDate" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="出厂日期"><el-date-picker v-model="editForm.factoryDate" type="month" value-format="YYYY-MM" placeholder="选择出厂年月" style="width:100%" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="上线日期"><el-date-picker v-model="editForm.launchDate" type="month" value-format="YYYY-MM" placeholder="选择上线年月" style="width:100%" /></el-form-item></el-col>
                 </el-row>
 
                 <el-form-item label="空调"><el-switch v-model="editForm.airConditioned" /></el-form-item>
                 <el-form-item label="来源"><el-input v-model="editForm.source" /></el-form-item>
-                <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" /></el-form-item>
 
-                <el-row :gutter="12">
-                    <el-col :sm="12" :xs="24"><el-form-item label="电机"><el-input v-model="editForm.config.motor" /></el-form-item></el-col>
-                    <el-col :sm="12" :xs="24"><el-form-item label="发动机"><el-input v-model="editForm.config.engine" /></el-form-item></el-col>
+                <el-row v-if="showEditMotorField || showEditEngineField" :gutter="12">
+                    <el-col v-if="showEditMotorField" :sm="showEditEngineField ? 12 : 24" :xs="24"><el-form-item label="电机"><el-input v-model="editForm.config.motor" /></el-form-item></el-col>
+                    <el-col v-if="showEditEngineField" :sm="showEditMotorField ? 12 : 24" :xs="24"><el-form-item label="发动机"><el-input v-model="editForm.config.engine" /></el-form-item></el-col>
                 </el-row>
                 <el-row :gutter="12">
                     <el-col :sm="12" :xs="24">
                         <el-form-item label="燃料类型（中文）">
-                            <el-select v-model="editForm.config.fuelType" clearable filterable allow-create default-first-option placeholder="请选择或输入">
+                            <el-select v-model="editForm.config.fuelType" clearable filterable placeholder="请选择燃料">
                                 <el-option v-for="option in fuelOptions" :key="option.value" :label="option.label" :value="option.value" />
                             </el-select>
                         </el-form-item>
@@ -221,6 +226,7 @@
                     <el-col :sm="12" :xs="24"><el-form-item label="车桥"><el-input v-model="editForm.config.axle" /></el-form-item></el-col>
                     <el-col :sm="12" :xs="24"><el-form-item label="其他配置"><el-input v-model="editForm.config.otherConfigs" /></el-form-item></el-col>
                 </el-row>
+                <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" /></el-form-item>
             </el-form>
 
             <template #footer>
@@ -297,7 +303,13 @@ import {
     sendPasswordChangeEmailCode
 } from '@/api/auth';
 import { formatDate } from '@/utils/formatters';
-import { FUEL_OPTIONS, normalizeFuelType } from '@/utils/fuel';
+import { FUEL_OPTIONS, isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
+import { PROVINCE_CITY_DATA } from '@/utils/regionData';
+import {
+    formatRegionLabel,
+    splitProvinceCity,
+    findRegionIdByProvinceCity
+} from '@/utils/region';
 
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 const route = useRoute();
@@ -345,8 +357,28 @@ const fuelOptions = FUEL_OPTIONS;
 const brandOptions = computed(() => store.getters['brands/brandOptions'] || []);
 const modelOptions = computed(() => store.getters['models/modelOptions'] || []);
 const companyOptions = computed(() => store.getters['companies/companyOptions'] || []);
-const regionOptions = computed(() => (store.state.regions.list || []).map((item) => ({ value: item.id, label: item.name, parentId: item.parentId })));
-const regionMap = computed(() => regionOptions.value.reduce((acc, item) => ({ ...acc, [item.value]: item }), {}));
+const regions = computed(() => store.state.regions.list || []);
+const allChinaRegionOptions = computed(() =>
+    (PROVINCE_CITY_DATA || []).map((province) => {
+        const cities = Array.isArray(province.cities) && province.cities.length ? province.cities : [province.province];
+        return {
+            value: province.province,
+            label: province.province,
+            children: cities.map((city) => ({ value: city, label: city }))
+        };
+    })
+);
+const editRegionPath = ref([]);
+const editRegionProvinceName = ref('');
+const editRegionCityName = ref('');
+
+const syncEditRegionFromPath = () => {
+    const [provinceName, cityNameRaw] = Array.isArray(editRegionPath.value) ? editRegionPath.value : [];
+    const cityName = cityNameRaw || provinceName || '';
+    editRegionProvinceName.value = provinceName || '';
+    editRegionCityName.value = cityName || '';
+    editForm.regionId = findRegionIdByProvinceCity(regions.value, provinceName, cityName);
+};
 
 const editVisible = ref(false);
 const editSubmitting = ref(false);
@@ -398,10 +430,7 @@ let bindTimer = null;
 let passwordTimer = null;
 
 const regionDisplay = computed(() => {
-    const city = regionMap.value[editForm.regionId];
-    if (!city) return '-';
-    const parent = city.parentId ? regionMap.value[city.parentId] : null;
-    return parent ? `${parent.label} / ${city.label}` : city.label;
+    return formatRegionLabel(editForm.regionId, regions.value);
 });
 
 const canSendBindCode = computed(() =>
@@ -417,6 +446,8 @@ const canSendPasswordCode = computed(() =>
     Boolean(passwordForm.currentPassword)
 );
 const passwordCodeText = computed(() => (passwordCountdown.value > 0 ? `${passwordCountdown.value}s 后重发` : '发送验证码'));
+const showEditMotorField = computed(() => isElectricFuel(editForm.config.fuelType));
+const showEditEngineField = computed(() => isCombustionFuel(editForm.config.fuelType));
 
 const ensureUserId = () => {
     if (!targetUserId.value) {
@@ -696,6 +727,12 @@ const confirmPasswordChangeSubmit = async () => {
 
 const openEditDialog = async (image) => {
     if (!isSelf.value || !image?.vehicleId) return;
+    await Promise.all([
+        store.dispatch('regions/loadRegions').catch(() => {}),
+        store.dispatch('brands/loadBrands').catch(() => {}),
+        store.dispatch('models/loadModels').catch(() => {}),
+        store.dispatch('companies/loadCompanies').catch(() => {})
+    ]);
     const detail = await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: image.vehicleId, force: true });
     const vehicle = detail?.vehicle || {};
     const config = detail?.vehicleConfig || {};
@@ -709,8 +746,16 @@ const openEditDialog = async (image) => {
     editForm.companyId = vehicle.company?.id || null;
     editForm.companyName = vehicle.company?.name || '';
     editForm.regionId = vehicle.region?.id || null;
-    editForm.factoryDate = vehicle.factoryDate ? String(vehicle.factoryDate).slice(0, 10) : '';
-    editForm.launchDate = vehicle.launchDate ? String(vehicle.launchDate).slice(0, 10) : '';
+    const { provinceName, cityName } = splitProvinceCity(editForm.regionId, regions.value);
+    if (provinceName) {
+        editRegionPath.value = [provinceName, cityName || provinceName];
+    } else {
+        editRegionPath.value = [];
+        editRegionProvinceName.value = '';
+        editRegionCityName.value = '';
+    }
+    editForm.factoryDate = toMonthValue(vehicle.factoryDate);
+    editForm.launchDate = toMonthValue(vehicle.launchDate);
     editForm.airConditioned = Boolean(vehicle.airConditioned);
     editForm.source = vehicle.source || '';
     editForm.remark = vehicle.remark || '';
@@ -736,10 +781,26 @@ const cleanText = (value) => {
     return text || null;
 };
 
+const toMonthValue = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    if (/^\d{4}-\d{2}$/.test(text)) return text;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text.slice(0, 7);
+    if (/^\d{4}-\d{2}/.test(text)) return text.slice(0, 7);
+    return '';
+};
+
+const normalizeMonthToDate = (value) => {
+    const month = toMonthValue(value);
+    return month ? `${month}-01` : null;
+};
+
 const submitEdit = async () => {
     if (!editTarget.value?.vehicleId) return;
-    const region = regionMap.value[editForm.regionId];
-    const province = region?.parentId ? regionMap.value[region.parentId] : null;
+    const fallbackRegion = splitProvinceCity(editForm.regionId, regions.value);
+    const provinceName = editRegionProvinceName.value || fallbackRegion.provinceName;
+    const rawCityName = editRegionCityName.value || fallbackRegion.cityName;
+    const cityName = rawCityName && rawCityName !== provinceName ? rawCityName : null;
     const payload = {
         vehicleId: editForm.vehicleId,
         plateNumber: cleanText(editForm.plateNumber),
@@ -751,10 +812,10 @@ const submitEdit = async () => {
         companyId: editForm.companyId || null,
         companyName: cleanText(editForm.companyName),
         regionId: editForm.regionId || null,
-        regionProvince: province?.label || region?.label || null,
-        regionCity: region?.label || null,
-        factoryDate: editForm.factoryDate || null,
-        launchDate: editForm.launchDate || null,
+        regionProvince: provinceName || null,
+        regionCity: cityName || null,
+        factoryDate: normalizeMonthToDate(editForm.factoryDate),
+        launchDate: normalizeMonthToDate(editForm.launchDate),
         airConditioned: Boolean(editForm.airConditioned),
         source: cleanText(editForm.source),
         remark: cleanText(editForm.remark),
@@ -787,6 +848,13 @@ const submitEdit = async () => {
             await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: editTarget.value.vehicleId, force: true });
             ElMessage.success('车辆信息已更新');
         }
+        await Promise.all([
+            store.dispatch('regions/loadRegions').catch(() => {}),
+            store.dispatch('brands/loadBrands').catch(() => {}),
+            store.dispatch('models/loadModels').catch(() => {}),
+            store.dispatch('companies/loadCompanies').catch(() => {})
+        ]);
+        await loadImages();
         editVisible.value = false;
     } catch (error) {
         ElMessage.error(error?.message || '提交失败');
@@ -795,20 +863,77 @@ const submitEdit = async () => {
     }
 };
 
+const findOptionIdByLabel = (options, label) => {
+    const text = String(label || '').trim();
+    if (!text) return null;
+    const hit = (options || []).find((item) => String(item.label || '').trim() === text);
+    return hit ? hit.value : null;
+};
+
+watch(
+    () => editRegionPath.value,
+    () => {
+        syncEditRegionFromPath();
+    },
+    { deep: true }
+);
+
+watch(
+    () => regions.value,
+    () => {
+        if (!editRegionPath.value.length && editForm.regionId) {
+            const { provinceName, cityName } = splitProvinceCity(editForm.regionId, regions.value);
+            if (provinceName) {
+                editRegionPath.value = [provinceName, cityName || provinceName];
+            }
+        }
+        syncEditRegionFromPath();
+    }
+);
+
 watch(() => editForm.brandId, (id) => {
     const hit = brandOptions.value.find((item) => item.value === id);
     if (hit) editForm.brandName = hit.label;
     editForm.config.brandId = id || null;
 });
+watch(
+    () => editForm.brandName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(brandOptions.value, name);
+        if (editForm.brandId !== matchedId) {
+            editForm.brandId = matchedId;
+            editForm.config.brandId = matchedId;
+        }
+    }
+);
 watch(() => editForm.modelId, (id) => {
     const hit = modelOptions.value.find((item) => item.value === id);
     if (hit) editForm.modelName = hit.label;
     editForm.config.modelId = id || null;
 });
+watch(
+    () => editForm.modelName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(modelOptions.value, name);
+        if (editForm.modelId !== matchedId) {
+            editForm.modelId = matchedId;
+            editForm.config.modelId = matchedId;
+        }
+    }
+);
 watch(() => editForm.companyId, (id) => {
     const hit = companyOptions.value.find((item) => item.value === id);
     if (hit) editForm.companyName = hit.label;
 });
+watch(
+    () => editForm.companyName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(companyOptions.value, name);
+        if (editForm.companyId !== matchedId) {
+            editForm.companyId = matchedId;
+        }
+    }
+);
 
 watch(
     () => route.params.userId,

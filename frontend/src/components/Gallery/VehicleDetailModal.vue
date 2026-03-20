@@ -19,14 +19,22 @@
                         </div>
                     </div>
                     <div class="header-actions">
-                        <button class="favorite-btn" type="button" :disabled="likeLoading" @click="toggleFavoriteAction">
-                            {{ liked ? '★ 已收藏' : '☆ 收藏' }}
+                        <button
+                            class="favorite-btn"
+                            type="button"
+                            :disabled="likeLoading"
+                            :aria-label="liked ? '取消收藏' : '收藏车辆'"
+                            @click="toggleFavoriteAction"
+                        >
+                            <span class="btn-icon" aria-hidden="true">{{ liked ? '★' : '☆' }}</span>
+                            <span class="btn-text">{{ liked ? '已收藏' : '收藏' }}</span>
                             <span v-if="likeTotal" class="favorite-count">({{ likeTotal }})</span>
                         </button>
-                        <button class="comment-entry" type="button" @click="toggleComments">
-                            💬 评论
+                        <button class="comment-entry" type="button" aria-label="查看评论" @click="toggleComments">
+                            <span class="btn-icon" aria-hidden="true">💬</span>
+                            <span class="btn-text">评论</span>
                         </button>
-                        <button class="close-btn" type="button" @click="handleClose">×</button>
+                        <button class="close-btn close-btn--modal" type="button" @click="handleClose">×</button>
                     </div>
                 </header>
 
@@ -107,11 +115,54 @@
                                 </div>
                             </div>
                         </div>
+
+                        <section
+                            v-if="isMobileCommentsMode"
+                            ref="mobileCommentsRef"
+                            class="info-section mobile-comments"
+                        >
+                            <div class="mobile-comments__head">
+                                <h3>评论</h3>
+                                <span class="mobile-comments__count">{{ commentsTotal || 0 }} 条</span>
+                            </div>
+                            <div class="mobile-comments__body" v-loading="commentsLoading">
+                                <p v-if="!isAuthenticated" class="comment-empty">登录后查看评论</p>
+                                <template v-else>
+                                    <p v-if="!comments.length && !commentsLoading" class="comment-empty">暂无评论</p>
+                                    <div v-for="item in comments" :key="item.id" class="comment-item">
+                                        <div class="comment-meta">
+                                            <span class="comment-author">{{ item.displayName || item.username }}</span>
+                                            <span class="comment-time">{{ item.createdAt }}</span>
+                                        </div>
+                                        <p class="comment-content">{{ item.content }}</p>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="mobile-comments__footer" v-if="isAuthenticated">
+                                <el-input
+                                    v-model="commentInput"
+                                    type="textarea"
+                                    :autosize="{ minRows: 2, maxRows: 4 }"
+                                    placeholder="写点什么吧"
+                                    maxlength="500"
+                                    show-word-limit
+                                />
+                                <el-button
+                                    type="primary"
+                                    size="small"
+                                    :loading="commentSubmitting"
+                                    class="comment-submit"
+                                    @click="submitComment"
+                                >
+                                    发布
+                                </el-button>
+                            </div>
+                        </section>
                     </section>
                 </div>
 
                 <transition name="slide">
-                    <aside v-if="commentsOpen" class="comment-drawer">
+                    <aside v-if="commentsOpen && !isMobileCommentsMode" class="comment-drawer">
                         <header class="comment-drawer__header">
                             <div>
                                 <p class="comment-drawer__eyebrow">评论</p>
@@ -183,7 +234,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onBeforeUnmount, reactive } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import ImageCarousel from './ImageCarousel.vue';
@@ -475,6 +526,14 @@ const exifVisible = ref(false);
 const COMMENT_PAGE_SIZE = 50;
 const COMMENT_POLL_INTERVAL_MS = 8000;
 let commentPollTimer = null;
+const MOBILE_BREAKPOINT = 768;
+const isMobileCommentsMode = ref(false);
+const mobileCommentsRef = ref(null);
+
+const updateMobileCommentsMode = () => {
+    if (typeof window === 'undefined') return;
+    isMobileCommentsMode.value = window.innerWidth <= MOBILE_BREAKPOINT;
+};
 
 const syncCommentsFromCache = (vehicleId) => {
     const cached = store.state.vehicles?.commentCache?.[vehicleId];
@@ -508,6 +567,17 @@ const loadComments = async ({ force = false } = {}) => {
 };
 
 const toggleComments = async () => {
+    if (isMobileCommentsMode.value) {
+        if (!isAuthenticated.value) {
+            ElMessage.info('请先登录再查看评论');
+            return;
+        }
+        await loadComments();
+        startCommentPolling();
+        await nextTick();
+        mobileCommentsRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+    }
     if (!isAuthenticated.value) {
         ElMessage.info('请先登录再查看评论');
         return;
@@ -555,7 +625,8 @@ const commentSubmitting = ref(false);
 const startCommentPolling = () => {
     if (commentPollTimer) return;
     commentPollTimer = setInterval(() => {
-        if (!props.visible || !commentsOpen.value || !isAuthenticated.value) return;
+        if (!props.visible || !isAuthenticated.value) return;
+        if (!isMobileCommentsMode.value && !commentsOpen.value) return;
         loadComments({ force: true });
     }, COMMENT_POLL_INTERVAL_MS);
 };
@@ -571,7 +642,7 @@ watch(
     () => props.visible,
     async (val) => {
         toggleBodyScroll(val);
-        if (val && commentsOpen.value && isAuthenticated.value) {
+        if (val && isAuthenticated.value && (commentsOpen.value || isMobileCommentsMode.value)) {
             await loadComments();
             startCommentPolling();
         }
@@ -593,7 +664,7 @@ watch(
         if (props.visible) {
             await loadFavoriteSummary();
         }
-        if (props.visible && commentsOpen.value && isAuthenticated.value) {
+        if (props.visible && isAuthenticated.value && (commentsOpen.value || isMobileCommentsMode.value)) {
             await loadComments();
         }
     },
@@ -609,7 +680,7 @@ watch(
         if (props.visible) {
             await loadFavoriteSummary();
         }
-        if (authed && commentsOpen.value && props.visible) {
+        if (authed && props.visible && (commentsOpen.value || isMobileCommentsMode.value)) {
             await loadComments();
             startCommentPolling();
         }
@@ -618,10 +689,37 @@ watch(
             commentsTotal.value = 0;
             stopCommentPolling();
         }
+    },
+    { immediate: true }
+);
+
+onMounted(() => {
+    updateMobileCommentsMode();
+    if (typeof window !== 'undefined') {
+        window.addEventListener('resize', updateMobileCommentsMode, { passive: true });
     }
+});
+
+watch(
+    isMobileCommentsMode,
+    async (mobile) => {
+        if (!props.visible) return;
+        if (!mobile && !commentsOpen.value) {
+            stopCommentPolling();
+            return;
+        }
+        if (isAuthenticated.value) {
+            await loadComments();
+            startCommentPolling();
+        }
+    },
+    { immediate: true }
 );
 
 onBeforeUnmount(() => {
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', updateMobileCommentsMode);
+    }
     stopCommentPolling();
 });
 
@@ -859,6 +957,7 @@ const handleClose = () => {
     border-bottom: 1px solid #e2e8f0;
     padding-bottom: 12px;
     margin-bottom: 16px;
+    position: relative;
 }
 
 .header-actions {
@@ -894,6 +993,14 @@ const handleClose = () => {
     color: #92400e;
 }
 
+.btn-icon {
+    line-height: 1;
+}
+
+.btn-text {
+    white-space: nowrap;
+}
+
 .comment-entry {
     border: 1px solid #2563eb;
     background: #eef2ff;
@@ -914,6 +1021,15 @@ const handleClose = () => {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.title-row h2 {
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .modal__eyebrow {
@@ -937,6 +1053,7 @@ const handleClose = () => {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     transition: background 0.2s, border-color 0.2s;
 
     &:hover {
@@ -1059,6 +1176,41 @@ const handleClose = () => {
 
 .comment-submit {
     align-self: flex-end;
+}
+
+.mobile-comments {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 10px;
+}
+
+.mobile-comments__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.mobile-comments__head h3 {
+    margin: 0;
+}
+
+.mobile-comments__count {
+    color: #64748b;
+    font-size: 0.84rem;
+}
+
+.mobile-comments__body {
+    margin-top: 8px;
+    max-height: min(44vh, 360px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.mobile-comments__footer {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .image-section__viewer {
@@ -1239,5 +1391,52 @@ const handleClose = () => {
     text-align: center;
     color: #94a3b8;
     margin: 0;
+}
+
+@media (max-width: 768px) {
+    .modal {
+        width: 100%;
+        max-height: calc(100vh - 20px);
+        border-radius: 18px;
+        padding: 16px;
+    }
+
+    .modal__headline {
+        padding-right: 48px;
+        min-width: 0;
+    }
+
+    .header-actions {
+        gap: 6px;
+    }
+
+    .favorite-btn,
+    .comment-entry {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .favorite-btn .btn-text,
+    .comment-entry .btn-text {
+        display: none;
+    }
+
+    .close-btn--modal {
+        position: absolute;
+        top: 0;
+        right: 0;
+        z-index: 2;
+    }
+}
+
+@media (max-width: 430px) {
+    .favorite-btn .favorite-count {
+        display: none;
+    }
 }
 </style>

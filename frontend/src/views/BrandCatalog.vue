@@ -54,13 +54,20 @@
                             <div class="model-card__image">
                                 <img :src="model.thumbnailUrl || placeholderLogo" :alt="model.name" loading="lazy" decoding="async" />
                             </div>
-                            <router-link
-                                v-if="modelCityMap[model.id]?.regionId"
-                                class="city-link"
-                                :to="{ name: 'RegionCatalog', params: { regionId: modelCityMap[model.id].regionId } }"
-                            >
-                                {{ modelCityMap[model.id].regionName }}
-                            </router-link>
+                            <div v-if="modelCityMap[model.id]?.length" class="city-links">
+                                <template v-for="(city, index) in modelCityMap[model.id].slice(0, 2)" :key="`${model.id}-${city.regionId || city.regionName}`">
+                                    <router-link
+                                        v-if="city.regionId"
+                                        class="city-link"
+                                        :to="{ name: 'RegionCatalog', params: { regionId: city.regionId } }"
+                                    >
+                                        {{ city.regionName }}
+                                    </router-link>
+                                    <span v-else class="city-link city-link--placeholder">{{ city.regionName }}</span>
+                                    <span v-if="index < Math.min(modelCityMap[model.id].length, 2) - 1" class="city-sep">、</span>
+                                </template>
+                                <span v-if="modelCityMap[model.id].length > 2" class="city-more">等</span>
+                            </div>
                             <p v-else class="city-link city-link--placeholder">运用城市待补充</p>
                         </div>
                     </div>
@@ -149,13 +156,18 @@ const modelCityMap = computed(() => {
     const map = {};
     const items = store.state.models.catalog || [];
     items.forEach((model) => {
-        const companyWithRegion = model.companies?.find((company) => company.regionName || company.regionId);
-        if (companyWithRegion) {
-            map[model.id] = {
-                regionName: companyWithRegion.regionName || regionsById.value[companyWithRegion.regionId] || '运用城市待补充',
-                regionId: companyWithRegion.regionId
-            };
-        }
+        const regions = [];
+        const unique = new Set();
+        (model.companies || []).forEach((company) => {
+            const regionId = company.regionId || null;
+            const regionName = company.regionName || regionsById.value[regionId] || '';
+            if (!regionName) return;
+            const key = `${regionId || 'x'}-${regionName}`;
+            if (unique.has(key)) return;
+            unique.add(key);
+            regions.push({ regionId, regionName });
+        });
+        map[model.id] = regions;
     });
     return map;
 });
@@ -306,6 +318,23 @@ onMounted(() => {
     color: #2563eb;
     text-decoration: none;
     font-weight: 600;
+}
+
+.city-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0;
+}
+
+.city-sep {
+    color: #64748b;
+    margin: 0 2px;
+}
+
+.city-more {
+    color: #64748b;
+    margin-left: 2px;
 }
 
 .city-link--placeholder {
