@@ -7,7 +7,7 @@ export const NAV_LINKS = [
     { label: '公司', name: 'CompanyCatalog', path: '/companies' },
     { label: '品牌', name: 'BrandCatalog', path: '/brands' },
     { label: '车型', name: 'ModelCatalog', path: '/models' },
-    { label: '关于', name: 'About', path: '/about' },
+    { label: '文档', name: 'About', path: '/about' },
     { label: '上传', name: 'Upload', path: '/upload', requiresAuth: true }
 ];
 

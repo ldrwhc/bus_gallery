@@ -4,6 +4,7 @@
             <button v-if="hasPrev" class="nav-btn nav-btn--prev" type="button" @click.stop="prev">‹</button>
             <img :src="coverUrl" :alt="vehicle?.plateNumber || '车辆图片'" loading="lazy" decoding="async" />
             <button v-if="hasNext" class="nav-btn nav-btn--next" type="button" @click.stop="next">›</button>
+            <span class="watermark-tag">BUS GALLERY</span>
             <span v-if="variants?.length > 1" class="badge">{{ variants.length }}</span>
         </div>
 
@@ -176,6 +177,19 @@ const resolveRegionName = computed(() => {
         border-radius: 999px;
         font-size: 12px;
         z-index: 2;
+    }
+
+    .watermark-tag {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        z-index: 2;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.64);
+        text-shadow: 0 1px 6px rgba(15, 23, 42, 0.6);
+        pointer-events: none;
     }
 }
 

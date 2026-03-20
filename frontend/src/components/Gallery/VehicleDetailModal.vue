@@ -1439,4 +1439,10 @@ const handleClose = () => {
         display: none;
     }
 }
+
+@media (max-width: 366px) {
+    .comment-entry {
+        display: none !important;
+    }
+}
 </style>

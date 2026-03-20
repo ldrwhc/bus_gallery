@@ -1,8 +1,10 @@
 package com.busgallery.busgallery.service.impl;
 
+import com.busgallery.busgallery.config.ImageAccessProperties;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.service.ImageAccessService;
 import com.busgallery.busgallery.mapper.ImageMapper;
 import com.busgallery.busgallery.mapper.VehicleImageMapper;
 import com.busgallery.busgallery.service.ImageService;
@@ -14,6 +16,7 @@ import com.busgallery.busgallery.util.ExifUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,6 +24,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -39,23 +45,30 @@ import java.util.UUID;
 public class ImageServiceImpl implements ImageService {
 
     private static final DateTimeFormatter DATE_FOLDER_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
+    private static final int MAX_PAGE_SIZE = 12;
 
     private final ImageMapper imageMapper;
     private final VehicleImageMapper vehicleImageMapper;
     private final StorageService storageService;
     private final UploadSecurityService uploadSecurityService;
+    private final ImageAccessService imageAccessService;
+    private final ImageAccessProperties imageAccessProperties;
 
     public Image findById(Long id) {
+        return withSignedUrls(imageMapper.selectById(id));
+    }
+
+    public Image findRawById(Long id) {
         return imageMapper.selectById(id);
     }
 
     public List<Image> listByVehicle(Long vehicleId) {
-        return imageMapper.selectByVehicleId(vehicleId);
+        return withSignedUrls(imageMapper.selectByVehicleId(vehicleId));
     }
 
     public List<Image> listLatest(int limit) {
-        int actual = limit <= 0 ? 10 : limit;
-        return imageMapper.selectLatest(actual);
+        int actual = Math.max(1, Math.min(limit <= 0 ? 10 : limit, MAX_PAGE_SIZE));
+        return withSignedUrls(imageMapper.selectLatest(actual));
     }
 
     public List<Image> listByUploader(Long uploaderId, int page, int size) {
@@ -63,9 +76,9 @@ public class ImageServiceImpl implements ImageService {
             return Collections.emptyList();
         }
         int pageNo = Math.max(page, 1);
-        int pageSize = Math.max(size, 1);
+        int pageSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
         int offset = (pageNo - 1) * pageSize;
-        return imageMapper.selectByUploader(uploaderId, offset, pageSize);
+        return withSignedUrls(imageMapper.selectByUploader(uploaderId, offset, pageSize));
     }
 
     public long countByUploader(Long uploaderId) {
@@ -107,8 +120,8 @@ public class ImageServiceImpl implements ImageService {
 
             Image image = new Image();
             image.setObjectName(storageObject.getObjectName());
-            image.setUrl(storageObject.getUrl());
-            image.setThumbnailUrl(thumbObject != null ? thumbObject.getUrl() : storageObject.getThumbnailUrl());
+            image.setUrl(storageObject.getObjectName());
+            image.setThumbnailUrl(thumbObject != null ? thumbObject.getObjectName() : storageObject.getObjectName());
             image.setSizeBytes((long) data.length);
             image.setMimeType(validated.getMimeType());
             image.setWidth(validated.getWidth());
@@ -121,7 +134,7 @@ public class ImageServiceImpl implements ImageService {
             image.setExifJson(exifJson);
             imageMapper.insert(image);
             log.info("Image upload succeeded: id={}, objectName={}", image.getId(), image.getObjectName());
-            return imageMapper.selectById(image.getId());
+            return withSignedUrls(imageMapper.selectById(image.getId()));
         } catch (IOException e) {
             log.error("Image upload failed due to IO error", e);
             throw new BizException(ErrorCode.STORAGE_ERROR, "Image upload failed");
@@ -133,7 +146,7 @@ public class ImageServiceImpl implements ImageService {
 
     public Image update(Image image) {
         imageMapper.update(image);
-        return imageMapper.selectById(image.getId());
+        return withSignedUrls(imageMapper.selectById(image.getId()));
     }
 
     public void delete(Long id) {
@@ -191,10 +204,40 @@ public class ImageServiceImpl implements ImageService {
             g2d.drawImage(source, 0, 0, targetW, targetH, null);
             g2d.dispose();
 
+            if (imageAccessProperties.isThumbnailWatermarkEnabled()) {
+                applyThumbnailWatermark(resized, imageAccessProperties.getThumbnailWatermarkText());
+            }
             return writeJpegWithQuality(resized, 0.72f);
         } catch (IOException e) {
             log.warn("Create thumbnail failed, fallback to original", e);
             return null;
+        }
+    }
+
+    private void applyThumbnailWatermark(BufferedImage image, String watermarkText) {
+        if (image == null || !StringUtils.hasText(watermarkText)) {
+            return;
+        }
+        Graphics2D g2 = image.createGraphics();
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int minSide = Math.min(image.getWidth(), image.getHeight());
+            int fontSize = Math.max(14, minSide / 16);
+            g2.setFont(new Font("SansSerif", Font.BOLD, fontSize));
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.2f));
+            g2.setColor(Color.WHITE);
+
+            String text = watermarkText.trim();
+            int stepX = Math.max(120, image.getWidth() / 2);
+            int stepY = Math.max(90, image.getHeight() / 3);
+            int baseline = stepY;
+            for (int y = baseline; y < image.getHeight() + stepY; y += stepY) {
+                for (int x = -stepX / 2; x < image.getWidth() + stepX; x += stepX) {
+                    g2.drawString(text, x, y);
+                }
+            }
+        } finally {
+            g2.dispose();
         }
     }
 
@@ -220,6 +263,19 @@ public class ImageServiceImpl implements ImageService {
             ImageIO.write(image, "jpg", baos);
         }
         return baos.toByteArray();
+    }
+
+    private Image withSignedUrls(Image source) {
+        return imageAccessService.toSignedImage(source);
+    }
+
+    private List<Image> withSignedUrls(List<Image> list) {
+        if (CollectionUtils.isEmpty(list)) {
+            return Collections.emptyList();
+        }
+        return list.stream()
+                .map(this::withSignedUrls)
+                .toList();
     }
 }
 

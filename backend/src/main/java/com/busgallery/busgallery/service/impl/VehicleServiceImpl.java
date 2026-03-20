@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 public class VehicleServiceImpl implements VehicleService {
 
+    private static final int MAX_PAGE_SIZE = 12;
+
     private final VehicleMapper vehicleMapper;
     private final VehicleConfigMapper vehicleConfigMapper;
     private final VehicleImageMapper vehicleImageMapper;
@@ -65,7 +67,7 @@ public class VehicleServiceImpl implements VehicleService {
     }
 
     public List<Vehicle> queryPage(int size, Long regionId, Long companyId, Long brandId, Long modelId, String keyword, java.time.LocalDate lastLaunch, Long lastId) {
-        int pageSize = Math.max(size, 1);
+        int pageSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
         List<Vehicle> list = vehicleMapper.selectPageByCursor(pageSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         list.forEach(this::populateVehicleRelations);
         return list;

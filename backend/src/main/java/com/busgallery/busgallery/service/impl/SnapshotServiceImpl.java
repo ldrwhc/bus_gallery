@@ -83,7 +83,7 @@ public class SnapshotServiceImpl implements SnapshotService {
      * @return 杩斿洖鍊?
      */
     public List<SnapshotPayload> listHotSnapshots(int limit) {
-        int size = Math.max(1, Math.min(limit, 10));
+        int size = Math.max(1, Math.min(limit, 12));
         List<Vehicle> vehicles = vehicleService.queryPage(size, null, null, null, null, null, null, null);
         List<String> plateNumbers = vehicles.stream()
                 .map(Vehicle::getPlateNumber)

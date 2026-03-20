@@ -28,6 +28,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
+    private static final int MAX_IMAGE_PAGE_SIZE = 12;
+
     private final UserRepository userRepository;
     private final ImageMapper imageMapper;
     private final VehicleCommentMapper vehicleCommentMapper;
@@ -194,7 +196,7 @@ public class UserServiceImpl implements UserService {
             return Collections.emptyList();
         }
         int pageNo = Math.max(page, 1);
-        int pageSize = Math.max(size, 1);
+        int pageSize = Math.max(1, Math.min(size, MAX_IMAGE_PAGE_SIZE));
         int offset = (pageNo - 1) * pageSize;
         List<Image> images = imageMapper.selectByUploader(userId, offset, pageSize);
         return CollectionUtils.isEmpty(images) ? Collections.emptyList() : images;

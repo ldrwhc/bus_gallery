@@ -18,6 +18,11 @@ public interface ImageService {
     Image findById(Long id);
 
     /**
+     * Returns the raw DB image without signed-url decoration.
+     */
+    Image findRawById(Long id);
+
+    /**
      * listByVehicle方法用于处理listByVehicle相关的业务逻辑。
      * @param vehicleId vehicleId参数，详见调用方上下文。
      * @return 返回List<Image>类型结果。

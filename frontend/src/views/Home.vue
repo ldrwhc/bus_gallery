@@ -38,10 +38,11 @@
                             <img
                                 :src="card.image?.thumbnailUrl || card.image?.url || fallback"
                                 :alt="card.plateNumber || '公交图片'"
-                                :loading="index < 9 ? 'eager' : 'lazy'"
-                                :fetchpriority="index < 9 ? 'high' : 'auto'"
+                                :loading="index < eagerImageCount ? 'eager' : 'lazy'"
+                                :fetchpriority="index < eagerImageCount ? 'high' : 'auto'"
                                 decoding="async"
                             />
+                            <span class="watermark-tag">BUS GALLERY</span>
                             <div class="waterfall-overlay">
                                 <div class="waterfall-meta">
                                     <span class="plate-badge">{{ formatPlate(card.plateNumber) || '未上牌' }}</span>
@@ -66,7 +67,7 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { fetchHotSnapshots } from '@/api/snapshots';
@@ -82,6 +83,7 @@ const hotError = ref('');
 const fallback = FALLBACK_IMAGE;
 const searchKeyword = ref('');
 const activeImageId = ref(null);
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
 const activeVehicleId = ref(null);
 const activeVehicleDetail = computed(() =>
@@ -93,6 +95,14 @@ const activeVehicleLoading = computed(
         false
 );
 const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
+const isMobileViewport = computed(() => viewportWidth.value <= 768);
+const eagerImageCount = computed(() => (isMobileViewport.value ? 3 : 9));
+const hotSnapshotSize = computed(() => (isMobileViewport.value ? 8 : 12));
+const maxCardCount = computed(() => {
+    if (viewportWidth.value <= 420) return 16;
+    if (viewportWidth.value <= 768) return 24;
+    return 72;
+});
 
 const firstVariant = (snapshot) => snapshot?.variants?.[0] || null;
 const firstVehicleId = (snapshot) => firstVariant(snapshot)?.vehicle?.id || null;
@@ -104,7 +114,8 @@ const waterfallCards = computed(() => {
         variants.forEach((variant, vIdx) => {
             const vehicle = variant?.vehicle || null;
             const images = Array.isArray(variant?.images) && variant.images.length ? variant.images : [null];
-            images.forEach((image, iIdx) => {
+            const displayImages = isMobileViewport.value ? images.slice(0, 1) : images;
+            displayImages.forEach((image, iIdx) => {
                 cards.push({
                     key: `${snapshot?.plateNumber || 'unknown'}-${sIdx}-${vehicle?.id || 'v'}-${vIdx}-${image?.id || iIdx}`,
                     plateNumber: snapshot?.plateNumber || vehicle?.plateNumber || '',
@@ -120,7 +131,7 @@ const waterfallCards = computed(() => {
             });
         });
     });
-    return cards;
+    return cards.slice(0, maxCardCount.value);
 });
 
 const formatPlate = (plate = '') => {
@@ -136,10 +147,22 @@ const loadHot = async () => {
     hotLoading.value = true;
     hotError.value = '';
     try {
-        const res = await fetchHotSnapshots(48);
+        const res = await fetchHotSnapshots(hotSnapshotSize.value);
         hotSnapshots.value = Array.isArray(res) ? res : res?.data || [];
     } catch (error) {
-        hotError.value = '获取热门快照失败，请稍后再试';
+        const message = String(error?.message || '');
+        if (message.toLowerCase().includes('timeout')) {
+            try {
+                const retry = await fetchHotSnapshots(4);
+                hotSnapshots.value = Array.isArray(retry) ? retry : retry?.data || [];
+                hotError.value = '';
+                return;
+            } catch (retryError) {
+                hotError.value = '热门数据加载超时，请稍后再试';
+            }
+        } else {
+            hotError.value = '获取热门快照失败，请稍后再试';
+        }
     } finally {
         hotLoading.value = false;
     }
@@ -172,8 +195,23 @@ const closeDetail = () => {
     activeImageId.value = null;
 };
 
+const handleResize = () => {
+    if (typeof window === 'undefined') return;
+    viewportWidth.value = window.innerWidth;
+};
+
 onMounted(() => {
+    handleResize();
+    if (typeof window !== 'undefined') {
+        window.addEventListener('resize', handleResize, { passive: true });
+    }
     loadHot();
+});
+
+onBeforeUnmount(() => {
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize);
+    }
 });
 </script>
 
@@ -312,6 +350,8 @@ onMounted(() => {
     overflow: hidden;
     cursor: pointer;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+    content-visibility: auto;
+    contain-intrinsic-size: 360px;
 }
 
 .waterfall-media {
@@ -333,6 +373,20 @@ onMounted(() => {
     opacity: 0;
     transform: translateY(6px);
     transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.watermark-tag {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    z-index: 1;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.62);
+    text-shadow: 0 1px 6px rgba(15, 23, 42, 0.58);
+    pointer-events: none;
+    user-select: none;
 }
 
 .waterfall-card:hover .waterfall-overlay {

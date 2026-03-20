@@ -128,3 +128,9 @@ busgallery:
     allowed-mime-types:
       - image/jpeg
       - image/png
+  image-access:
+    token-secret: ${IMAGE_ACCESS_TOKEN_SECRET:change-me-image-access-secret}
+    full-ttl-seconds: ${IMAGE_ACCESS_FULL_TTL_SECONDS:300}
+    thumbnail-ttl-seconds: ${IMAGE_ACCESS_THUMBNAIL_TTL_SECONDS:900}
+    thumbnail-watermark-enabled: ${IMAGE_ACCESS_THUMBNAIL_WATERMARK_ENABLED:true}
+    thumbnail-watermark-text: ${IMAGE_ACCESS_THUMBNAIL_WATERMARK_TEXT:BUS GALLERY}

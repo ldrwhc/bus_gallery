@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class VehicleController {
 
+    private static final int FIXED_PAGE_SIZE = 12;
+
     private final VehicleService vehicleService;
     private final ImageService imageService;
     private final RegionService regionService;
@@ -60,7 +62,7 @@ public class VehicleController {
     }
 
     @GetMapping
-    public VehiclePageResponse page(@RequestParam(defaultValue = "20") int size,
+    public VehiclePageResponse page(@RequestParam(defaultValue = "12") int size,
                                     @RequestParam(required = false) Long regionId,
                                     @RequestParam(required = false) Long companyId,
                                     @RequestParam(required = false) Long brandId,
@@ -68,7 +70,8 @@ public class VehicleController {
                                     @RequestParam(required = false) String keyword,
                                     @RequestParam(required = false) LocalDate lastLaunch,
                                     @RequestParam(required = false) Long lastId) {
-        String cacheKey = buildPageCacheKey(size, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
+        int fixedSize = FIXED_PAGE_SIZE;
+        String cacheKey = buildPageCacheKey(fixedSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         try {
             String cached = stringRedisTemplate.opsForValue().get(cacheKey);
             if (cached != null && !cached.isEmpty()) {
@@ -76,14 +79,14 @@ public class VehicleController {
             }
         } catch (Exception ignore) {
         }
-        List<Vehicle> vehicles = vehicleService.queryPage(size, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
+        List<Vehicle> vehicles = vehicleService.queryPage(fixedSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         long total = vehicleService.count(regionId, companyId, brandId, modelId, keyword);
         List<VehicleSummary> summaries = vehicles.stream()
                 .map(vehicle -> new VehicleSummary(mapVehicle(vehicle), mapImages(imageService.listByVehicle(vehicle.getId()))))
                 .collect(Collectors.toList());
         java.time.LocalDate nextLaunch = vehicles.isEmpty() ? null : vehicles.get(vehicles.size() - 1).getLaunchDate();
         Long nextCursorId = vehicles.isEmpty() ? null : vehicles.get(vehicles.size() - 1).getId();
-        VehiclePageResponse response = new VehiclePageResponse(summaries, total, 1, size, nextLaunch, nextCursorId);
+        VehiclePageResponse response = new VehiclePageResponse(summaries, total, 1, fixedSize, nextLaunch, nextCursorId);
         try {
             String payload = objectMapper.writeValueAsString(response);
             stringRedisTemplate.opsForValue().set(cacheKey, payload, Duration.ofSeconds(vehiclePageCacheTtlSeconds));

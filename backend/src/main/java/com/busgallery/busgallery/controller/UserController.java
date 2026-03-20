@@ -12,6 +12,7 @@ import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.User;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,8 +29,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserController {
 
+    private static final int FIXED_IMAGE_PAGE_SIZE = 12;
+
     private final UserService userService;
     private final UserSessionService userSessionService;
+    private final ImageService imageService;
 
     /**
      * currentUser方法用于处理currentUser相关的业务逻辑。
@@ -77,13 +81,13 @@ public class UserController {
         if (user == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
         }
-        List<Image> images = userService.listUserImages(user.getId(), page, size);
+        List<Image> images = imageService.listByUploader(user.getId(), page, FIXED_IMAGE_PAGE_SIZE);
         List<ImageResponse> records = images.stream()
                 .map(ImageResponse::fromEntity)
                 .collect(Collectors.toList());
         long total = userService.countUserImages(user.getId());
         int pageNo = Math.max(page, 1);
-        int pageSize = Math.max(size, 1);
+        int pageSize = FIXED_IMAGE_PAGE_SIZE;
         return PageResponse.of(records, total, pageNo, pageSize);
     }
 
@@ -119,13 +123,13 @@ public class UserController {
         if (user == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
         }
-        List<Image> images = userService.listUserImages(userId, page, size);
+        List<Image> images = imageService.listByUploader(userId, page, FIXED_IMAGE_PAGE_SIZE);
         List<ImageResponse> records = images.stream()
                 .map(ImageResponse::fromEntity)
                 .collect(Collectors.toList());
         long total = userService.countUserImages(userId);
         int pageNo = Math.max(page, 1);
-        int pageSize = Math.max(size, 1);
+        int pageSize = FIXED_IMAGE_PAGE_SIZE;
         return PageResponse.of(records, total, pageNo, pageSize);
     }
 }

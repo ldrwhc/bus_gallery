@@ -12,6 +12,7 @@
                     ‹
                 </button>
                 <img :src="activeImageUrl" :alt="activeImageAlt" loading="eager" decoding="async" />
+                <span class="carousel__watermark">BUS GALLERY</span>
                 <div v-if="activeImage" class="carousel__meta carousel__meta--top">
                     <router-link
                         v-if="uploaderRoute"
@@ -274,6 +275,20 @@ watch(activeImage, preloadOriginal, { immediate: true });
     &__thumbs {
         display: flex;
         gap: 8px;
+    }
+
+    &__watermark {
+        position: absolute;
+        left: 16px;
+        bottom: 16px;
+        z-index: 2;
+        font-size: 0.74rem;
+        letter-spacing: 0.1em;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.52);
+        text-shadow: 0 1px 6px rgba(2, 6, 23, 0.55);
+        pointer-events: none;
+        user-select: none;
     }
 }
 

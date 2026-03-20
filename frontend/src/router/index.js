@@ -51,7 +51,7 @@ const router = createRouter({
             path: '/about',
             name: 'About',
             component: () => import('@/views/About.vue'),
-            meta: { title: '关于' }
+            meta: { title: '文档' }
         },
         {
             path: '/upload',

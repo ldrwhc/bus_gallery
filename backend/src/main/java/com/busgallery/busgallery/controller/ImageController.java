@@ -9,6 +9,7 @@ import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.mapper.VehicleImageMapper;
+import com.busgallery.busgallery.service.ImageAccessService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.RegionService;
 import com.busgallery.busgallery.service.UploadSecurityService;
@@ -17,7 +18,10 @@ import com.busgallery.busgallery.util.RequestIpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,6 +33,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ImageController {
 
+    private static final int FIXED_LATEST_LIMIT = 12;
+
+    private final ImageAccessService imageAccessService;
     private final ImageService imageService;
     private final UploadSecurityService uploadSecurityService;
     private final VehicleImageMapper vehicleImageMapper;
@@ -42,12 +49,23 @@ public class ImageController {
 
     @GetMapping("/latest")
     public List<Image> latest(@RequestParam(defaultValue = "12") int limit) {
-        return imageService.listLatest(limit);
+        return imageService.listLatest(FIXED_LATEST_LIMIT);
     }
 
     @GetMapping("/vehicle/{vehicleId}")
     public List<Image> listByVehicle(@PathVariable Long vehicleId) {
         return imageService.listByVehicle(vehicleId);
+    }
+
+    @GetMapping("/access/{token}")
+    public ResponseEntity<InputStreamResource> access(@PathVariable String token) {
+        ImageAccessService.SignedImageStream signed = imageAccessService.resolveStream(token);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=60")
+                .header("X-Robots-Tag", "noindex, noimageindex")
+                .contentLength(Math.max(0, signed.getContentLength()))
+                .contentType(MediaType.parseMediaType(signed.getContentType()))
+                .body(new InputStreamResource(signed.getInputStream()));
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -71,7 +89,7 @@ public class ImageController {
     @PutMapping("/{id}")
     @RequireLogin
     public Image update(@PathVariable Long id, @RequestBody ImageUpdateRequest request) {
-        Image image = imageService.findById(id);
+        Image image = imageService.findRawById(id);
         if (image == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "图片不存在");
         }
@@ -88,7 +106,7 @@ public class ImageController {
     @DeleteMapping("/{id}")
     @RequireLogin
     public void delete(@PathVariable Long id) {
-        Image image = imageService.findById(id);
+        Image image = imageService.findRawById(id);
         if (image == null) {
             return;
         }
