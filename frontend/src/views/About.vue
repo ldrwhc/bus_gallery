@@ -70,10 +70,11 @@
         </div>
 
         <button class="node l1" :class="{ active: selectedPageId === 'm4' }" @click="selectPage('m4')">模块4 安全与风控</button>
+        <button class="node l1" :class="{ active: selectedPageId === 'm5' }" @click="selectPage('m5')">模块5 面试QA</button>
       </nav>
     </aside>
 
-    <main class="docs-main">
+    <main ref="docsMainRef" class="docs-main">
       <article v-if="selectedPageId === 'm1'" class="page">
         <header><h2>模块1：项目部署与运行方法</h2></header>
 
@@ -479,18 +480,161 @@ npm run dev</code></pre></div>
         </section>
 
         <section v-if="currentMiddleware.name === 'Redis'" class="block">
-          <h3>Redis 面试重点</h3>
-          <div class="table-wrap"><table><thead><tr><th>维度</th><th>实现细节</th></tr></thead><tbody>
-            <tr><td>会话</td><td class="mono">busgallery:sessions:{token} / busgallery:user:sessions:{userId}</td></tr>
-            <tr><td>限流</td><td class="mono">busgallery:rl:{scope}:{dimension}:{sha256(identity)}:{slot}</td></tr>
-            <tr><td>验证码/风险</td><td class="mono">busgallery:auth:captcha:* / busgallery:auth:risk:*</td></tr>
-            <tr><td>快照防击穿</td><td class="mono">bg:snapshot:plate:{plate}:latest|v{version}|stale|lock</td></tr>
-            <tr><td>幂等</td><td class="mono">idempotent:upload:{Idempotency-Key}</td></tr>
+          <h3>Redis 全量键值清单（Keys / Values）</h3>
+          <div class="table-wrap"><table><thead><tr><th>分类</th><th>Key</th><th>Value</th><th>TTL/失效</th><th>产生时机</th><th>更新/删除时机</th><th>用途</th></tr></thead><tbody>
+            <tr v-for="row in redisKeyRows" :key="row.key">
+              <td>{{ row.group }}</td>
+              <td class="mono">{{ row.key }}</td>
+              <td class="mono">{{ row.value }}</td>
+              <td class="mono">{{ row.ttl }}</td>
+              <td>{{ row.created }}</td>
+              <td>{{ row.updated }}</td>
+              <td>{{ row.usage }}</td>
+            </tr>
           </tbody></table></div>
         </section>
+
+        <section v-if="currentMiddleware.name === 'Redis'" class="block">
+          <h3>Redis 面试重点（按业务流程展开）</h3>
+          <div v-for="item in redisInterviewFlowViews" :key="item.id" class="redis-flow">
+            <h4 class="redis-flow-title">
+              <span class="redis-flow-title-text">{{ item.id }} {{ item.title }}</span>
+              <button class="flow-open-btn" @click="openRedisFlowDialog(item)">弹出流程图</button>
+            </h4>
+            <p><strong>涉及键：</strong><span class="mono">{{ item.keys }}</span></p>
+            <ul>
+              <li v-for="step in item.steps" :key="item.id + step">{{ step }}</li>
+            </ul>
+            <div class="redis-seq" v-if="item.parsed.events.length">
+              <div class="redis-seq-legend">
+                <span class="redis-legend-item"><i class="main"></i>主流程</span>
+                <span class="redis-legend-item"><i class="alt"></i>如果（条件成立）</span>
+                <span class="redis-legend-item"><i class="else"></i>否则（条件不成立）</span>
+              </div>
+              <div class="redis-seq-head">
+                <div class="redis-seq-step-h">步骤</div>
+                <div class="redis-seq-flow-h">流程说明</div>
+                <div class="redis-seq-lanes-h">
+                  <div v-for="lane in item.parsed.lanes" :key="item.id + lane" class="redis-seq-lane-h">{{ lane }}</div>
+                </div>
+              </div>
+              <div class="redis-seq-body">
+                <div v-for="(evt, idx) in item.parsed.events" :key="item.id + evt.type + idx" class="redis-seq-row">
+                  <template v-if="evt.type === 'message'">
+                    <div class="redis-seq-step mono">{{ idx + 1 }}</div>
+                    <div class="redis-seq-flow">
+                      <div class="redis-seq-action">{{ evt.action }}</div>
+                      <p class="redis-seq-hint">{{ evt.hint }}</p>
+                      <span v-if="evt.branchPath" class="redis-seq-branch-tag">{{ evt.branchPath }}</span>
+                    </div>
+                    <div class="redis-seq-main">
+                      <div class="redis-seq-track">
+                        <span
+                          v-for="(_, laneIdx) in item.parsed.lanes"
+                          :key="item.id + '-guide-' + idx + '-' + laneIdx"
+                          class="redis-seq-guide"
+                          :style="redisSeqGuideStyle(laneIdx, item.parsed.lanes.length)"
+                        ></span>
+                        <span class="redis-seq-line" :style="redisSeqLineStyle(evt, item.parsed.lanes.length)"></span>
+                        <span class="redis-seq-end-arrow from" :class="redisSeqArrowDirClass(evt)" :style="redisSeqEndArrowStyle(evt, item.parsed.lanes.length, 'from')"></span>
+                        <span class="redis-seq-end-arrow to" :class="redisSeqArrowDirClass(evt)" :style="redisSeqEndArrowStyle(evt, item.parsed.lanes.length, 'to')"></span>
+                      </div>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div class="redis-seq-step mono">{{ idx + 1 }}</div>
+                    <div class="redis-seq-flow branch">
+                      <div class="redis-branch-title">{{ evt.text }}</div>
+                      <p class="redis-branch-tip">{{ evt.tip }}</p>
+                    </div>
+                    <div class="redis-seq-main branch">
+                      <div class="redis-seq-branch-row" :class="evt.branchType">{{ evt.pathHint }}</div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div v-if="redisFlowDialog.visible" class="redis-flow-modal-mask" @click.self="closeRedisFlowDialog">
+          <div class="redis-flow-modal">
+            <div class="redis-flow-modal-head">
+              <h4>{{ redisFlowDialog.title }}（流程图）</h4>
+              <button class="flow-close-btn" @click="closeRedisFlowDialog">关闭</button>
+            </div>
+            <div class="redis-flow-modal-body">
+              <div class="redis-flow-modal-lanes">
+                <span v-for="lane in redisFlowDialog.lanes" :key="'popup-' + lane" class="redis-flow-lane-chip">{{ lane }}</span>
+              </div>
+              <div class="redis-flowchart">
+                <div class="redis-fc-node start">开始</div>
+                <div class="redis-fc-arrow">↓</div>
+
+                <template v-for="(step, idx) in redisFlowDialog.chart.pre" :key="'fc-pre-' + idx + step.title">
+                  <div class="redis-fc-node process">
+                    <div class="redis-fc-title">{{ step.title }}</div>
+                    <div class="redis-fc-detail">{{ step.detail }}</div>
+                  </div>
+                  <div class="redis-fc-arrow">↓</div>
+                </template>
+
+                <template v-if="redisFlowDialog.chart.hasBranch">
+                  <div class="redis-fc-decision-wrap">
+                    <div class="redis-fc-node decision">
+                      <span>{{ redisFlowDialog.chart.decisionText }}</span>
+                    </div>
+                  </div>
+                  <div class="redis-fc-decision-note">
+                    <span>判断条件：{{ redisFlowDialog.chart.decisionText }}</span>
+                    <span>如果 = 满足该条件；否则 = 不满足该条件（额外分支条件写在分支标签中）</span>
+                  </div>
+
+                  <div class="redis-fc-branches">
+                    <div class="redis-fc-branch yes">
+                      <div class="redis-fc-branch-head">{{ redisFlowDialog.chart.yesLabel }}</div>
+                      <template v-for="(step, idx) in redisFlowDialog.chart.yes" :key="'fc-yes-' + idx + step.title">
+                        <div class="redis-fc-node process branch">
+                          <div class="redis-fc-title">{{ step.title }}</div>
+                          <div class="redis-fc-detail">{{ step.detail }}</div>
+                        </div>
+                        <div v-if="idx < redisFlowDialog.chart.yes.length - 1" class="redis-fc-arrow">↓</div>
+                      </template>
+                    </div>
+                    <div class="redis-fc-branch no">
+                      <div class="redis-fc-branch-head">{{ redisFlowDialog.chart.noLabel }}</div>
+                      <template v-for="(step, idx) in redisFlowDialog.chart.no" :key="'fc-no-' + idx + step.title">
+                        <div class="redis-fc-node process branch">
+                          <div class="redis-fc-title">{{ step.title }}</div>
+                          <div class="redis-fc-detail">{{ step.detail }}</div>
+                        </div>
+                        <div v-if="idx < redisFlowDialog.chart.no.length - 1" class="redis-fc-arrow">↓</div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <div class="redis-fc-merge-wrap">
+                    <div class="redis-fc-node merge">合流</div>
+                  </div>
+                  <div class="redis-fc-arrow">↓</div>
+                </template>
+
+                <template v-for="(step, idx) in redisFlowDialog.chart.post" :key="'fc-post-' + idx + step.title">
+                  <div class="redis-fc-node process">
+                    <div class="redis-fc-title">{{ step.title }}</div>
+                    <div class="redis-fc-detail">{{ step.detail }}</div>
+                  </div>
+                  <div class="redis-fc-arrow">↓</div>
+                </template>
+
+                <div class="redis-fc-node end">结束</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </article>
 
-      <article v-else class="page">
+      <article v-else-if="selectedPageId === 'm4'" class="page">
         <header><h2>模块4：安全与风控相关设计</h2></header>
         <section class="block"><h3>认证与授权</h3><ul>
           <li>Redis Session Token（非 JWT），由 `AuthTokenInterceptor` 解析。</li>
@@ -509,12 +653,37 @@ npm run dev</code></pre></div>
           <li>`/api/metrics/db` 输出慢 SQL 采样用于审计与监控。</li>
         </ul></section>
       </article>
+
+      <article v-else-if="selectedPageId === 'm5'" class="page">
+        <header>
+          <h2>模块5：面试 QA（30 问）</h2>
+          <p>以下问答基于当前项目可运行状态，从“可上线、可扩展、可治理”的视角回答高频深挖问题。</p>
+        </header>
+        <section class="block">
+          <h3>问题与回答</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th style="width:48px">#</th><th>面试问题</th><th>回答（基于当前项目）</th></tr></thead>
+            <tbody>
+              <tr v-for="item in module5InterviewQa" :key="'m5-' + item.id">
+                <td class="mono">{{ item.id }}</td>
+                <td>{{ item.q }}</td>
+                <td>{{ item.a }}</td>
+              </tr>
+            </tbody>
+          </table></div>
+        </section>
+      </article>
+
+      <article v-else class="page">
+        <header><h2>文档页不存在</h2></header>
+        <section class="block"><p>请从左侧目录重新选择页面。</p></section>
+      </article>
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 
 const rawApiLines = `
 GET|/api/admin/overview
@@ -681,9 +850,9 @@ const flowRows = [
     frontend: 'Upload 页把 file 与 payload 组装成 multipart 请求并可附加 Idempotency-Key，提交到 /api/upload 或 /api/images/upload。',
     nginx: 'Nginx 对上传入口启用 upload 限流、50M 请求体上限和 300s 超时后把请求转发到 UploadController/ImageController。',
     redis: 'RateLimitService 用 Redis 记录 userId/IP 频率，IdempotencyService 用 setIfAbsent 锁住 Idempotency-Key，从而决定放行还是直接拒绝重复请求。',
-    spring: 'Spring 在接收 multipart 后由 UploadSecurityService 校验 MIME、魔数、尺寸和像素，再调用 ImageService、VehicleService、SubmissionService 落业务数据并返回 APPROVED/PENDING。',
+    spring: 'Spring 在接收 multipart 后由 UploadSecurityService 校验 MIME、魔数、尺寸和像素；随后 ImageService 按 busgallery.image-access.upload-* 配置执行原图压缩（质量/最大边）与水印写入，再调用 VehicleService、SubmissionService 落业务数据并返回 APPROVED/PENDING。',
     db: '上传通过后 MySQL 会写入 image、vehicle、vehicle_image、vehicle_submission 关系数据并把主键回传给服务层。',
-    other: '图片二进制会写入 MinIO 并返回 objectName/url，随后该元数据会入库供后续访问链路使用。'
+    other: '处理后的图片二进制（含上传水印与压缩结果）会写入 MinIO 并返回 objectName/url，随后该元数据会入库供后续访问链路使用。'
   },
   {
     id: 'WF-06',
@@ -858,17 +1027,766 @@ const middlewarePages = [
   { pageId: 'm3-nginx', name: 'Nginx', intro: '统一入口网关，负责反向代理、限流、静态与对象代理。', role: '将 /api 请求转发到 backend，将 /bus-gallery 路径代理到 MinIO。', io: [{ input: 'HTTP 请求', process: 'location 匹配 + limit_req + proxy_pass', output: 'backend 响应或 429' }, { input: '/bus-gallery/*', process: '代理到 minio:9000', output: '对象流' }], configs: [{ key: 'limit_req_zone / limit_req', file: 'docker/nginx/default.conf', effect: '分层限流' }, { key: 'client_max_body_size 50M', file: 'docker/nginx/default.conf', effect: '上传体积上限' }, { key: 'proxy_read_timeout 300s', file: 'docker/nginx/default.conf', effect: '长请求超时控制' }], workflows: [{ flow: 'WF-03', input: '/api/auth/*', process: '认证接口限流+转发', output: '认证响应' }, { flow: 'WF-05', input: '/api/upload', process: '上传转发', output: '上传链路执行' }, { flow: 'WF-08', input: '/api/images/access/{token}', process: '先后端验签', output: '图片流' }] },
   { pageId: 'm3-redis', name: 'Redis', intro: '会话、限流、验证码、幂等、快照、防击穿全部依赖 Redis。', role: '读链路做缓存，写链路做版本失效和幂等控制，是高频关键中间件。', io: [{ input: 'token/captcha/challenge/identity', process: '读写 key + TTL + 递增', output: '会话状态/限流判定' }, { input: 'plate 快照查询', process: 'latest/stale/lock 协同', output: '命中或回源快照' }, { input: 'Idempotency-Key', process: 'setIfAbsent 防重复', output: '允许或拒绝提交' }], configs: [{ key: 'spring.data.redis.*', file: 'backend/src/main/resources/application.yml', effect: '连接参数' }, { key: 'appendonly yes', file: 'docker/redis/redis.conf', effect: 'AOF 持久化' }, { key: 'auth.session.ttl-seconds', file: 'application.yml', effect: '会话 TTL' }, { key: 'busgallery.cache.*', file: 'application.yml', effect: '业务缓存 TTL' }], workflows: [{ flow: 'WF-03', input: '登录与验证码请求', process: 'session/captcha/risk key 管理', output: '认证状态' }, { flow: 'WF-05', input: '上传请求', process: '限流+幂等', output: '允许上传或拒绝' }, { flow: 'WF-09', input: '快照请求', process: '防击穿与缓存复用', output: '快照结果' }] },
   { pageId: 'm3-mysql', name: 'MySQL', intro: '承载用户、车辆、图片、评论、收藏、审核等核心持久化数据。', role: '通过 MyBatis/JPA 执行查询和事务写入。', io: [{ input: '业务请求参数', process: 'SQL 查询/更新', output: '实体与结果集' }, { input: '审核与后台写操作', process: '事务更新多表', output: '一致落库' }], configs: [{ key: 'spring.datasource.*', file: 'application.yml', effect: '连接地址和凭证' }, { key: 'spring.datasource.hikari.*', file: 'application.yml', effect: '连接池并发能力' }, { key: 'docker/init/init.sql', file: 'docker/init/init.sql', effect: '初始化表结构' }], workflows: [{ flow: 'WF-01', input: '车辆筛选条件', process: 'vehicle 相关表查询', output: '列表与详情' }, { flow: 'WF-06', input: '审核动作', process: 'submission 状态更新', output: '审核结果' }, { flow: 'WF-07', input: '后台 CRUD', process: '主数据维护', output: '最新主数据' }] },
-  { pageId: 'm3-spring', name: 'Spring', intro: '鉴权拦截、控制器路由、服务层事务、异常处理均在 Spring 层。', role: 'WebMvcConfig 注入 AuthTokenInterceptor 到 /api/**，RoleGuard 做权限裁剪。', io: [{ input: 'HTTP 请求', process: 'Interceptor -> Controller -> Service -> Mapper', output: '统一响应' }, { input: 'Authorization/token', process: '会话解析并写入上下文', output: '用户上下文或 401' }], configs: [{ key: 'WebMvcConfig.addInterceptors', file: 'backend/config/WebMvcConfig.java', effect: '统一鉴权入口' }, { key: '@RequireLogin + RoleGuard', file: 'controller/auth', effect: '角色权限控制' }, { key: '@Transactional', file: 'service/controller', effect: '关键写链路事务一致性' }], workflows: [{ flow: 'WF-03', input: '认证请求', process: '认证/风控/会话签发', output: 'token' }, { flow: 'WF-05', input: '上传请求', process: '安全校验 + 幂等 + 业务写入', output: '上传结果' }, { flow: 'WF-10', input: '/api/metrics/db', process: '聚合慢 SQL 指标', output: '监控数据' }] },
+  { pageId: 'm3-spring', name: 'Spring', intro: '鉴权拦截、控制器路由、服务层事务、异常处理均在 Spring 层。', role: 'WebMvcConfig 注入 AuthTokenInterceptor 到 /api/**，RoleGuard 做权限裁剪。', io: [{ input: 'HTTP 请求', process: 'Interceptor -> Controller -> Service -> Mapper', output: '统一响应' }, { input: 'Authorization/token', process: '会话解析并写入上下文', output: '用户上下文或 401' }], configs: [{ key: 'WebMvcConfig.addInterceptors', file: 'backend/config/WebMvcConfig.java', effect: '统一鉴权入口' }, { key: '@RequireLogin + RoleGuard', file: 'controller/auth', effect: '角色权限控制' }, { key: '@Transactional', file: 'service/controller', effect: '关键写链路事务一致性' }], workflows: [{ flow: 'WF-03', input: '认证请求', process: '认证/风控/会话签发', output: 'token' }, { flow: 'WF-05', input: '上传请求', process: '安全校验 + 幂等 + 水印压缩 + 业务写入', output: '上传结果' }, { flow: 'WF-10', input: '/api/metrics/db', process: '聚合慢 SQL 指标', output: '监控数据' }] },
   { pageId: 'm3-minio', name: 'MinIO', intro: '对象存储服务，负责图片数据落地与读取。', role: '上传写对象，访问通过后端签名校验后读取对象流。', io: [{ input: '上传文件', process: 'putObject 写入对象桶', output: 'objectName + url' }, { input: '签名 token', process: '验签后 getObject', output: '图片字节流' }], configs: [{ key: 'minio.endpoint/access-key/secret-key/bucket', file: 'application.yml + docker/.env', effect: '连接对象存储' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', effect: '外网访问域名' }, { key: 'location /bus-gallery/', file: 'docker/nginx/default.conf', effect: '统一对象访问入口' }], workflows: [{ flow: 'WF-05', input: '上传请求', process: '写对象并回写元数据', output: '可访问对象路径' }, { flow: 'WF-08', input: '图片访问请求', process: '验签后读取对象', output: '图片流' }] }
 ];
 const middlewareMap = Object.fromEntries(middlewarePages.map((m) => [m.pageId, m]));
 const middlewareEvents = [
   { trigger: '用户登录/注册', exec: 'Nginx -> Spring -> Redis -> MySQL', action: '限流、校验、写 session、返回 token', flow: 'WF-03', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-mysql'] },
   { trigger: '请求车辆列表/详情', exec: 'Nginx -> Spring -> Redis -> MySQL -> MinIO', action: '缓存命中优先，未命中回源组装', flow: 'WF-01', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-mysql', 'm3-minio'] },
-  { trigger: '提交上传', exec: 'Nginx -> Spring -> Redis -> MinIO -> MySQL', action: '上传安全检查、幂等、防刷与落库', flow: 'WF-05', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-minio', 'm3-mysql'] },
+  { trigger: '提交上传', exec: 'Nginx -> Spring -> Redis -> MinIO -> MySQL', action: '上传安全检查、幂等、防刷、图片压缩与水印处理后落库', flow: 'WF-05', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-minio', 'm3-mysql'] },
   { trigger: '审核操作', exec: 'Nginx -> Spring -> MySQL -> Redis', action: '角色校验、状态更新、缓存失效', flow: 'WF-06', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-mysql', 'm3-redis'] },
   { trigger: '访问签名图片', exec: 'Nginx -> Spring -> MinIO', action: '验签与过期校验后返回对象流', flow: 'WF-08', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-minio'] }
 ];
+const module5InterviewQa = [
+  { id: 1, q: '这个系统的 SLO 是什么？', a: '当前版本重点监控上传成功率、鉴权成功率和核心查询延迟，工程目标是先保证核心接口稳定可用，再按压测结果逐步收紧到可量化 SLO（如上传成功率 > 99%、核心 GET 接口 P95 < 300ms）。' },
+  { id: 2, q: '项目里最核心的不变量有哪些？', a: '核心不变量有三类：图片对象与元数据一一对应、审核状态迁移合法、角色权限边界不可越权。当前通过事务、RoleGuard 和签名访问策略来保障。' },
+  { id: 3, q: '车辆/图片/审核单状态机如何设计？', a: '审核单在 pending/approved/rejected 间迁移，车辆与图片的最终可见状态由审核结果驱动。非法迁移由服务层在提交审核动作时拦截。' },
+  { id: 4, q: '为什么删除车辆要先处理关联数据？', a: '因为 favorite/comment 等表对 vehicle 有外键约束，直接删主表会失败。当前做法是在事务里先清子表再删主表，保证数据完整性。' },
+  { id: 5, q: '查询性能怎么保证？', a: '列表查询使用固定页大小+游标分页，减少深分页成本；并通过缓存键和版本失效机制降低重复查询压力。生产还应配合 explain 和慢 SQL 采样持续优化索引。' },
+  { id: 6, q: '游标分页在并发写入下会不会乱序？', a: '游标由 launchDate+id 组成，能够保持稳定顺序并降低 offset 扫描成本。并发写入下可能出现“新数据插入到前页”的自然现象，前端通过刷新首屏解决。' },
+  { id: 7, q: '哪些接口实现了幂等？', a: '上传链路支持 Idempotency-Key，后端用 Redis setIfAbsent 抢占键位避免重复写入。这样能覆盖用户重复点击和网络重试导致的重复提交。' },
+  { id: 8, q: '对象存储与数据库双写如何一致？', a: '当前以服务层事务+失败回滚为主，核心目标是避免半成功。更严格场景可补充异步补偿任务，定期扫描孤儿对象和孤儿元数据。' },
+  { id: 9, q: '图片压缩与水印放在同步链路会不会拖慢？', a: '当前是上传后同步处理，优势是结果一致、逻辑简单。高并发场景可拆为异步处理或增加专用处理队列，避免 CPU 密集逻辑挤占 API 线程。' },
+  { id: 10, q: '压缩质量与尺寸参数如何确定？', a: '现在参数由配置驱动（如 upload-jpeg-quality、upload-max-side），先满足可读性与带宽平衡。上线后应基于样本图和终端网络数据做分层调优。' },
+  { id: 11, q: '原图和缩略图权限是否一致？', a: '两者都走签名访问链路，但可分别配置水印策略。这样既保证访问安全，又允许在列表图和详情图采用不同防盗链强度。' },
+  { id: 12, q: '签名 token 如何防重放和防篡改？', a: 'token 包含对象信息与过期时间并做 HMAC 校验，篡改或过期都会被拒绝。生产建议做密钥轮换并支持短窗口双密钥验证。' },
+  { id: 13, q: '登录态和匿名访问的边界怎么划？', a: '写操作和管理接口必须登录；签名图片访问按 token 验签控制。边界由拦截器+注解约束，不依赖前端自行判断。' },
+  { id: 14, q: '权限校验放在哪一层？', a: '入口由 Controller 注解和 RoleGuard 兜底，细粒度规则在 Service/业务方法内二次校验（如地区范围校验），避免单点绕过。' },
+  { id: 15, q: '怎么证明没有越权？', a: '需要用角色矩阵做接口回归：匿名/普通用户/审核员/站长分别验证读写边界。当前设计已固化角色分层，建议补齐自动化权限测试。' },
+  { id: 16, q: '缓存如何分层？', a: '车辆列表、快照等高频读采用 Redis 缓存；写操作后通过版本键或删键失效。这样能兼顾读性能和一致性。' },
+  { id: 17, q: '写后读一致性怎么保证？', a: '关键写链路完成后主动失效相关缓存键，后续读取回源重建。相比定时 TTL 失效，这种方式对强一致展示更友好。' },
+  { id: 18, q: 'Redis 故障会怎样？', a: '系统会损失会话、限流和缓存能力，核心接口可降级回源 DB 但压力会上升。生产应配高可用 Redis 和熔断降级策略。' },
+  { id: 19, q: 'Nginx 限流和应用限流冲突如何定位？', a: '通过网关日志和后端错误码分层定位：网关拒绝通常直接 429，应用拒绝会带业务错误体。运维侧应建立统一链路日志字段。' },
+  { id: 20, q: '你们看哪些业务指标？', a: '至少包括上传成功率、审核处理时延、图片访问 401/403 比例、车辆查询 P95、慢 SQL 比例。指标要和业务可用性直接关联。' },
+  { id: 21, q: '有没有端到端可观测性？', a: '当前有慢 SQL 和接口日志基础能力，适合中小规模排障。进一步可接入 trace-id 贯穿 Nginx、Spring、Redis、MinIO、MySQL。' },
+  { id: 22, q: '错误码体系怎么用于前端重试？', a: '401 引导登录恢复，429 引导退避重试，400 提示用户修正输入。保持稳定错误语义比“只看 message”更易治理。' },
+  { id: 23, q: '历史脏数据怎么治理？', a: '建议提供离线校验脚本：检查对象存在性、关联完整性、枚举合法性，并输出修复 SQL/操作清单。线上只做拦截，离线做修复。' },
+  { id: 24, q: '当前单点风险有哪些？', a: 'Redis、MySQL、MinIO 都是关键依赖；任一不可用都会影响核心流程。生产应至少做主从/集群、备份和故障演练。' },
+  { id: 25, q: '流量增长 10 倍先扩哪里？', a: '先扩上传与图片处理能力（CPU 密集），再扩数据库读能力（索引+读写分离），最后优化缓存命中和热点治理。' },
+  { id: 26, q: '测试覆盖怎么做才够？', a: '单测覆盖业务规则，集成测试覆盖事务和权限，端到端测试覆盖上传-审核-访问全链路。当前可运行后应优先补权限和上传异常路径测试。' },
+  { id: 27, q: '文档和代码怎么防漂移？', a: '现在文档集中在 About.vue，维护成本较低但仍是人工同步。建议增加 API 扫描/契约校验，自动比对路由与文档条目。' },
+  { id: 28, q: '安全防护做了哪些、还缺什么？', a: '已做登录鉴权、角色控制、限流、上传安全校验、签名访问。还可加强 WAF 规则、依赖漏洞扫描和审计日志完整性。' },
+  { id: 29, q: '配置和密钥管理有什么要求？', a: '本地可用 .env，生产必须走密钥管理系统并做分环境隔离，禁止明文默认密钥。密钥变更要支持平滑切换和回滚。' },
+  { id: 30, q: '现在如果上线，最担心什么？', a: '最担心三点：上传高峰下图片处理耗时、跨依赖双写一致性、权限边界回归覆盖不够。优先补压测、补偿任务和权限自动化回归。' }
+];
+
+const docsMainRef = ref(null);
+const termGlossary = [
+  { term: 'HTTP', note: '超文本传输协议，Web 请求的基础协议。' },
+  { term: 'HTTPS', note: '加密版 HTTP，保证传输安全。' },
+  { term: 'JWT', note: 'JSON Web Token，一种无状态令牌格式。' },
+  { term: 'MinIO', note: '对象存储服务，用于保存图片对象。' },
+  { term: 'SQL', note: '结构化查询语言，用于数据库读写。' },
+  { term: 'CRUD', note: '增删改查四类基础数据操作。' },
+  { term: 'DTO', note: '数据传输对象，用于接口层返回与接收。' },
+  { term: 'EXIF', note: '图片元数据标准，包含拍摄参数等信息。' },
+  { term: 'CDN', note: '内容分发网络，用于提升静态资源访问速度。' },
+  { term: 'WAF', note: 'Web 应用防火墙，用于拦截恶意请求。' },
+  { term: 'TTL', note: '生存时间，键或缓存条目的过期时长。' },
+  { term: 'SLO', note: '服务等级目标，量化可用性和性能指标。' },
+  { term: 'P95', note: '95 分位延迟，反映多数请求体验。' },
+  { term: 'HMAC', note: '带密钥的消息摘要算法，用于签名防篡改。' },
+  { term: 'MIME', note: '媒体类型标识，用于声明文件内容类型。' },
+  { term: '幂等', note: '同一请求重复执行，多次结果与一次一致。' },
+  { term: '限流', note: '限制单位时间请求量，防止系统被打垮。' },
+  { term: '熔断', note: '下游异常时快速失败，避免故障扩散。' },
+  { term: '回源', note: '缓存未命中后回到数据库或源服务查询。' },
+  { term: '缓存一致性', note: '缓存与数据库在写后读场景保持可预期一致，常见做法是版本键或删键失效。' },
+  { term: '权限边界', note: '不同角色可访问的数据和操作范围，必须在后端做强制校验。' },
+  { term: '缓存击穿', note: '热点 key 失效瞬间大量请求回源，可用锁和 stale 数据缓解。' },
+  { term: '防击穿', note: '防止热点 key 失效瞬间大量请求同时回源。' },
+  { term: '游标分页', note: '基于游标而非 offset 的分页方式，适合大数据量。' },
+  { term: '慢 SQL', note: '执行耗时较高的数据库语句，需优化。' },
+  { term: '外键', note: '数据库表间约束，保证引用关系完整性。' },
+  { term: '事务', note: '一组操作要么都成功要么都回滚。' },
+  { term: '双写一致性', note: '跨两个存储写入时保证状态一致的能力。' }
+];
+
+const redisKeyRows = [
+  { group: '会话', key: 'busgallery:sessions:{token}', value: 'UserSession JSON', ttl: 'auth.session.ttl-seconds (默认 86400s)', created: '登录成功 createSession', updated: '改昵称/角色时覆盖写；登出或强制下线删除', usage: '登录态校验、角色和审核地区读取' },
+  { group: '会话', key: 'busgallery:user:sessions:{userId}', value: 'Set<token>', ttl: '与会话同 TTL', created: '登录后绑定 token 到用户', updated: '登出 remove；改密 deleteAllSessionsByUserId 清空', usage: '按用户批量踢线、广播会话更新' },
+  { group: '验证码', key: 'busgallery:auth:captcha:{scene}:{captchaId}', value: 'CaptchaPayload JSON', ttl: 'auth.security.captcha-ttl-seconds (默认 180s)', created: 'issueCaptcha 生成图形验证码', updated: '输错次数递增并覆盖写；成功或超次删除', usage: '登录/找回密码的人机验证' },
+  { group: '风控', key: 'busgallery:auth:risk:{scope}:{dimension}:{sha256(identity)}', value: 'count(number)', ttl: 'login-fail 30m / forgot-req 15m', created: '失败登录或找回触发 incrementRisk', updated: '持续累加；登录成功删除 login-fail 风险键', usage: '达到阈值后强制要求验证码' },
+  { group: 'OTP', key: 'busgallery:auth:otp:{SCENE}:{challengeId}', value: 'OtpChallenge JSON', ttl: 'auth.security.otp-ttl-seconds (默认 300s)', created: '发送邮箱验证码 issueChallenge', updated: '输错 attempts 递增并覆盖写；成功校验删除', usage: '注册/改密/找回/绑邮箱校验' },
+  { group: 'OTP', key: 'busgallery:auth:otp:cooldown:{scope}:{sha256(email)}', value: '"1"', ttl: 'auth.security.otp-resend-cooldown-seconds (默认 60s)', created: '发送验证码前 setIfAbsent', updated: 'TTL 到期自动消失', usage: '限制同邮箱短时间重复发码' },
+  { group: 'OTP', key: 'busgallery:auth:ticket:reset:{ticket}', value: 'ResetTicketPayload JSON', ttl: 'auth.security.reset-ticket-ttl-seconds (默认 600s)', created: '找回密码验证码通过后签发 reset ticket', updated: 'consumeResetTicket 一次性消费后删除', usage: '找回密码二段式重置' },
+  { group: '限流', key: 'busgallery:rl:{scope}:{dimension}:{sha256(identity)}:{slot}', value: 'counter(number)', ttl: 'window + 2s', created: 'RateLimitService.check 首次请求自动创建', updated: '窗口内自增；slot 变化后新键', usage: 'auth/login/upload 等维度限流' },
+  { group: '幂等', key: 'idempotent:upload:{idempotencyKey}', value: '"1"', ttl: '上传接口固定 10m', created: 'UploadController 调用 runOnce 时 setIfAbsent', updated: '业务异常时主动删除；成功后等 TTL 过期', usage: '拦截重复上传提交' },
+  { group: '车辆列表缓存', key: 'bg:vehicle:page:version', value: 'version(number)', ttl: '无固定 TTL', created: '首次写操作 increment 自动创建', updated: '车辆增改删后 increment', usage: '版本键，驱动 page 缓存整体失效' },
+  { group: '车辆列表缓存', key: 'bg:vehicle:page:v{ver}:s{size}:r{r}:c{c}:b{b}:m{m}:k{kw}:l{lastLaunch}:i{lastId}', value: 'VehiclePageResponse JSON', ttl: 'busgallery.cache.vehicles.page-ttl-seconds (默认 30s)', created: '列表查询 miss 后回源写入', updated: '版本提升后自然失效，TTL 兜底过期', usage: '车辆分页查询加速' },
+  { group: '评论缓存', key: 'bg:comments:ver:{vehicleId}', value: 'version(number)', ttl: '无固定 TTL', created: '首次评论写入 bumpVersion', updated: '每次新增评论 increment', usage: '评论 list/count 的版本失效锚点' },
+  { group: '评论缓存', key: 'bg:comments:list:v{ver}:vid{vehicleId}:p{page}:s{size}', value: 'List<VehicleComment> JSON', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论列表 miss 后回源写入', updated: '评论新增导致版本变化后自然失效', usage: '评论列表查询加速' },
+  { group: '评论缓存', key: 'bg:comments:count:v{ver}:vid{vehicleId}', value: 'count(string)', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论总数 miss 后回源写入', updated: '评论新增导致版本变化后自然失效', usage: '评论数量读取加速' },
+  { group: '收藏缓存', key: 'bg:fav:summary:{vehicleId}', value: 'FavoriteSummary JSON', ttl: 'busgallery.cache.favorites.summary-ttl-seconds (默认 30s)', created: 'summary miss 或 toggle 后写入', updated: 'toggle 后覆盖最新总数和 topUsers', usage: '收藏摘要展示' },
+  { group: '收藏缓存', key: 'bg:fav:liked:{vehicleId}:{userId}', value: '"true"/"false"', ttl: 'busgallery.cache.favorites.liked-ttl-seconds (默认 30s)', created: 'summary 查询当前用户收藏态时写入', updated: 'toggle 后覆盖写最新 liked', usage: '当前用户是否已收藏判定' },
+  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:latest', value: 'version(string)', ttl: '10m', created: '快照回源构建后写入', updated: '每次重建快照覆盖写最新版本', usage: '指向当前有效快照版本' },
+  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:v{version}', value: 'base64(gzip(json))', ttl: '10m', created: '快照回源构建后写入版本键', updated: '新版本创建新 key', usage: '快照主缓存数据' },
+  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:stale', value: 'base64(gzip(json))', ttl: '1h', created: '快照回源构建后同步写 stale', updated: '每次重建都覆盖 stale', usage: '回源锁竞争时兜底返回旧快照' },
+  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:lock', value: '"1"', ttl: '30s', created: '快照 miss 时 setIfAbsent 抢锁', updated: '持锁线程回源结束后 delete', usage: '防止同车牌并发回源导致缓存击穿' }
+];
+
+const redisInterviewFlows = [
+  {
+    id: 'R1',
+    title: '会话签发、校验与踢线',
+    keys: 'busgallery:sessions:{token} / busgallery:user:sessions:{userId}',
+    steps: [
+      '登录成功后写会话 JSON + 用户 token 集合，两个 key 使用同一会话 TTL。',
+      '每次请求由拦截器读取会话键解析角色和审核地区，权限边界在后续业务层继续校验。',
+      '登出或改密时按 token 或 userId 批量删除会话，保证旧 token 立即失效。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as Frontend
+participant SPR as Spring(Auth)
+participant RED as Redis
+participant DB as MySQL
+FE->>SPR: POST /api/auth/login
+SPR->>DB: 校验用户名密码
+DB-->>SPR: user
+SPR->>RED: SET busgallery:sessions:{token} (TTL)
+SPR->>RED: SADD busgallery:user:sessions:{userId}
+SPR-->>FE: 返回 token
+FE->>SPR: 携带 token 请求业务接口
+SPR->>RED: GET busgallery:sessions:{token}
+SPR-->>FE: 通过/拒绝`
+  },
+  {
+    id: 'R2',
+    title: '图形验证码与风险计数联动',
+    keys: 'busgallery:auth:captcha:* / busgallery:auth:risk:*',
+    steps: [
+      '触发验证码后创建 captcha key，保存 codeHash/salt/ip/maxAttempts，避免明文 code 入库。',
+      '登录失败或找回请求会累加 risk key，达到阈值后才强制校验验证码。',
+      '验证码错误会递增 attempts，超限或校验成功后立即删键。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as Frontend
+participant SPR as Spring(Auth)
+participant RED as Redis
+FE->>SPR: GET /api/auth/captcha?scene=login
+SPR->>RED: SET busgallery:auth:captcha:login:{captchaId}
+SPR-->>FE: 返回 captchaId + 图片
+FE->>SPR: POST /api/auth/login
+SPR->>RED: INCR busgallery:auth:risk:login-fail:*
+SPR->>RED: GET captcha key(阈值触发时)
+SPR->>RED: DEL captcha key(成功或超次)`
+  },
+  {
+    id: 'R3',
+    title: '邮箱 OTP、冷却与重置票据',
+    keys: 'busgallery:auth:otp:* / busgallery:auth:otp:cooldown:* / busgallery:auth:ticket:reset:*',
+    steps: [
+      '发送验证码先抢 cooldown 键，抢不到直接拒绝，防止邮箱通道被刷。',
+      'OTP challenge 键只存 hash 和尝试次数，验证成功即删，失败则递增次数。',
+      '找回密码流程中，OTP 校验通过后签发 reset ticket，重置时一次性消费删除。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as Frontend
+participant SPR as Spring(Auth)
+participant RED as Redis
+participant MQ as MailExecutor
+FE->>SPR: 发送邮箱验证码
+SPR->>RED: SETNX cooldown key (TTL 60s)
+SPR->>RED: SET otp challenge key (TTL 300s)
+SPR->>MQ: 异步发送邮件
+FE->>SPR: 提交 OTP
+SPR->>RED: GET otp challenge
+SPR->>RED: DEL otp challenge(成功)
+SPR->>RED: SET reset ticket(找回场景)`
+  },
+  {
+    id: 'R4',
+    title: '限流键的窗口计数',
+    keys: 'busgallery:rl:{scope}:{dimension}:{sha256(identity)}:{slot}',
+    steps: [
+      '每个限流维度都按窗口计算 slot（分钟/小时），写入独立计数键。',
+      '首次请求 INCR=1 时设置过期时间为 window+2s，避免边界抖动。',
+      '超过阈值立即抛错并拒绝请求，新的 slot 会自动切换到新键。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as Frontend
+participant SPR as Spring(Service)
+participant RED as Redis
+FE->>SPR: 请求上传/登录接口
+SPR->>RED: INCR busgallery:rl:*:{slot}
+alt first hit
+  SPR->>RED: EXPIRE key = window+2s
+end
+alt count > limit
+  SPR-->>FE: 429/REQUEST_DUPLICATE
+else pass
+  SPR-->>FE: 继续业务处理
+end`
+  },
+  {
+    id: 'R5',
+    title: '上传幂等键与异常回滚',
+    keys: 'idempotent:upload:{idempotencyKey}',
+    steps: [
+      '上传入口读取 Idempotency-Key，执行 setIfAbsent 抢占幂等键。',
+      '拿不到锁说明同 key 已处理或处理中，直接拒绝重复请求。',
+      '业务异常时主动删键，避免错误请求长时间占坑；成功请求由 TTL 自然释放。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as Frontend
+participant SPR as UploadController
+participant RED as Redis
+participant DB as MySQL/MinIO
+FE->>SPR: POST /api/upload (Idempotency-Key)
+SPR->>RED: SETNX idempotent:upload:{key}
+alt locked=false
+  SPR-->>FE: Duplicate request
+else locked=true
+  SPR->>DB: 执行上传与落库
+  alt exception
+    SPR->>RED: DEL idempotent key
+  end
+  SPR-->>FE: 上传结果
+end`
+  },
+  {
+    id: 'R6',
+    title: '车辆分页缓存与版本失效',
+    keys: 'bg:vehicle:page:version / bg:vehicle:page:v{ver}:...',
+    steps: [
+      '读列表先读 version，再拼接参数形成 page key；命中直接返回。',
+      '未命中回源 MySQL，写入 page 缓存并设置短 TTL。',
+      '车辆增删改后只做 version 自增，不逐条删分页 key，降低并发失效开销。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as Frontend
+participant SPR as VehicleController
+participant RED as Redis
+participant DB as MySQL
+FE->>SPR: GET /api/vehicles
+SPR->>RED: GET bg:vehicle:page:version
+SPR->>RED: GET bg:vehicle:page:v{ver}:...
+alt hit
+  RED-->>SPR: cached page
+  SPR-->>FE: return cache
+else miss
+  SPR->>DB: query page
+  SPR->>RED: SET page key + TTL
+  SPR-->>FE: return db result
+end`
+  },
+  {
+    id: 'R7',
+    title: '评论/收藏缓存的一致性策略',
+    keys: 'bg:comments:* / bg:fav:*',
+    steps: [
+      '评论采用版本键模型：新增评论只 bump ver，list/count 缓存自然切换到新版本。',
+      '收藏采用覆盖写模型：toggle 后直接回写 summary 与 liked 两类键。',
+      '两种策略都以“写请求完成后立刻更新缓存状态”为核心，确保写后读一致性。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as Frontend
+participant SPR as Comment/Favorite Service
+participant RED as Redis
+participant DB as MySQL
+FE->>SPR: 发布评论 / 切换收藏
+SPR->>DB: insert/update
+alt 评论
+  SPR->>RED: INCR bg:comments:ver:{vehicleId}
+else 收藏
+  SPR->>RED: SET bg:fav:summary:{vehicleId}
+  SPR->>RED: SET bg:fav:liked:{vehicleId}:{userId}
+end
+SPR-->>FE: 返回最新状态`
+  },
+  {
+    id: 'R8',
+    title: '快照缓存防击穿（latest + version + stale + lock）',
+    keys: 'bg:snapshot:plate:{plate}:latest|v{version}|stale|lock',
+    steps: [
+      '先读 latest->version key，命中直接返回；未命中时先尝试读取 stale 兜底。',
+      '只有抢到 lock 的请求允许回源构建快照，其余请求返回 stale 或等待下一次命中。',
+      '回源完成后同时更新 version/latest/stale，再释放 lock，避免热点车牌并发打爆数据库。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as Frontend
+participant SPR as SnapshotService
+participant RED as Redis
+participant DB as MySQL
+FE->>SPR: GET /api/snapshots/{plate}
+SPR->>RED: GET latest + version key
+alt miss
+  SPR->>RED: GET stale
+  SPR->>RED: SETNX lock (30s)
+  alt lock acquired
+    SPR->>DB: 回源聚合快照
+    SPR->>RED: SET v{version} + latest (10m)
+    SPR->>RED: SET stale (1h)
+    SPR->>RED: DEL lock
+  else lock denied
+    SPR-->>FE: 返回 stale 或快速失败
+  end
+else hit
+  SPR-->>FE: 直接返回缓存快照
+end`
+  }
+];
+
+function redisActionHint(action) {
+  const text = (action || '').toUpperCase();
+  if (text.includes('SETNX')) return '尝试原子占位，成功才继续，失败走拒绝或兜底路径';
+  if (text.includes('SET')) return '写入对应 Redis 键并同步状态（按场景设置 TTL）';
+  if (text.includes('GET')) return '读取目标 Redis 键，按命中/未命中进入对应路径';
+  if (text.includes('INCR')) return '原子计数，用于限流或版本推进';
+  if (text.includes('DEL')) return '删除键，确保失效立即生效';
+  if (text.includes('SADD')) return '维护集合关系，支持按用户聚合查询';
+  if (text.includes('EXPIRE')) return '设置过期时间，避免脏键长期滞留';
+  return '执行当前接口步骤并进入下一环节';
+}
+
+function redisSeqPathColor(branchPath) {
+  if (!branchPath) return '#0284c7';
+  if (branchPath.includes('否则')) return '#ea580c';
+  return '#0d9488';
+}
+
+function redisSeqLanePercent(laneIndex, laneCount) {
+  if (laneCount <= 0) return 50;
+  return ((laneIndex + 0.5) / laneCount) * 100;
+}
+
+function redisSeqGuideStyle(laneIndex, laneCount) {
+  return { left: `${redisSeqLanePercent(laneIndex, laneCount)}%` };
+}
+
+function redisSeqLineStyle(evt, laneCount) {
+  const from = redisSeqLanePercent(evt.fromLane, laneCount);
+  const to = redisSeqLanePercent(evt.toLane, laneCount);
+  const left = Math.min(from, to);
+  const width = Math.max(Math.abs(to - from), 1.2);
+  return {
+    left: `${left}%`,
+    width: `${width}%`,
+    '--seq-color': redisSeqPathColor(evt.branchPath)
+  };
+}
+
+function redisSeqArrowDirClass(evt) {
+  return evt.toLane < evt.fromLane ? 'left' : 'right';
+}
+
+function redisSeqEndArrowStyle(evt, laneCount, side) {
+  const lane = side === 'from' ? evt.fromLane : evt.toLane;
+  return {
+    left: `${redisSeqLanePercent(lane, laneCount)}%`,
+    '--seq-color': redisSeqPathColor(evt.branchPath),
+    opacity: side === 'from' ? '0.55' : '1'
+  };
+}
+
+function buildBranchMeta(keyword, desc) {
+  const normalized = normalizeBranchDesc(desc);
+  if (keyword === 'alt') {
+    const content = normalized ? `如果（满足：${normalized}）` : '如果（满足：条件成立）';
+    return {
+      branchType: 'alt',
+      text: content,
+      pathLabel: content,
+      tip: '满足判断条件时走绿色路径',
+      pathHint: '进入“如果”分支，后续连线显示为绿色'
+    };
+  }
+  if (keyword === 'else') {
+    const content = normalized ? `否则（分支条件：${normalized}）` : '否则（不满足主判断条件）';
+    return {
+      branchType: 'else',
+      text: content,
+      pathLabel: content,
+      tip: '不满足主判断条件时走橙色路径',
+      pathHint: '进入“否则”分支，后续连线显示为橙色'
+    };
+  }
+  return {
+    branchType: 'end',
+    text: '分支结束',
+    pathLabel: '',
+    tip: '两条分支在此汇合，后续回到主流程',
+    pathHint: '分支汇合完成，后续连线恢复蓝色主流程'
+  };
+}
+
+function normalizeBranchDesc(desc) {
+  const raw = (desc || '').replace(/`/g, '').trim();
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  if (lower === 'first hit') return '当前窗口内是第一次命中计数键';
+  if (lower === 'count > limit') return '计数值超过限流阈值';
+  if (lower === 'pass') return '计数值未超过限流阈值';
+  if (lower === 'locked=false') return '幂等键已被占用（重复请求）';
+  if (lower === 'locked=true') return '幂等键占用成功（允许执行上传）';
+  if (lower === 'exception') return '上传落库过程发生异常';
+  if (lower === 'hit') return '缓存命中';
+  if (lower === 'miss') return '缓存未命中';
+  if (lower === 'lock acquired') return '成功获取快照回源锁';
+  if (lower === 'lock denied') return '未获取到快照回源锁';
+  return raw;
+}
+
+function normalizeAction(action) {
+  return (action || '').replace(/`/g, '').trim();
+}
+
+function stripBranchPrefix(text, prefix) {
+  return normalizeAction(text).replace(new RegExp(`^${prefix}[：:]?`), '').trim();
+}
+
+function buildRedisFlowDetail(evt) {
+  const action = normalizeAction(evt.action);
+  if (!action) return `${evt.from} -> ${evt.to}：执行本步骤。`;
+  if (action.includes('GET /api/auth/captcha?scene=login')) return '前端发起登录验证码请求，后端准备生成 captchaId 和图片内容，并写入验证码键供后续登录校验。';
+  if (action.includes('POST /api/auth/login')) return '前端提交账号密码（及必要时验证码），后端依次做风控计数、验证码校验、密码校验和会话签发。';
+  if (action.includes('POST /api/upload (Idempotency-Key)')) return '前端携带 Idempotency-Key 发起上传，后端先做幂等抢占，再进入上传压缩/水印/落库链路。';
+  if (action.includes('GET /api/vehicles')) return '前端请求车辆分页列表，后端先读 version 与 page 缓存，命中走缓存，未命中再回源 MySQL。';
+  if (action.includes('GET /api/snapshots/{plate}')) return '前端请求车牌快照，后端按 latest/version/stale/lock 的顺序执行防击穿流程。';
+  if (action.includes('携带 token 请求业务接口')) return '客户端携带 token 调业务接口，后端先读取会话键恢复用户身份，再按角色与审核地区做权限边界判定。';
+  if (action.includes('发送邮箱验证码')) return '前端请求发送 OTP，后端先占用 cooldown 键，成功后写 challenge 键并异步发邮件。';
+  if (action.includes('提交 OTP')) return '前端提交 challengeId+code，后端读取 OTP 键做哈希比对，成功后删除键并继续后续业务。';
+  if (action.includes('请求上传/登录接口')) return '业务入口步骤：先执行限流计数和阈值判断，通过后才进入后续上传/登录业务。';
+  if (action.includes('发布评论 / 切换收藏')) return '前端触发评论或收藏写操作，后端先更新 MySQL，再按业务类型更新 Redis 一致性键。';
+  if (action === 'user') return 'MySQL 返回用户记录（含角色与审核地区）供后端签发会话并写入 Redis。';
+  if (action.includes('返回 captchaId + 图片')) return '后端返回 captchaId 和验证码图片；前端后续登录请求必须携带该 captchaId 与输入值。';
+  if (action.includes('返回 token')) return '会话写入 Redis 成功后返回 token 给前端；后续请求通过 token 命中 busgallery:sessions:{token} 维持登录态。';
+  if (action.includes('通过/拒绝')) return '根据 busgallery:sessions:{token} 是否存在以及用户权限边界是否满足，决定请求放行或返回未登录/无权限。';
+  if (action.includes('异步发送邮件')) return '后端把邮件任务投递到异步执行器，避免阻塞接口响应；OTP challenge 键在 Redis 中维持有效窗口。';
+  if (action.includes('继续业务处理')) return '限流键未超阈值，流程进入接口核心逻辑；若是上传则继续幂等校验与落库。';
+  if (action.includes('429/REQUEST_DUPLICATE')) return '限流计数超过阈值，立即返回 429 或重复请求错误，不再执行后续业务。';
+  if (action.includes('Duplicate request')) return '幂等键已被占用，判定为重复提交，直接返回拒绝结果，避免重复写 MinIO/MySQL。';
+  if (action.includes('上传结果')) return '上传链路完成后返回车辆/图片/审核状态等结果；成功路径保留幂等键至 TTL 到期。';
+  if (action.includes('cached page')) return 'Redis 命中分页缓存键 bg:vehicle:page:v{ver}:...，直接返回缓存页数据。';
+  if (action.includes('返回最新状态')) return '评论/收藏写入完成后返回最新聚合状态，前端无需二次查询即可展示最新计数与收藏态。';
+  if (action.includes('GET busgallery:sessions:{token}')) return '从 Redis 读取会话键 busgallery:sessions:{token}，校验 token 是否有效并恢复用户角色/审核地区。';
+  if (action.includes('SET busgallery:sessions:{token}')) return '向 Redis 写入会话键 busgallery:sessions:{token}（含 userId/role/reviewRegionId），并设置会话 TTL。';
+  if (action.includes('SADD busgallery:user:sessions:{userId}')) return '把当前 token 放入集合键 busgallery:user:sessions:{userId}，用于后续按用户踢线/会话刷新。';
+  if (action.includes('SET busgallery:auth:captcha:login:{captchaId}')) return '写入验证码键 busgallery:auth:captcha:login:{captchaId}，保存 codeHash、salt、尝试次数和过期时间。';
+  if (action.includes('INCR busgallery:auth:risk:login-fail:*')) return '递增风控计数键 busgallery:auth:risk:login-fail:*，累计失败次数以决定是否强制验证码。';
+  if (action.includes('GET captcha key')) return '读取验证码键 busgallery:auth:captcha:login:{captchaId}，校验验证码是否存在、是否过期、是否匹配。';
+  if (action.includes('DEL captcha key')) return '删除验证码键 busgallery:auth:captcha:login:{captchaId}，防止同一验证码重复使用。';
+  if (action.includes('SETNX cooldown key')) return '尝试占用冷却键 busgallery:auth:otp:cooldown:{scope}:{sha256(email)}，限制同邮箱短时间重复发码。';
+  if (action.includes('SET otp challenge key')) return '写入 OTP 键 busgallery:auth:otp:{SCENE}:{challengeId}，保存 codeHash 和尝试次数。';
+  if (action.includes('GET otp challenge')) return '读取 OTP 键 busgallery:auth:otp:{SCENE}:{challengeId}，核对邮箱验证码并判断是否过期。';
+  if (action.includes('DEL otp challenge')) return '校验成功后删除 OTP 键 busgallery:auth:otp:{SCENE}:{challengeId}，确保验证码一次性使用。';
+  if (action.includes('SET reset ticket')) return '写入重置票据键 busgallery:auth:ticket:reset:{ticket}，用于找回密码二段式确认。';
+  if (action.includes('INCR busgallery:rl:*:{slot}')) return '递增限流键 busgallery:rl:{scope}:{dimension}:{sha256(identity)}:{slot}，按窗口统计请求次数。';
+  if (action.includes('EXPIRE key = window+2s')) return '给当前限流键补上过期时间（窗口+2秒），避免脏计数长期残留。';
+  if (action.includes('SETNX idempotent:upload:{key}')) return '尝试写入幂等键 idempotent:upload:{Idempotency-Key}，占位成功才允许进入上传业务。';
+  if (action.includes('DEL idempotent key')) return '上传异常时删除幂等键 idempotent:upload:{Idempotency-Key}，避免错误占位导致后续请求被误拒绝。';
+  if (action.includes('GET bg:vehicle:page:version')) return '读取分页版本键 bg:vehicle:page:version，确定本次查询应访问的缓存命名空间。';
+  if (action.includes('GET bg:vehicle:page:v{ver}:...')) return '按筛选条件读取分页缓存键 bg:vehicle:page:v{ver}:s{size}:...，命中则直接返回列表。';
+  if (action.includes('SET page key + TTL')) return '将查询结果写入分页缓存键 bg:vehicle:page:v{ver}:...，并设置 busgallery.cache.vehicles.page-ttl-seconds 过期时间。';
+  if (action.includes('INCR bg:comments:ver:{vehicleId}')) return '评论写入后递增版本键 bg:comments:ver:{vehicleId}，使旧评论缓存自动失效。';
+  if (action.includes('SET bg:fav:summary:{vehicleId}')) return '覆盖写收藏摘要键 bg:fav:summary:{vehicleId}，同步最新 total/topUsers。';
+  if (action.includes('SET bg:fav:liked:{vehicleId}:{userId}')) return '覆盖写用户收藏态键 bg:fav:liked:{vehicleId}:{userId}，保证写后读立即一致。';
+  if (action.includes('GET latest + version key')) return '读取快照索引键 bg:snapshot:plate:{plate}:latest，再读取版本键 bg:snapshot:plate:{plate}:v{version}。';
+  if (action.includes('GET stale')) return '读取兜底键 bg:snapshot:plate:{plate}:stale，在高并发 miss 时返回最近一次可用快照。';
+  if (action.includes('SETNX lock (30s)')) return '尝试占用回源锁 bg:snapshot:plate:{plate}:lock（30秒），只允许一个请求回源数据库。';
+  if (action.includes('SET v{version} + latest (10m)')) return '回源后写入版本快照键和 latest 索引键（10分钟），让后续请求直接命中。';
+  if (action.includes('SET stale (1h)')) return '同步更新 stale 键（1小时），作为回源锁争用时的兜底返回数据。';
+  if (action.includes('DEL lock')) return '回源结束后删除锁键 bg:snapshot:plate:{plate}:lock，释放其他请求回源资格。';
+  if (action.includes('校验用户名密码')) return '查询 MySQL 用户表并验证密码哈希；通过后进入会话签发步骤。';
+  if (action.includes('执行上传与落库')) return '执行上传处理链路：图片校验/压缩/水印 -> MinIO 存储 -> MySQL 落库（vehicle、image、submission）。';
+  if (action.includes('query page')) return '查询 MySQL vehicle 及关联表，按游标分页返回本页数据。';
+  if (action.includes('回源聚合快照')) return '查询 MySQL 的 vehicle/image/comment/favorite 数据，组装成车牌快照对象。';
+  if (action.includes('return cache')) return '直接返回 Redis 缓存结果，不再访问 MySQL。';
+  if (action.includes('return db result')) return '返回 MySQL 回源结果，并由上游决定是否回填 Redis 缓存。';
+  if (action.includes('返回 stale')) return '当前线程未拿到回源锁，返回 stale 快照避免并发打爆数据库。';
+  if (action.includes('直接返回缓存快照')) return '最新快照已命中，直接返回缓存版本数据。';
+  if (/^GET\s+/i.test(action)) {
+    const key = action.replace(/^GET\s+/i, '').trim();
+    return `读取 Redis 键或索引「${key}」，并按命中结果决定后续走缓存返回、回源构建或兜底分支。`;
+  }
+  if (/^SETNX\s+/i.test(action)) {
+    const key = action.replace(/^SETNX\s+/i, '').trim();
+    return `尝试原子占用 Redis 键「${key}」，占用成功才允许进入后续业务，不成功则进入拒绝或兜底分支。`;
+  }
+  if (/^SET\s+/i.test(action)) {
+    const key = action.replace(/^SET\s+/i, '').trim();
+    return `写入 Redis 键「${key}」，同步当前业务状态并按场景设置 TTL，保障后续读请求可直接命中。`;
+  }
+  if (/^INCR\s+/i.test(action)) {
+    const key = action.replace(/^INCR\s+/i, '').trim();
+    return `原子递增 Redis 计数键「${key}」，用于阈值判定或版本推进，计数结果直接决定分支走向。`;
+  }
+  if (/^DEL\s+/i.test(action)) {
+    const key = action.replace(/^DEL\s+/i, '').trim();
+    return `删除 Redis 键「${key}」，释放锁或回收一次性状态，防止脏状态影响后续请求。`;
+  }
+  if (/^EXPIRE\s+/i.test(action)) {
+    const key = action.replace(/^EXPIRE\s+/i, '').trim();
+    return `为 Redis 键设置过期策略（${key}），让状态在业务窗口后自动回收。`;
+  }
+  return `${evt.from} -> ${evt.to}：执行「${action}」，并进入下一步。`;
+}
+
+function parseMermaidSequence(mermaidText) {
+  const lines = (mermaidText || '').split('\n').map((line) => line.trim()).filter(Boolean);
+  const aliasToLabel = {};
+  const lanes = [];
+  const events = [];
+  const branchStack = [];
+  lines.forEach((line) => {
+    const participantHit = line.match(/^participant\s+([A-Za-z0-9_]+)(?:\s+as\s+(.+))?$/i);
+    if (participantHit) {
+      const alias = participantHit[1];
+      const label = (participantHit[2] || alias).trim();
+      if (!aliasToLabel[alias]) {
+        aliasToLabel[alias] = label;
+        lanes.push(label);
+      }
+      return;
+    }
+
+    const messageHit = line.match(/^([A-Za-z0-9_]+)\s*(->>|-->>)\s*([A-Za-z0-9_]+)\s*:\s*(.+)$/);
+    if (messageHit) {
+      const fromAlias = messageHit[1];
+      const toAlias = messageHit[3];
+      events.push({
+        type: 'message',
+        from: aliasToLabel[fromAlias] || fromAlias,
+        to: aliasToLabel[toAlias] || toAlias,
+        arrow: messageHit[2],
+        action: messageHit[4].trim(),
+        hint: redisActionHint(messageHit[4].trim()),
+        branchPath: branchStack.length ? branchStack[branchStack.length - 1].pathLabel : ''
+      });
+      const latest = events[events.length - 1];
+      const fromLane = Math.max(0, lanes.indexOf(latest.from));
+      const toLane = Math.max(0, lanes.indexOf(latest.to));
+      latest.fromLane = fromLane;
+      latest.toLane = toLane;
+      return;
+    }
+
+    const branchHit = line.match(/^(alt|else|end)\s*(.*)$/i);
+    if (branchHit) {
+      const keyword = branchHit[1].toLowerCase();
+      const desc = (branchHit[2] || '').trim();
+      if (keyword === 'alt') {
+        const meta = buildBranchMeta(keyword, desc);
+        branchStack.push(meta);
+        events.push({ type: 'branch', ...meta });
+        return;
+      }
+      if (keyword === 'else') {
+        const meta = buildBranchMeta(keyword, desc);
+        if (branchStack.length) {
+          branchStack[branchStack.length - 1] = meta;
+        } else {
+          branchStack.push(meta);
+        }
+        events.push({ type: 'branch', ...meta });
+        return;
+      }
+      if (keyword === 'end') {
+        const meta = buildBranchMeta(keyword, desc);
+        events.push({ type: 'branch', ...meta });
+        if (branchStack.length) {
+          branchStack.pop();
+        }
+      }
+    }
+  });
+  return { lanes, events };
+}
+
+const redisInterviewFlowViews = redisInterviewFlows.map((item) => ({
+  ...item,
+  parsed: parseMermaidSequence(item.mermaid)
+}));
+const redisFlowDialog = reactive({
+  visible: false,
+  title: '',
+  lanes: [],
+  chart: {
+    pre: [],
+    yes: [],
+    no: [],
+    post: [],
+    hasBranch: false,
+    decisionText: '满足判断条件吗？',
+    yesLabel: '如果（满足判断条件）',
+    noLabel: '否则（不满足判断条件）'
+  }
+});
+
+function buildRedisFlowStep(evt, index) {
+  const action = normalizeAction(evt.action);
+  return {
+    title: `${index + 1}. ${action}`,
+    detail: buildRedisFlowDetail(evt)
+  };
+}
+
+function buildRedisFlowChart(item) {
+  const chart = {
+    pre: [],
+    yes: [],
+    no: [],
+    post: [],
+    hasBranch: false,
+    decisionText: '满足判断条件吗？',
+    yesLabel: '如果（满足判断条件）',
+    noLabel: '否则（不满足判断条件）'
+  };
+  if (!item || !item.parsed || !Array.isArray(item.parsed.events)) {
+    return chart;
+  }
+  let zone = 'pre';
+  item.parsed.events.forEach((evt, idx) => {
+    if (evt.type === 'branch') {
+      if (evt.branchType === 'alt') {
+        chart.hasBranch = true;
+        const altCond = stripBranchPrefix(evt.text || '', '如果') || '判断条件成立';
+        chart.decisionText = altCond;
+        chart.yesLabel = `如果（满足：${altCond}）`;
+        chart.noLabel = `否则（不满足：${altCond}）`;
+        zone = 'yes';
+        return;
+      }
+      if (evt.branchType === 'else') {
+        chart.hasBranch = true;
+        const elseCond = stripBranchPrefix(evt.text || '', '否则');
+        if (elseCond) {
+          chart.noLabel = chart.decisionText && chart.decisionText !== '满足判断条件吗？'
+            ? `否则（不满足：${chart.decisionText}，分支条件：${elseCond}）`
+            : `否则（分支条件：${elseCond}）`;
+        } else if (chart.decisionText && chart.decisionText !== '满足判断条件吗？') {
+          chart.noLabel = `否则（不满足：${chart.decisionText}）`;
+        } else {
+          chart.noLabel = '否则（不满足判断条件）';
+        }
+        zone = 'no';
+        return;
+      }
+      if (evt.branchType === 'end') {
+        zone = 'post';
+      }
+      return;
+    }
+    const step = buildRedisFlowStep(evt, idx);
+    if (zone === 'yes') {
+      chart.yes.push(step);
+    } else if (zone === 'no') {
+      chart.no.push(step);
+    } else if (zone === 'post') {
+      chart.post.push(step);
+    } else {
+      chart.pre.push(step);
+    }
+  });
+  if (chart.hasBranch) {
+    if (!chart.yes.length) chart.yes.push({ title: '无额外步骤', detail: '此分支直接进入合流节点' });
+    if (!chart.no.length) chart.no.push({ title: '无额外步骤', detail: '此分支直接进入合流节点' });
+  }
+  return chart;
+}
+
+function openRedisFlowDialog(item) {
+  redisFlowDialog.title = `${item.id} ${item.title}`;
+  redisFlowDialog.lanes = item.parsed?.lanes || [];
+  redisFlowDialog.chart = buildRedisFlowChart(item);
+  redisFlowDialog.visible = true;
+  if (typeof document !== 'undefined') {
+    document.body.classList.add('redis-flow-modal-open');
+  }
+}
+
+function closeRedisFlowDialog() {
+  redisFlowDialog.visible = false;
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('redis-flow-modal-open');
+  }
+}
+const termGlossaryWithLower = termGlossary.map((item) => ({
+  ...item,
+  lower: /[A-Za-z]/.test(item.term) ? item.term.toLowerCase() : item.term
+}));
+
+function isAsciiWordChar(ch) {
+  return /[A-Za-z0-9_-]/.test(ch || '');
+}
+
+function findNextGlossaryMatch(text, fromIndex) {
+  if (!text || fromIndex >= text.length) return null;
+  const lowerText = text.toLowerCase();
+  let best = null;
+  for (const item of termGlossaryWithLower) {
+    const isAscii = /[A-Za-z]/.test(item.term);
+    let idx = (isAscii ? lowerText.indexOf(item.lower, fromIndex) : text.indexOf(item.term, fromIndex));
+    while (idx !== -1) {
+      if (isAscii) {
+        const prev = idx > 0 ? text[idx - 1] : '';
+        const next = idx + item.term.length < text.length ? text[idx + item.term.length] : '';
+        if (isAsciiWordChar(prev) || isAsciiWordChar(next)) {
+          idx = isAscii ? lowerText.indexOf(item.lower, idx + 1) : text.indexOf(item.term, idx + 1);
+          continue;
+        }
+      }
+      if (!best || idx < best.idx || (idx === best.idx && item.term.length > best.term.length)) {
+        best = { idx, term: item.term, note: item.note };
+      }
+      break;
+    }
+  }
+  return best;
+}
+
+function annotateTermTextNode(node) {
+  const text = node.nodeValue || '';
+  if (!text.trim()) return;
+  let cursor = 0;
+  let found = false;
+  const frag = document.createDocumentFragment();
+  while (cursor < text.length) {
+    const hit = findNextGlossaryMatch(text, cursor);
+    if (!hit) break;
+    if (hit.idx > cursor) {
+      frag.appendChild(document.createTextNode(text.slice(cursor, hit.idx)));
+    }
+    const span = document.createElement('span');
+    span.className = 'term-note';
+    span.title = hit.note;
+    span.textContent = text.slice(hit.idx, hit.idx + hit.term.length);
+    frag.appendChild(span);
+    cursor = hit.idx + hit.term.length;
+    found = true;
+  }
+  if (!found) return;
+  if (cursor < text.length) {
+    frag.appendChild(document.createTextNode(text.slice(cursor)));
+  }
+  node.parentNode?.replaceChild(frag, node);
+}
+
+function annotateDocTerms() {
+  const root = docsMainRef.value;
+  if (!root || typeof document === 'undefined') return;
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (!node || !node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        if (parent.closest('pre, code, .code, .mono, .chip, .term-note')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+  const textNodes = [];
+  let current = walker.nextNode();
+  while (current) {
+    textNodes.push(current);
+    current = walker.nextNode();
+  }
+  textNodes.forEach((node) => annotateTermTextNode(node));
+}
 
 const selectedPageId = ref('m1');
 const module1Expanded = ref(false);
@@ -1112,7 +2030,7 @@ const flowStepTags = {
   'WF-02': { frontend: ['级联查询'], nginx: ['统一网关'], redis: ['短 TTL'], spring: ['聚合接口'], db: ['层级索引'], other: ['同步返回'] },
   'WF-03': { frontend: ['验证码场景'], nginx: ['认证限流'], redis: ['会话TTL'], spring: ['鉴权流程'], db: ['密码哈希'], other: ['邮件通道'] },
   'WF-04': { frontend: ['互动触发'], nginx: ['通用限流'], redis: ['热点缓存'], spring: ['登录校验'], db: ['事务写入'], other: ['同步反馈'] },
-  'WF-05': { frontend: ['multipart'], nginx: ['上传通道'], redis: ['幂等+限流'], spring: ['文件安全校验'], db: ['关系落库'], other: ['MinIO写入'] },
+  'WF-05': { frontend: ['multipart'], nginx: ['上传通道'], redis: ['幂等+限流'], spring: ['文件安全校验', '水印压缩处理'], db: ['关系落库'], other: ['MinIO写入'] },
   'WF-06': { frontend: ['审批动作'], nginx: ['统一转发'], redis: ['缓存失效'], spring: ['角色校验'], db: ['状态变更'], other: ['即时生效'] },
   'WF-07': { frontend: ['后台CRUD'], nginx: ['入口保护'], redis: ['版本键'], spring: ['权限拦截'], db: ['主数据维护'], other: ['事务回滚'] },
   'WF-08': { frontend: ['签名访问'], nginx: ['先验签再取流'], redis: ['会话上下文'], spring: ['HMAC校验'], db: ['归属校验'], other: ['对象流回传'] },
@@ -1136,7 +2054,8 @@ const flowInterviewNotes = {
   ],
   'WF-05': [
     { tag: '幂等', title: '重复提交如何挡住', explain: 'Idempotency-Key 使用 Redis setIfAbsent 抢占，重复请求直接返回已有结果。' },
-    { tag: '上传安全', title: '为什么做魔数校验', explain: '仅靠 MIME 容易伪造，魔数校验可以阻断伪装可执行文件。' }
+    { tag: '上传安全', title: '为什么做魔数校验', explain: '仅靠 MIME 容易伪造，魔数校验可以阻断伪装可执行文件。' },
+    { tag: '图片处理', title: '水印与压缩在何时执行', explain: '上传文件通过安全校验后，服务层会在入库前先按配置进行压缩与水印处理，再写对象存储和数据库。' }
   ],
   'WF-06': [
     { tag: '权限边界', title: '审核员区域隔离', explain: 'RoleGuard 先校验 REVIEWER 的区域范围，避免跨区域审批。' }
@@ -1199,6 +2118,7 @@ const flowMainPathTemplates = {
     { lane: 1, name: 'Nginx 上传入口' },
     { lane: 3, name: 'Spring 安全校验' },
     { lane: 2, name: 'Redis 幂等限流' },
+    { lane: 3, name: 'Spring 水印压缩处理' },
     { lane: 5, name: '对象存储写入' },
     { lane: 4, name: 'MySQL 写元数据' },
     { lane: 3, name: '返回审核结果' },
@@ -1423,9 +2343,23 @@ function handleSeqMousemove(event) {
   laneHover.y = Math.max(8, event.clientY - hostRect.top - 12);
 }
 
-const allPageIds = computed(() => ['m1', 'm1-config', 'm2-intro', 'm2-review-manage', 'm3-intro', 'm4', ...apis.map((a) => a.pageId), ...flowPages.value.map((f) => f.pageId), ...middlewarePages.map((m) => m.pageId)]);
-onMounted(() => { const hash = decodeURIComponent(window.location.hash.replace(/^#/, '')); if (hash && allPageIds.value.includes(hash)) selectPage(hash); });
-watch(selectedPageId, (id) => { const h = '#' + encodeURIComponent(id); if (window.location.hash !== h) window.history.replaceState(null, '', window.location.pathname + window.location.search + h); });
+const allPageIds = computed(() => ['m1', 'm1-config', 'm2-intro', 'm2-review-manage', 'm3-intro', 'm4', 'm5', ...apis.map((a) => a.pageId), ...flowPages.value.map((f) => f.pageId), ...middlewarePages.map((m) => m.pageId)]);
+onMounted(() => {
+  const hash = decodeURIComponent(window.location.hash.replace(/^#/, ''));
+  if (hash && allPageIds.value.includes(hash)) selectPage(hash);
+  nextTick(() => annotateDocTerms());
+});
+watch(selectedPageId, (id) => {
+  const h = '#' + encodeURIComponent(id);
+  if (window.location.hash !== h) window.history.replaceState(null, '', window.location.pathname + window.location.search + h);
+  if (redisFlowDialog.visible) closeRedisFlowDialog();
+  nextTick(() => annotateDocTerms());
+});
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('redis-flow-modal-open');
+  }
+});
 </script>
 <style scoped lang="scss">
 .docs-shell {
@@ -2286,6 +3220,604 @@ th {
   font-size: 12px;
 }
 
+:deep(.term-note) {
+  color: #15803d !important;
+  font-weight: 600;
+  background: #ecfdf3;
+  border-radius: 4px;
+  padding: 0 3px;
+  cursor: help;
+}
+
+:deep(.term-note:hover) {
+  color: #166534 !important;
+  background: #dcfce7;
+}
+
+.redis-flow {
+  border: 1px solid #dbe5ee;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  margin-top: 12px;
+}
+
+.redis-flow h4 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.redis-flow-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.redis-flow-title-text {
+  display: inline-flex;
+  align-items: center;
+}
+
+.flow-open-btn {
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.flow-open-btn:hover {
+  background: #dbeafe;
+}
+
+.redis-flow-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.redis-flow-modal {
+  width: min(960px, 96vw);
+  max-height: 88vh;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+.redis-flow-modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.redis-flow-modal-head h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.flow-close-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.flow-close-btn:hover {
+  background: #f1f5f9;
+}
+
+.redis-flow-modal-body {
+  padding: 12px 14px 16px;
+  overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior: contain;
+}
+
+.redis-flow-modal-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.redis-flow-modal-lanes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.redis-flow-lane-chip {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.redis-flowchart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0 8px;
+}
+
+.redis-fc-node {
+  width: min(760px, 92%);
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.redis-fc-node.start,
+.redis-fc-node.end {
+  width: min(260px, 72%);
+  border-color: #86efac;
+  background: #f0fdf4;
+  text-align: center;
+  font-weight: 700;
+}
+
+.redis-fc-node.merge {
+  width: min(200px, 56%);
+  border-color: #7dd3fc;
+  background: #f0f9ff;
+  text-align: center;
+  font-weight: 700;
+}
+
+.redis-fc-node.process.branch {
+  width: 100%;
+}
+
+.redis-fc-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.redis-fc-detail {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.redis-fc-arrow {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0369a1;
+  font-size: 18px;
+}
+
+.redis-fc-decision-note {
+  width: min(760px, 92%);
+  display: grid;
+  gap: 2px;
+  margin: -4px 0 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #334155;
+}
+
+.redis-fc-decision-note span:first-child {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.redis-fc-decision-wrap {
+  width: min(760px, 92%);
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 8px;
+}
+
+.redis-fc-node.decision {
+  width: 108px;
+  height: 108px;
+  padding: 0;
+  border-color: #f59e0b;
+  background: #fffbeb;
+  transform: rotate(45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.redis-fc-node.decision > span {
+  transform: rotate(-45deg);
+  text-align: center;
+  width: 84%;
+  font-size: 11px;
+  color: #92400e;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.redis-fc-branches {
+  width: min(860px, 96%);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+  margin-top: 2px;
+  position: relative;
+  padding-top: 18px;
+}
+
+.redis-fc-branches::before {
+  content: '';
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  top: 4px;
+  border-top: 2px solid #94a3b8;
+}
+
+.redis-fc-branches::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -14px;
+  height: 18px;
+  border-left: 2px solid #94a3b8;
+}
+
+.redis-fc-branch {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.redis-fc-branch::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -14px;
+  height: 18px;
+  border-left: 2px solid #94a3b8;
+}
+
+.redis-fc-branch::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -18px;
+  height: 18px;
+  border-left: 2px solid #94a3b8;
+}
+
+.redis-fc-branch.yes {
+  border-color: #5eead4;
+  background: #f0fdfa;
+}
+
+.redis-fc-branch.no {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+
+.redis-fc-branch-head {
+  display: inline-flex;
+  align-self: flex-start;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.redis-fc-branch.yes .redis-fc-branch-head {
+  border: 1px solid #2dd4bf;
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.redis-fc-branch.no .redis-fc-branch-head {
+  border: 1px solid #fb923c;
+  color: #c2410c;
+  background: #ffedd5;
+}
+
+.redis-fc-merge-wrap {
+  width: min(760px, 92%);
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  position: relative;
+  padding-top: 20px;
+}
+
+.redis-fc-merge-wrap::before {
+  content: '';
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  top: 0;
+  border-top: 2px solid #94a3b8;
+}
+
+.redis-fc-merge-wrap::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 0;
+  height: 20px;
+  border-left: 2px solid #94a3b8;
+}
+
+.redis-fc-merge-wrap .redis-fc-node.merge {
+  position: relative;
+  z-index: 1;
+}
+
+.redis-flow p {
+  margin: 0 0 8px;
+}
+
+.redis-flow ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.redis-seq {
+  margin-top: 8px;
+  border: 1px solid #dbe5ee;
+  border-radius: 10px;
+  background: #fbfdff;
+  overflow-x: auto;
+}
+
+.redis-seq-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5edf5;
+  background: #f8fafc;
+}
+
+.redis-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.redis-legend-item i {
+  width: 16px;
+  height: 2px;
+  display: inline-block;
+  border-radius: 99px;
+}
+
+.redis-legend-item i.main {
+  background: #0284c7;
+}
+
+.redis-legend-item i.alt {
+  background: #0d9488;
+}
+
+.redis-legend-item i.else {
+  background: #ea580c;
+}
+
+.redis-seq-head {
+  display: grid;
+  grid-template-columns: 54px 280px minmax(280px, 1fr);
+  border-bottom: 1px solid #dbe5ee;
+  background: #f8fafc;
+  min-width: 760px;
+}
+
+.redis-seq-step-h {
+  padding: 8px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  text-align: center;
+}
+
+.redis-seq-flow-h {
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  border-left: 1px solid #e5edf5;
+}
+
+.redis-seq-lanes-h {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(72px, 1fr);
+  border-left: 1px solid #e5edf5;
+}
+
+.redis-seq-lane-h {
+  padding: 8px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  border-left: 1px solid #e5edf5;
+}
+
+.redis-seq-body {
+  padding: 6px 0;
+}
+
+.redis-seq-row {
+  display: grid;
+  grid-template-columns: 54px 280px minmax(280px, 1fr);
+  padding: 6px 0;
+  min-width: 760px;
+}
+
+.redis-seq-step {
+  text-align: center;
+  font-size: 12px;
+  color: #334155;
+  padding-top: 10px;
+}
+
+.redis-seq-flow {
+  padding: 0 10px;
+  border-left: 1px solid #eef2f7;
+}
+
+.redis-seq-action {
+  font-size: 13px;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.redis-seq-main {
+  padding: 0 10px 0 8px;
+  border-left: 1px solid #eef2f7;
+}
+
+.redis-seq-track {
+  position: relative;
+  height: 36px;
+}
+
+.redis-seq-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #d7e3ef;
+  transform: translateX(-50%);
+}
+
+.redis-seq-line {
+  position: absolute;
+  top: 18px;
+  height: 2px;
+  background: var(--seq-color, #0284c7);
+  transform: translateX(0);
+}
+
+.redis-seq-end-arrow {
+  position: absolute;
+  top: 12px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  transform: translateX(-50%);
+}
+
+.redis-seq-end-arrow.right {
+  border-left: 8px solid var(--seq-color, #0284c7);
+}
+
+.redis-seq-end-arrow.left {
+  border-right: 8px solid var(--seq-color, #0284c7);
+}
+
+.redis-seq-branch-tag {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #0f766e;
+  background: #ecfeff;
+  border: 1px solid #99f6e4;
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.redis-seq-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.redis-seq-flow.branch {
+  padding-top: 2px;
+}
+
+.redis-branch-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.redis-branch-tip {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #475569;
+}
+
+.redis-seq-branch-row {
+  margin: 0;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px dashed #7dd3fc;
+  background: #f0f9ff;
+  color: #075985;
+}
+
+.redis-seq-branch-row.alt {
+  border-color: #5eead4;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.redis-seq-branch-row.else {
+  border-color: #fdba74;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.redis-seq-branch-row.end {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+}
+
 @media (max-width: 1024px) {
   .docs-sidebar {
     position: static;
@@ -2351,5 +3883,57 @@ th {
     min-width: 220px;
     flex-basis: 220px;
   }
+
+  .redis-seq-head,
+  .redis-seq-row {
+    grid-template-columns: 42px 220px minmax(280px, 1fr);
+    min-width: 640px;
+  }
+
+  .redis-seq-step {
+    padding-top: 8px;
+  }
+
+  .redis-seq-track {
+    height: 34px;
+  }
+
+  .redis-fc-node.decision {
+    width: 92px;
+    height: 92px;
+  }
+
+  .redis-fc-branches {
+    grid-template-columns: 1fr;
+    padding-top: 12px;
+  }
+
+  .redis-fc-branches::before {
+    left: 50%;
+    right: auto;
+    width: 0;
+    border-top: 0;
+    border-left: 2px solid #94a3b8;
+    height: 12px;
+    transform: translateX(-50%);
+  }
+
+  .redis-fc-branches::after {
+    display: none;
+  }
+
+  .redis-fc-merge-wrap::before {
+    left: 50%;
+    right: auto;
+    width: 0;
+    border-top: 0;
+    border-left: 2px solid #94a3b8;
+    height: 20px;
+    transform: translateX(-50%);
+  }
+
+}
+:global(body.redis-flow-modal-open) {
+  overflow: hidden;
 }
 </style>
