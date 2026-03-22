@@ -241,10 +241,7 @@ public class VehicleController {
         if (existing == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "车辆不存在");
         }
-        assertRegionWriteAllowed(session, existing.getRegion() != null ? existing.getRegion().getId() : null);
-        if (request.getRegionId() != null) {
-            assertRegionWriteAllowed(session, request.getRegionId());
-        }
+        assertVehicleUpdateAllowed(session, existing, request);
         Vehicle vehicle = request.toVehicle();
         vehicle.setId(id);
         VehicleConfig config = request.toVehicleConfig();
@@ -274,6 +271,27 @@ public class VehicleController {
         vehicleService.delete(id);
     }
 
+    private void assertVehicleUpdateAllowed(UserSession session, Vehicle existing, VehicleRequest request) {
+        if (session == null || session.getRole() == UserRole.STATION) {
+            return;
+        }
+        if (session.getRole() != UserRole.REVIEWER) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "当前角色无权修改车辆信息");
+        }
+        Long existingRegionId = existing != null && existing.getRegion() != null ? existing.getRegion().getId() : null;
+        boolean existingInScope = isRegionInReviewerScope(session, existingRegionId);
+        boolean targetInScope = request == null
+                || request.getRegionId() == null
+                || isRegionInReviewerScope(session, request.getRegionId());
+        if (existingInScope && targetInScope) {
+            return;
+        }
+        if (existing != null && reviewerOwnsAnyVehicleImage(session, existing.getId())) {
+            return;
+        }
+        throw new BizException(ErrorCode.UNAUTHORIZED, "目标车辆不在你的审核地区");
+    }
+
     private void assertRegionWriteAllowed(UserSession session, Long targetRegionId) {
         if (session == null || session.getRole() == UserRole.STATION) {
             return;
@@ -289,6 +307,27 @@ public class VehicleController {
         if (reviewerProvinceId == null || targetProvinceId == null || !reviewerProvinceId.equals(targetProvinceId)) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "目标车辆不在你的审核地区");
         }
+    }
+
+    private boolean isRegionInReviewerScope(UserSession session, Long targetRegionId) {
+        if (session == null || session.getReviewRegionId() == null || targetRegionId == null) {
+            return false;
+        }
+        Long reviewerProvinceId = regionService.resolveProvinceId(session.getReviewRegionId());
+        Long targetProvinceId = regionService.resolveProvinceId(targetRegionId);
+        return reviewerProvinceId != null && reviewerProvinceId.equals(targetProvinceId);
+    }
+
+    private boolean reviewerOwnsAnyVehicleImage(UserSession session, Long vehicleId) {
+        if (session == null || session.getUserId() == null || vehicleId == null) {
+            return false;
+        }
+        List<Image> images = imageService.listByVehicle(vehicleId);
+        if (images == null || images.isEmpty()) {
+            return false;
+        }
+        return images.stream()
+                .anyMatch(img -> img != null && Objects.equals(img.getUploaderId(), session.getUserId()));
     }
 
     private VehicleDetailResponse buildVehicleDetail(Long vehicleId) {

@@ -300,6 +300,29 @@
                 <el-form-item label="空调"><el-switch v-model="manageForm.airConditioned" /></el-form-item>
                 <el-form-item label="来源"><el-input v-model="manageForm.source" /></el-form-item>
                 <el-form-item label="备注"><el-input v-model="manageForm.remark" type="textarea" /></el-form-item>
+                <h3>配置信息</h3>
+                <el-row v-if="showManageMotorField || showManageEngineField" :gutter="12">
+                    <el-col v-if="showManageMotorField" :sm="showManageEngineField ? 12 : 24" :xs="24"><el-form-item label="电机"><el-input v-model="manageForm.config.motor" /></el-form-item></el-col>
+                    <el-col v-if="showManageEngineField" :sm="showManageMotorField ? 12 : 24" :xs="24"><el-form-item label="发动机"><el-input v-model="manageForm.config.engine" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24">
+                        <el-form-item label="燃料类型（中文）">
+                            <el-select v-model="manageForm.config.fuelType" clearable filterable placeholder="请选择燃料">
+                                <el-option v-for="option in fuelOptions" :key="option.value" :label="option.label" :value="option.value" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="踏步"><el-input v-model="manageForm.config.stepType" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24"><el-form-item label="变速系统"><el-input v-model="manageForm.config.transmissionSystem" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="悬挂"><el-input v-model="manageForm.config.suspension" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24"><el-form-item label="车桥"><el-input v-model="manageForm.config.axle" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="其他配置"><el-input v-model="manageForm.config.otherConfigs" /></el-form-item></el-col>
+                </el-row>
             </el-form>
             <template #footer>
                 <div class="dialog-footer">
@@ -436,6 +459,8 @@ const manageForm = reactive(blankPayload());
 const manageRegionDisplay = computed(() => formatRegionLabel(manageForm.regionId, regions.value));
 const showMotorField = computed(() => isElectricFuel(form.config.fuelType));
 const showEngineField = computed(() => isCombustionFuel(form.config.fuelType));
+const showManageMotorField = computed(() => isElectricFuel(manageForm.config.fuelType));
+const showManageEngineField = computed(() => isCombustionFuel(manageForm.config.fuelType));
 
 const fillForm = (payload = {}) => {
     const base = blankPayload();
