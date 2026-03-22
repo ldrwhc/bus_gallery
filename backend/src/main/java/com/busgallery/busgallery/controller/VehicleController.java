@@ -7,6 +7,7 @@ import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.service.ImageAccessService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.RegionService;
 import com.busgallery.busgallery.service.VehicleService;
@@ -39,6 +40,7 @@ public class VehicleController {
 
     private final VehicleService vehicleService;
     private final ImageService imageService;
+    private final ImageAccessService imageAccessService;
     private final RegionService regionService;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
@@ -70,12 +72,38 @@ public class VehicleController {
                                     @RequestParam(required = false) String keyword,
                                     @RequestParam(required = false) LocalDate lastLaunch,
                                     @RequestParam(required = false) Long lastId) {
+        return pageInternal(size, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
+    }
+
+    @GetMapping("/manage")
+    @RequireLogin
+    public VehiclePageResponse managePage(@RequestParam(defaultValue = "12") int size,
+                                          @RequestParam(required = false) Long regionId,
+                                          @RequestParam(required = false) Long companyId,
+                                          @RequestParam(required = false) Long brandId,
+                                          @RequestParam(required = false) Long modelId,
+                                          @RequestParam(required = false) String keyword,
+                                          @RequestParam(required = false) LocalDate lastLaunch,
+                                          @RequestParam(required = false) Long lastId) {
+        UserSession session = RoleGuard.requireReviewerOrStation();
+        Long effectiveRegionId = resolveManageRegionFilter(session, regionId);
+        return pageInternal(size, effectiveRegionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
+    }
+
+    private VehiclePageResponse pageInternal(int size,
+                                             Long regionId,
+                                             Long companyId,
+                                             Long brandId,
+                                             Long modelId,
+                                             String keyword,
+                                             LocalDate lastLaunch,
+                                             Long lastId) {
         int fixedSize = FIXED_PAGE_SIZE;
         String cacheKey = buildPageCacheKey(fixedSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         try {
             String cached = stringRedisTemplate.opsForValue().get(cacheKey);
             if (cached != null && !cached.isEmpty()) {
-                return objectMapper.readValue(cached, VehiclePageResponse.class);
+                return refreshSignedUrls(objectMapper.readValue(cached, VehiclePageResponse.class));
             }
         } catch (Exception ignore) {
         }
@@ -92,7 +120,24 @@ public class VehicleController {
             stringRedisTemplate.opsForValue().set(cacheKey, payload, Duration.ofSeconds(vehiclePageCacheTtlSeconds));
         } catch (Exception ignore) {
         }
-        return response;
+        return refreshSignedUrls(response);
+    }
+
+    private Long resolveManageRegionFilter(UserSession session, Long requestRegionId) {
+        if (session == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "未登录");
+        }
+        if (session.getRole() == UserRole.STATION) {
+            return requestRegionId;
+        }
+        if (session.getRole() != UserRole.REVIEWER) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "当前角色无权限访问车辆管理");
+        }
+        Long reviewRegionId = session.getReviewRegionId();
+        if (reviewRegionId == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "未分配审核地区，无法查询车辆");
+        }
+        return reviewRegionId;
     }
 
     private String buildPageCacheKey(int size,
@@ -124,6 +169,47 @@ public class VehicleController {
                 lastLaunch == null ? "-" : lastLaunch,
                 lastId == null ? "-" : lastId
         );
+    }
+
+    private VehiclePageResponse refreshSignedUrls(VehiclePageResponse response) {
+        if (response == null || response.getRecords() == null) {
+            return response;
+        }
+        response.getRecords().forEach(record -> {
+            if (record != null) {
+                refreshSignedUrls(record.getImages());
+            }
+        });
+        return response;
+    }
+
+    private void refreshSignedUrls(List<ImageDTO> images) {
+        if (images == null || images.isEmpty()) {
+            return;
+        }
+        images.forEach(this::refreshSignedImage);
+    }
+
+    private void refreshSignedImage(ImageDTO image) {
+        if (image == null) {
+            return;
+        }
+        String primaryRef = image.getObjectName();
+        if (primaryRef == null || primaryRef.isBlank()) {
+            primaryRef = image.getUrl();
+        }
+        String primaryObjectName = imageAccessService.resolveObjectNameRef(primaryRef);
+        if (primaryObjectName == null || primaryObjectName.isBlank()) {
+            return;
+        }
+        image.setUrl(imageAccessService.signPrimaryObject(primaryObjectName));
+
+        String thumbRef = image.getThumbnailUrl();
+        String thumbObjectName = imageAccessService.resolveObjectNameRef(thumbRef);
+        if (thumbObjectName == null || thumbObjectName.isBlank()) {
+            thumbObjectName = primaryObjectName;
+        }
+        image.setThumbnailUrl(imageAccessService.signThumbnailObject(thumbObjectName));
     }
 
     @PostMapping

@@ -17,6 +17,7 @@ public class BusGalleryApplication {
      * @return 无返回值。
      */
     public static void main(String[] args) {
+        Object o = new Object();
         SpringApplication.run(BusGalleryApplication.class, args);
     }
 }

@@ -30,6 +30,15 @@ export const fetchVehicleGallery = (params = {}) =>
         size: response?.size ?? params.size ?? 12
     }));
 
+export const fetchManageVehiclePage = (params = {}) =>
+    http.get('/vehicles/manage', { params }).then((response) => ({
+        records: normalizeRecords(response),
+        total: response?.total ?? 0,
+        size: response?.size ?? params.size ?? 12,
+        nextLaunch: response?.nextLaunch ?? null,
+        nextId: response?.nextId ?? null
+    }));
+
 export const fetchVehicleGalleryDetail = (vehicleId) =>
     http.get(`/vehicles/${vehicleId}`).then(normalizeDetail);
 

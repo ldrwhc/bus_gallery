@@ -19,4 +19,6 @@ public interface VehicleFavoriteMapper {
     int insert(VehicleFavorite favorite);
 
     int delete(@Param("vehicleId") Long vehicleId, @Param("userId") Long userId);
+
+    int deleteByVehicleId(@Param("vehicleId") Long vehicleId);
 }

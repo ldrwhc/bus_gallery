@@ -3,6 +3,7 @@ package com.busgallery.busgallery.service.impl;
 import com.busgallery.busgallery.controller.CommentController;
 import com.busgallery.busgallery.controller.VehicleController;
 import com.busgallery.busgallery.entity.Vehicle;
+import com.busgallery.busgallery.service.ImageAccessService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.FavoriteService;
 import com.busgallery.busgallery.service.SnapshotService;
@@ -36,6 +37,7 @@ public class SnapshotServiceImpl implements SnapshotService {
 
     private final VehicleService vehicleService;
     private final ImageService imageService;
+    private final ImageAccessService imageAccessService;
     private final VehicleCommentService commentService;
     private final FavoriteService favoriteService;
     private final StringRedisTemplate redisTemplate;
@@ -58,18 +60,18 @@ public class SnapshotServiceImpl implements SnapshotService {
         if (StringUtils.hasText(version)) {
             SnapshotPayload cached = readVersion(normalized, version);
             if (cached != null) {
-                return cached;
+                return refreshSignedUrls(cached);
             }
         }
         SnapshotPayload stale = readStale(normalized);
         boolean locked = tryAcquireLock(normalized);
         if (!locked && stale != null) {
-            return stale;
+            return refreshSignedUrls(stale);
         }
         try {
             SnapshotPayload payload = buildSnapshot(normalized);
             cacheSnapshot(normalized, payload);
-            return payload;
+            return refreshSignedUrls(payload);
         } finally {
             if (locked) {
                 releaseLock(normalized);
@@ -216,6 +218,37 @@ public class SnapshotServiceImpl implements SnapshotService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private SnapshotPayload refreshSignedUrls(SnapshotPayload payload) {
+        if (payload == null || CollectionUtils.isEmpty(payload.getVariants())) {
+            return payload;
+        }
+        payload.getVariants().forEach(variant -> {
+            if (variant == null || CollectionUtils.isEmpty(variant.getImages())) {
+                return;
+            }
+            variant.getImages().forEach(this::refreshSignedImage);
+        });
+        return payload;
+    }
+
+    private void refreshSignedImage(VehicleController.ImageDTO image) {
+        if (image == null) {
+            return;
+        }
+        String primaryRef = StringUtils.hasText(image.getObjectName()) ? image.getObjectName() : image.getUrl();
+        String primaryObjectName = imageAccessService.resolveObjectNameRef(primaryRef);
+        if (!StringUtils.hasText(primaryObjectName)) {
+            return;
+        }
+        image.setUrl(imageAccessService.signPrimaryObject(primaryObjectName));
+
+        String thumbObjectName = imageAccessService.resolveObjectNameRef(image.getThumbnailUrl());
+        if (!StringUtils.hasText(thumbObjectName)) {
+            thumbObjectName = primaryObjectName;
+        }
+        image.setThumbnailUrl(imageAccessService.signThumbnailObject(thumbObjectName));
     }
 
     private String normalizePlate(String plate) {

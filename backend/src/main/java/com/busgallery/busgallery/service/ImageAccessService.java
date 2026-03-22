@@ -33,6 +33,25 @@ public class ImageAccessService {
     private final com.busgallery.busgallery.service.storage.StorageProperties storageProperties;
     private final ImageAccessProperties properties;
 
+    public String signPrimaryObject(String objectRef) {
+        return buildSignedAccessUrl(objectRef, properties.getFullTtlSeconds());
+    }
+
+    public String signThumbnailObject(String objectRef) {
+        return buildSignedAccessUrl(objectRef, properties.getThumbnailTtlSeconds());
+    }
+
+    public String resolveObjectNameRef(String ref) {
+        String fromSigned = resolveObjectNameFromSignedUrl(ref);
+        if (StringUtils.hasText(fromSigned)) {
+            return fromSigned;
+        }
+        if (containsImageAccessPath(ref)) {
+            return "";
+        }
+        return normalizeObjectName(ref);
+    }
+
     public Image toSignedImage(Image source) {
         if (source == null) {
             return null;
@@ -204,6 +223,81 @@ public class ImageAccessService {
         } catch (Exception ex) {
             return "";
         }
+    }
+
+    private String resolveObjectNameFromSignedUrl(String ref) {
+        String token = extractImageAccessToken(ref);
+        if (!StringUtils.hasText(token)) {
+            return "";
+        }
+        int dot = token.lastIndexOf('.');
+        if (dot <= 0) {
+            return "";
+        }
+        String payload = token.substring(0, dot);
+        try {
+            byte[] bytes = Base64.getUrlDecoder().decode(payload);
+            String decoded = new String(bytes, StandardCharsets.UTF_8);
+            String[] parts = decoded.split("\\|", 2);
+            if (parts.length < 1) {
+                return "";
+            }
+            return normalizeObjectName(parts[0]);
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private String extractImageAccessToken(String ref) {
+        if (!StringUtils.hasText(ref)) {
+            return "";
+        }
+        String raw = ref.trim();
+        String path = raw;
+        if (raw.startsWith("http")) {
+            try {
+                URI uri = URI.create(raw);
+                path = uri.getPath();
+            } catch (Exception ex) {
+                return "";
+            }
+        }
+        if (!StringUtils.hasText(path)) {
+            return "";
+        }
+        String normalizedPath = stripLeadingSlash(path);
+        String marker = "api/images/access/";
+        int idx = normalizedPath.indexOf(marker);
+        if (idx < 0) {
+            return "";
+        }
+        String token = normalizedPath.substring(idx + marker.length());
+        int slashIdx = token.indexOf('/');
+        if (slashIdx >= 0) {
+            token = token.substring(0, slashIdx);
+        }
+        return token;
+    }
+
+    private boolean containsImageAccessPath(String ref) {
+        if (!StringUtils.hasText(ref)) {
+            return false;
+        }
+        String raw = ref.trim();
+        if (raw.contains("/api/images/access/") || raw.startsWith("api/images/access/")) {
+            return true;
+        }
+        if (raw.startsWith("http")) {
+            try {
+                URI uri = URI.create(raw);
+                String path = uri.getPath();
+                return StringUtils.hasText(path)
+                        && (path.contains("/api/images/access/") || path.startsWith("/api/images/access/"));
+            } catch (Exception ex) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private String stripLeadingSlash(String value) {

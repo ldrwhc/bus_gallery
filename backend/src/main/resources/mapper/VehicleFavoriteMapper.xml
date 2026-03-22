@@ -45,4 +45,8 @@
     <delete id="delete">
         DELETE FROM vehicle_favorite WHERE vehicle_id = #{vehicleId} AND user_id = #{userId}
     </delete>
+
+    <delete id="deleteByVehicleId">
+        DELETE FROM vehicle_favorite WHERE vehicle_id = #{vehicleId}
+    </delete>
 </mapper>

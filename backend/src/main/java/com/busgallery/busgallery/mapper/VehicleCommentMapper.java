@@ -19,4 +19,6 @@ public interface VehicleCommentMapper {
 
     int updateDisplayNameByUserId(@Param("userId") Long userId,
                                   @Param("displayName") String displayName);
+
+    int deleteByVehicleId(@Param("vehicleId") Long vehicleId);
 }

@@ -17,12 +17,12 @@ public class ImageAccessProperties {
     /**
      * Signed URL ttl for full-size images.
      */
-    private int fullTtlSeconds = 300;
+    private int fullTtlSeconds = 7200;
 
     /**
      * Signed URL ttl for thumbnails.
      */
-    private int thumbnailTtlSeconds = 900;
+    private int thumbnailTtlSeconds = 21600;
 
     /**
      * Whether to add watermark to generated thumbnails on upload.
@@ -33,5 +33,24 @@ public class ImageAccessProperties {
      * Watermark text used for generated thumbnails.
      */
     private String thumbnailWatermarkText = "BUS GALLERY";
-}
 
+    /**
+     * Whether to add watermark to uploaded full-size images.
+     */
+    private boolean uploadWatermarkEnabled = false;
+
+    /**
+     * Watermark text used for uploaded full-size images.
+     */
+    private String uploadWatermarkText = "BUS GALLERY";
+
+    /**
+     * JPEG quality used when re-encoding uploaded full-size JPEG images.
+     */
+    private float uploadJpegQuality = 0.86f;
+
+    /**
+     * Max width/height of uploaded full-size images. 0 means no resize.
+     */
+    private int uploadMaxSide = 2560;
+}

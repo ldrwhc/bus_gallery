@@ -50,4 +50,9 @@
         SET display_name = #{displayName}
         WHERE user_id = #{userId}
     </update>
+
+    <delete id="deleteByVehicleId">
+        DELETE FROM vehicle_comment
+        WHERE vehicle_id = #{vehicleId}
+    </delete>
 </mapper>

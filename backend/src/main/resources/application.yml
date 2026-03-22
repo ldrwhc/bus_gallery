@@ -130,7 +130,11 @@ busgallery:
       - image/png
   image-access:
     token-secret: ${IMAGE_ACCESS_TOKEN_SECRET:change-me-image-access-secret}
-    full-ttl-seconds: ${IMAGE_ACCESS_FULL_TTL_SECONDS:300}
-    thumbnail-ttl-seconds: ${IMAGE_ACCESS_THUMBNAIL_TTL_SECONDS:900}
+    full-ttl-seconds: ${IMAGE_ACCESS_FULL_TTL_SECONDS:7200}
+    thumbnail-ttl-seconds: ${IMAGE_ACCESS_THUMBNAIL_TTL_SECONDS:21600}
     thumbnail-watermark-enabled: ${IMAGE_ACCESS_THUMBNAIL_WATERMARK_ENABLED:true}
     thumbnail-watermark-text: ${IMAGE_ACCESS_THUMBNAIL_WATERMARK_TEXT:BUS GALLERY}
+    upload-watermark-enabled: ${IMAGE_ACCESS_UPLOAD_WATERMARK_ENABLED:true}
+    upload-watermark-text: ${IMAGE_ACCESS_UPLOAD_WATERMARK_TEXT:BUS GALLERY}
+    upload-jpeg-quality: ${IMAGE_ACCESS_UPLOAD_JPEG_QUALITY:0.8}
+    upload-max-side: ${IMAGE_ACCESS_UPLOAD_MAX_SIDE:2560}

@@ -1,7 +1,24 @@
 <template>
     <div class="review-page">
         <main class="review-main">
-            <section class="panel">
+            <div class="panel-switch">
+                <button
+                    type="button"
+                    :class="['switch-btn', { active: activePanel === 'review' }]"
+                    @click="switchPanel('review')"
+                >
+                    车辆审核
+                </button>
+                <button
+                    type="button"
+                    :class="['switch-btn', { active: activePanel === 'manage' }]"
+                    @click="switchPanel('manage')"
+                >
+                    车辆管理
+                </button>
+            </div>
+
+            <section v-if="activePanel === 'review'" key="review" class="panel">
                 <header class="panel-head">
                     <div>
                         <p class="eyebrow">Review</p>
@@ -157,7 +174,140 @@
                     </section>
                 </div>
             </section>
+
+            <section v-else key="manage" class="panel manage-panel-wrap">
+                <header class="panel-head">
+                    <div>
+                        <p class="eyebrow">Vehicle Manage</p>
+                        <h2>车辆管理</h2>
+                        <p class="muted" v-if="canSelectManageRegion">站长可查询全站车辆</p>
+                        <p class="muted" v-else>审核范围：{{ currentReviewRegionLabel }}</p>
+                    </div>
+                    <el-button type="primary" :loading="manageLoading" @click="loadManageList(true)">刷新车辆</el-button>
+                </header>
+
+                <div class="manage-toolbar">
+                    <el-input
+                        v-model="manageFilters.keyword"
+                        placeholder="按车牌/自编号搜索"
+                        clearable
+                        @keyup.enter="loadManageList(true)"
+                    />
+                    <div class="manage-region" v-if="canSelectManageRegion">
+                        <RegionSelector v-model="manageFilters.regionId" :regions="regions" />
+                    </div>
+                    <el-button type="primary" :loading="manageLoading" @click="loadManageList(true)">查询</el-button>
+                </div>
+
+                <el-table
+                    :data="manageRecords"
+                    v-loading="manageLoading"
+                    stripe
+                    border
+                    empty-text="暂无可管理车辆"
+                >
+                    <el-table-column label="ID" width="90">
+                        <template #default="{ row }">{{ row.vehicle?.id || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="车牌" min-width="130">
+                        <template #default="{ row }">{{ row.vehicle?.plateNumber || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="地区" min-width="140">
+                        <template #default="{ row }">{{ row.vehicle?.region?.name || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="运营公司" min-width="160">
+                        <template #default="{ row }">{{ row.vehicle?.company?.name || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="车型" min-width="160">
+                        <template #default="{ row }">{{ row.vehicle?.model?.name || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="170" fixed="right">
+                        <template #default="{ row }">
+                            <div class="manage-actions">
+                                <el-button type="primary" text size="small" @click="openManageEdit(row)">编辑</el-button>
+                                <el-button type="danger" text size="small" @click="confirmDeleteVehicle(row)">删除</el-button>
+                            </div>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <div class="manage-footer">
+                    <span>已加载 {{ manageRecords.length }} / {{ manageTotal }}</span>
+                    <el-button
+                        v-if="manageHasMore"
+                        size="small"
+                        :loading="manageLoading"
+                        @click="loadManageList(false)"
+                    >加载更多</el-button>
+                </div>
+            </section>
         </main>
+
+        <el-dialog
+            v-model="manageDialogVisible"
+            title="编辑车辆"
+            width="min(860px, 92vw)"
+            :close-on-click-modal="false"
+            destroy-on-close
+        >
+            <el-form v-loading="manageEditLoading" label-position="top" :model="manageForm">
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24"><el-form-item label="车牌号" required><el-input v-model="manageForm.plateNumber" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="自编号"><el-input v-model="manageForm.customNumber" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24">
+                        <el-form-item label="品牌（库内选择）">
+                            <el-select v-model="manageForm.brandId" clearable filterable placeholder="可搜索品牌">
+                                <el-option v-for="option in brandOptions" :key="option.value" :label="option.label" :value="option.value" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="品牌名称（手动输入）"><el-input v-model="manageForm.brandName" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24">
+                        <el-form-item label="车型（库内选择）">
+                            <el-select v-model="manageForm.modelId" clearable filterable placeholder="可搜索车型">
+                                <el-option v-for="option in modelOptions" :key="option.value" :label="option.label" :value="option.value" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="车型名称（必填，可手填）" required><el-input v-model="manageForm.modelName" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24">
+                        <el-form-item label="运营公司（库内选择）">
+                            <el-select v-model="manageForm.companyId" clearable filterable placeholder="可搜索公司">
+                                <el-option v-for="option in companyOptions" :key="option.value" :label="option.label" :value="option.value" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="运营公司名称（必填，可手填）" required><el-input v-model="manageForm.companyName" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24">
+                        <el-form-item label="地区（省/市）">
+                            <RegionSelector v-model="manageForm.regionId" :regions="regions" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="地区显示"><el-input :model-value="manageRegionDisplay" disabled /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :sm="12" :xs="24"><el-form-item label="出厂日期"><el-date-picker v-model="manageForm.factoryDate" type="month" value-format="YYYY-MM" placeholder="选择出厂年月" style="width:100%" /></el-form-item></el-col>
+                    <el-col :sm="12" :xs="24"><el-form-item label="上线日期"><el-date-picker v-model="manageForm.launchDate" type="month" value-format="YYYY-MM" placeholder="选择上线年月" style="width:100%" /></el-form-item></el-col>
+                </el-row>
+                <el-form-item label="空调"><el-switch v-model="manageForm.airConditioned" /></el-form-item>
+                <el-form-item label="来源"><el-input v-model="manageForm.source" /></el-form-item>
+                <el-form-item label="备注"><el-input v-model="manageForm.remark" type="textarea" /></el-form-item>
+            </el-form>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="manageDialogVisible = false">取消</el-button>
+                    <el-button type="primary" :loading="manageSaving" @click="submitManageUpdate">保存修改</el-button>
+                </div>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -165,8 +315,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { approveSubmission, fetchPendingSubmissions, rejectSubmission } from '@/api/reviews';
+import { deleteVehicle, fetchManageVehiclePage, fetchVehicleGalleryDetail, updateVehicle } from '@/api/vehicles';
 import { FUEL_OPTIONS, isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
 import RegionSelector from '@/components/Region/RegionSelector.vue';
 import {
@@ -176,6 +327,7 @@ import {
 
 const store = useStore();
 const route = useRoute();
+const activePanel = ref(route.query.panel === 'manage' ? 'manage' : 'review');
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -188,6 +340,29 @@ const submitProgress = ref(0);
 const submitProgressStatus = ref('');
 const submitProgressLabel = ref('');
 let submitProgressTimer = null;
+
+const manageLoading = ref(false);
+const manageRecords = ref([]);
+const manageTotal = ref(0);
+const manageHasMore = ref(false);
+const manageCursor = reactive({ nextLaunch: null, nextId: null });
+const manageFilters = reactive({ keyword: '', regionId: null });
+const manageDialogVisible = ref(false);
+const manageEditLoading = ref(false);
+const manageSaving = ref(false);
+const manageEditingVehicleId = ref(null);
+
+const switchPanel = (panel) => {
+    if (activePanel.value === panel) {
+        return;
+    }
+    activePanel.value = panel;
+    if (panel === 'manage') {
+        loadManageList(true);
+    } else {
+        loadPending();
+    }
+};
 
 const fuelOptions = FUEL_OPTIONS;
 const brandOptions = computed(() => store.getters['brands/brandOptions'] || []);
@@ -213,6 +388,7 @@ const currentReviewRegionLabel = computed(() => {
     const label = formatRegionLabel(reviewRegionId, regions.value);
     return label === '-' ? `ID ${reviewRegionId}` : label;
 });
+const canSelectManageRegion = computed(() => (store.state.auth.profile || {}).role === 'STATION');
 
 const rejectReasons = [
     { code: 'BLURRY', label: '图片模糊不可用' },
@@ -256,6 +432,8 @@ const blankPayload = () => ({
 });
 
 const form = reactive(blankPayload());
+const manageForm = reactive(blankPayload());
+const manageRegionDisplay = computed(() => formatRegionLabel(manageForm.regionId, regions.value));
 const showMotorField = computed(() => isElectricFuel(form.config.fuelType));
 const showEngineField = computed(() => isCombustionFuel(form.config.fuelType));
 
@@ -268,6 +446,17 @@ const fillForm = (payload = {}) => {
     base.launchDate = toMonthValue(base.launchDate);
     Object.assign(form, base);
     form.config = base.config;
+};
+
+const fillManageForm = (payload = {}) => {
+    const base = blankPayload();
+    Object.assign(base, payload || {});
+    base.config = { ...blankPayload().config, ...(payload?.config || {}) };
+    base.config.fuelType = normalizeFuelType(base.config.fuelType || '');
+    base.factoryDate = toMonthValue(base.factoryDate);
+    base.launchDate = toMonthValue(base.launchDate);
+    Object.assign(manageForm, base);
+    manageForm.config = base.config;
 };
 
 const selectSubmission = (item) => {
@@ -324,14 +513,14 @@ const normalizeMonthToDate = (value) => {
     return month ? `${month}-01` : null;
 };
 
-const buildPayload = () => {
-    const copy = JSON.parse(JSON.stringify(form));
-    copy.vehicleId = selected.value?.vehicleId || copy.vehicleId || null;
+const buildPayloadFrom = (sourceForm, extra = {}) => {
+    const copy = JSON.parse(JSON.stringify(sourceForm));
+    copy.vehicleId = extra.vehicleId || copy.vehicleId || null;
     copy.config.fuelType = normalizeFuelType(copy.config.fuelType || '');
     copy.factoryDate = normalizeMonthToDate(copy.factoryDate);
     copy.launchDate = normalizeMonthToDate(copy.launchDate);
     copy.imageIds = Array.isArray(copy.imageIds) ? copy.imageIds : [];
-    if (!copy.imageIds.length && selected.value?.imageId) copy.imageIds = [selected.value.imageId];
+    if (!copy.imageIds.length && extra.imageId) copy.imageIds = [extra.imageId];
 
     const { provinceName, cityName } = splitProvinceCity(copy.regionId, regions.value);
     copy.regionProvince = copy.regionProvince || provinceName || null;
@@ -378,7 +567,10 @@ const finishSubmitProgress = (success) => {
 
 const handleApprove = async () => {
     if (!selected.value) return;
-    const payload = buildPayload();
+    const payload = buildPayloadFrom(form, {
+        vehicleId: selected.value?.vehicleId || null,
+        imageId: selected.value?.imageId || null
+    });
     const message = validatePayload(payload);
     if (message) {
         ElMessage.warning(message);
@@ -395,6 +587,7 @@ const handleApprove = async () => {
             store.dispatch('companies/loadCompanies').catch(() => {})
         ]);
         await loadPending();
+        await loadManageList(true);
         finishSubmitProgress(true);
         ElMessage.success('审核通过，已入库');
     } catch (error) {
@@ -430,6 +623,169 @@ const handleReject = async () => {
         ElMessage.error(error?.message || '拒绝失败');
     } finally {
         submitting.value = false;
+    }
+};
+
+const resolveManageRegionId = () => {
+    const profile = store.state.auth.profile || {};
+    if (profile.role === 'STATION') {
+        return manageFilters.regionId || null;
+    }
+    if (profile.role === 'REVIEWER') {
+        return profile.reviewRegionId || null;
+    }
+    return null;
+};
+
+const mergeManageRecords = (list, reset) => {
+    const target = reset ? [] : [...manageRecords.value];
+    const seen = new Set(target.map((item) => Number(item?.vehicle?.id || item?.id || 0)));
+    (list || []).forEach((item) => {
+        const id = Number(item?.vehicle?.id || item?.id || 0);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        target.push(item);
+    });
+    manageRecords.value = target;
+};
+
+const loadManageList = async (reset = true) => {
+    if (manageLoading.value) return;
+    manageLoading.value = true;
+    try {
+        const params = {
+            size: 12,
+            keyword: cleanText(manageFilters.keyword),
+            regionId: resolveManageRegionId()
+        };
+        if (!reset) {
+            params.lastLaunch = manageCursor.nextLaunch;
+            params.lastId = manageCursor.nextId;
+        }
+        const data = await fetchManageVehiclePage(params);
+        const list = Array.isArray(data?.records) ? data.records : [];
+        mergeManageRecords(list, reset);
+        manageTotal.value = Number(data?.total || 0);
+        manageCursor.nextLaunch = data?.nextLaunch || null;
+        manageCursor.nextId = data?.nextId || null;
+        manageHasMore.value = Boolean(data?.nextId);
+    } catch (error) {
+        if (reset) {
+            manageRecords.value = [];
+            manageTotal.value = 0;
+            manageHasMore.value = false;
+        }
+        ElMessage.error(error?.message || '加载可管理车辆失败');
+    } finally {
+        manageLoading.value = false;
+    }
+};
+
+const toEditableManagePayload = (detail) => {
+    const vehicle = detail?.vehicle || {};
+    const config = detail?.vehicleConfig || {};
+    const images = Array.isArray(detail?.images) ? detail.images : [];
+    return {
+        vehicleId: vehicle.id || null,
+        plateNumber: vehicle.plateNumber || '',
+        customNumber: vehicle.customNumber || '',
+        brandId: vehicle.model?.brandId || config.brandId || null,
+        brandName: vehicle.model?.brandName || config.brandName || '',
+        modelId: vehicle.model?.id || config.modelId || null,
+        modelName: vehicle.model?.name || config.modelName || '',
+        companyId: vehicle.company?.id || null,
+        companyName: vehicle.company?.name || '',
+        regionId: vehicle.region?.id || null,
+        regionProvince: '',
+        regionCity: vehicle.region?.name || '',
+        factoryDate: toMonthValue(vehicle.factoryDate),
+        launchDate: toMonthValue(vehicle.launchDate),
+        airConditioned: Boolean(vehicle.airConditioned),
+        source: vehicle.source || '',
+        remark: vehicle.remark || '',
+        imageIds: images.map((img) => img?.id).filter(Boolean),
+        config: {
+            brandId: config.brandId || vehicle.model?.brandId || null,
+            modelId: config.modelId || vehicle.model?.id || null,
+            motor: config.motor || '',
+            engine: config.engine || '',
+            fuelType: normalizeFuelType(config.fuelType || ''),
+            stepType: config.stepType || '',
+            transmissionSystem: config.transmissionSystem || '',
+            suspension: config.suspension || '',
+            axle: config.axle || '',
+            otherConfigs: config.otherConfigs || ''
+        }
+    };
+};
+
+const openManageEdit = async (row) => {
+    const id = row?.vehicle?.id;
+    if (!id) return;
+    manageEditingVehicleId.value = id;
+    manageDialogVisible.value = true;
+    manageEditLoading.value = true;
+    try {
+        const detail = await fetchVehicleGalleryDetail(id);
+        fillManageForm(toEditableManagePayload(detail));
+    } catch (error) {
+        manageDialogVisible.value = false;
+        ElMessage.error(error?.message || '加载车辆详情失败');
+    } finally {
+        manageEditLoading.value = false;
+    }
+};
+
+const submitManageUpdate = async () => {
+    if (!manageEditingVehicleId.value) return;
+    const payload = buildPayloadFrom(manageForm, {
+        vehicleId: manageEditingVehicleId.value
+    });
+    const message = validatePayload(payload);
+    if (message) {
+        ElMessage.warning(message);
+        return;
+    }
+    manageSaving.value = true;
+    try {
+        await updateVehicle(manageEditingVehicleId.value, payload);
+        ElMessage.success('车辆信息已更新');
+        manageDialogVisible.value = false;
+        await loadManageList(true);
+    } catch (error) {
+        ElMessage.error(error?.message || '更新车辆失败');
+    } finally {
+        manageSaving.value = false;
+    }
+};
+
+const confirmDeleteVehicle = async (row) => {
+    const id = row?.vehicle?.id;
+    if (!id) return;
+    const plate = row?.vehicle?.plateNumber || '-';
+    try {
+        await ElMessageBox.confirm(
+            `将删除车辆 #${id}（${plate}），删除后不可恢复。是否继续？`,
+            '二次确认',
+            {
+                type: 'warning',
+                confirmButtonText: '确认删除',
+                cancelButtonText: '取消'
+            }
+        );
+    } catch (error) {
+        return;
+    }
+    try {
+        await deleteVehicle(id);
+        ElMessage.success('车辆已删除');
+        if (manageEditingVehicleId.value === id) {
+            manageDialogVisible.value = false;
+            manageEditingVehicleId.value = null;
+        }
+        await loadManageList(true);
+    } catch (error) {
+        ElMessage.error(error?.message || '删除车辆失败');
     }
 };
 
@@ -483,6 +839,49 @@ watch(
         }
     }
 );
+watch(() => manageForm.brandId, (id) => {
+    const hit = brandOptions.value.find((item) => item.value === id);
+    if (hit) manageForm.brandName = hit.label;
+    manageForm.config.brandId = id || null;
+});
+watch(
+    () => manageForm.brandName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(brandOptions.value, name);
+        if (manageForm.brandId !== matchedId) {
+            manageForm.brandId = matchedId;
+            manageForm.config.brandId = matchedId;
+        }
+    }
+);
+watch(() => manageForm.modelId, (id) => {
+    const hit = modelOptions.value.find((item) => item.value === id);
+    if (hit) manageForm.modelName = hit.label;
+    manageForm.config.modelId = id || null;
+});
+watch(
+    () => manageForm.modelName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(modelOptions.value, name);
+        if (manageForm.modelId !== matchedId) {
+            manageForm.modelId = matchedId;
+            manageForm.config.modelId = matchedId;
+        }
+    }
+);
+watch(() => manageForm.companyId, (id) => {
+    const hit = companyOptions.value.find((item) => item.value === id);
+    if (hit) manageForm.companyName = hit.label;
+});
+watch(
+    () => manageForm.companyName,
+    (name) => {
+        const matchedId = findOptionIdByLabel(companyOptions.value, name);
+        if (manageForm.companyId !== matchedId) {
+            manageForm.companyId = matchedId;
+        }
+    }
+);
 
 onMounted(() => {
     if (store.getters['auth/hasToken']) store.dispatch('auth/fetchProfile').catch(() => {});
@@ -490,13 +889,25 @@ onMounted(() => {
     store.dispatch('brands/loadBrands').catch(() => {});
     store.dispatch('models/loadModels').catch(() => {});
     store.dispatch('companies/loadCompanies').catch(() => {});
-    loadPending();
+    if (activePanel.value === 'manage') {
+        loadManageList(true);
+    } else {
+        loadPending();
+    }
 });
 
 watch(
     () => route.fullPath,
     () => {
-        loadPending();
+        const panelQuery = route.query.panel;
+        if (panelQuery === 'manage' || panelQuery === 'review') {
+            activePanel.value = panelQuery;
+        }
+        if (activePanel.value === 'manage') {
+            loadManageList(true);
+        } else {
+            loadPending();
+        }
     }
 );
 
@@ -508,6 +919,9 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .review-page { min-height: 100vh; background: #f5f7fb; }
 .review-main { width: min(1200px, 100%); margin: 0 auto; padding: 24px 16px 80px; }
+.panel-switch { display: inline-flex; align-items: center; gap: 6px; padding: 4px; margin-bottom: 12px; border-radius: 12px; background: #e2e8f0; }
+.switch-btn { border: none; background: transparent; color: #334155; padding: 8px 14px; border-radius: 9px; font-weight: 600; cursor: pointer; }
+.switch-btn.active { background: #0f172a; color: #fff; box-shadow: 0 6px 18px rgba(15, 23, 42, .18); }
 .panel { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08); }
 .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
 .eyebrow { margin: 0 0 4px; letter-spacing: .2em; text-transform: uppercase; color: #94a3b8; font-size: .75rem; }
@@ -525,9 +939,16 @@ onBeforeUnmount(() => {
 .submit-progress { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; }
 .submit-progress__label { color: #475569; font-size: .84rem; }
 .reject-box { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.manage-panel-wrap { margin-top: 0; }
+.manage-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(220px, 320px) auto; gap: 10px; align-items: center; margin-bottom: 12px; }
+.manage-region { width: 100%; }
+.manage-actions { display: flex; align-items: center; gap: 8px; }
+.manage-footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; color: #64748b; }
+.dialog-footer { display: flex; justify-content: flex-end; gap: 8px; }
 .state { color: #94a3b8; padding: 20px 0; text-align: center; }
 @media (max-width: 960px) {
     .layout { grid-template-columns: 1fr; }
     .preview :deep(.el-image__inner) { max-height: 52vh; }
+    .manage-toolbar { grid-template-columns: 1fr; }
 }
 </style>

@@ -6,14 +6,12 @@ import com.busgallery.busgallery.auth.UserRole;
 import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.dto.request.VehicleUpsertPayload;
 import com.busgallery.busgallery.entity.Image;
-import com.busgallery.busgallery.entity.Region;
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.entity.VehicleSubmission;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.service.IdempotencyService;
 import com.busgallery.busgallery.service.ImageService;
-import com.busgallery.busgallery.service.RegionService;
 import com.busgallery.busgallery.service.SubmissionService;
 import com.busgallery.busgallery.service.UploadSecurityService;
 import com.busgallery.busgallery.service.VehicleService;
@@ -46,7 +44,6 @@ public class UploadController {
     private final SubmissionService submissionService;
     private final IdempotencyService idempotencyService;
     private final UploadSecurityService uploadSecurityService;
-    private final RegionService regionService;
     private final ObjectMapper objectMapper;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -75,7 +72,6 @@ public class UploadController {
 
     private UploadResultResponse handleUpload(MultipartFile file, VehicleUpsertPayload payload, UserSession session) {
         payload.validate();
-        assertUploadRegionAllowed(session, payload);
         Image metadata = new Image();
         metadata.setUploadUser(StringUtils.hasText(session.getDisplayName()) ? session.getDisplayName() : session.getUsername());
         metadata.setUploaderId(session.getUserId());
@@ -111,49 +107,6 @@ public class UploadController {
         return UploadResultResponse.approved(VehicleController.assembleDetail(detailVehicle, detailConfig, detailImages));
     }
 
-    private void assertUploadRegionAllowed(UserSession session, VehicleUpsertPayload payload) {
-        if (session.getRole() != UserRole.REVIEWER) {
-            return;
-        }
-        Long reviewerProvinceId = regionService.resolveProvinceId(session.getReviewRegionId());
-        Long targetProvinceId = resolvePayloadProvinceId(payload);
-        if (reviewerProvinceId == null || targetProvinceId == null) {
-            throw new BizException(ErrorCode.UNAUTHORIZED, "审核员只能上传到已分配地区");
-        }
-        if (!reviewerProvinceId.equals(targetProvinceId)) {
-            throw new BizException(ErrorCode.UNAUTHORIZED, "该地区不在你的审核范围");
-        }
-    }
-
-    private Long resolvePayloadProvinceId(VehicleUpsertPayload payload) {
-        if (payload == null) {
-            return null;
-        }
-        if (payload.getRegionId() != null) {
-            return regionService.resolveProvinceId(payload.getRegionId());
-        }
-        String provinceName = StringUtils.hasText(payload.getRegionProvince()) ? payload.getRegionProvince().trim() : null;
-        String cityName = StringUtils.hasText(payload.getRegionCity()) ? payload.getRegionCity().trim() : null;
-
-        if (StringUtils.hasText(provinceName)) {
-            Region province = regionService.findProvinceByName(provinceName);
-            if (province != null) {
-                return province.getId();
-            }
-        }
-        if (StringUtils.hasText(cityName)) {
-            Region city = regionService.findCityByNameAndProvince(cityName, null);
-            if (city != null) {
-                return regionService.resolveProvinceId(city.getId());
-            }
-            Region province = regionService.findProvinceByName(cityName);
-            if (province != null) {
-                return province.getId();
-            }
-        }
-        return null;
-    }
-
     private VehicleUpsertPayload parsePayload(String payloadJson) {
         if (!StringUtils.hasText(payloadJson)) {
             throw new BizException(ErrorCode.INVALID_PARAM, "payload is required");
@@ -182,3 +135,4 @@ public class UploadController {
         }
     }
 }
+

@@ -25,9 +25,10 @@
           </button>
           <div v-show="module2Expanded" class="lvl lvl2">
             <button class="node l2" :class="{ active: selectedPageId === 'm2-intro' }" @click="selectPage('m2-intro')">总览说明</button>
+            <button class="node l2" :class="{ active: selectedPageId === 'm2-review-manage' }" @click="selectPage('m2-review-manage')">审核页车辆管理</button>
 
             <div class="branch">
-              <button class="node l3" :class="{ active: currentApi || apiTreeExpanded }" @click="apiTreeExpanded = !apiTreeExpanded">
+              <button class="node l3" :class="{ active: isApiTreeActive }" @click="apiTreeExpanded = !apiTreeExpanded">
                 <span>API 文档</span><span class="chev">{{ apiTreeExpanded ? '▾' : '▸' }}</span>
               </button>
               <div v-show="apiTreeExpanded" class="lvl lvl4">
@@ -46,7 +47,7 @@
             </div>
 
             <div class="branch">
-              <button class="node l3" :class="{ active: currentFlow || flowTreeExpanded }" @click="flowTreeExpanded = !flowTreeExpanded">
+              <button class="node l3" :class="{ active: isFlowTreeActive }" @click="flowTreeExpanded = !flowTreeExpanded">
                 <span>全链路工作流</span><span class="chev">{{ flowTreeExpanded ? '▾' : '▸' }}</span>
               </button>
               <div v-show="flowTreeExpanded" class="lvl lvl4">
@@ -186,6 +187,75 @@ npm run dev</code></pre></div>
               </tr>
             </tbody>
           </table></div>
+        </section>
+      </article>
+      <article v-else-if="selectedPageId === 'm2-review-manage'" class="page">
+        <header>
+          <h2>模块2：审核页车辆管理说明</h2>
+          <p>本页对应审核中心中的“车辆管理”子页面，覆盖查、改、删能力、权限边界和接口映射。</p>
+        </header>
+
+        <section class="block">
+          <h3>页面能力</h3>
+          <ul>
+            <li>查询：支持按车牌/自编号关键词查询；支持游标分页（lastLaunch + lastId）。</li>
+            <li>编辑：点击“编辑”后加载车辆详情，支持修改车辆基础信息、配置信息、地区、公司、品牌、车型等。</li>
+            <li>删除：点击“删除”会弹二次确认框，确认后执行删除并刷新列表。</li>
+            <li>与审核页切换：在同一页面内切换“车辆审核/车辆管理”，无需路由跳转。</li>
+          </ul>
+        </section>
+
+        <section class="block">
+          <h3>权限规则</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>角色</th><th>查询范围</th><th>编辑/删除范围</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>STATION</td><td>全站（可带 regionId 过滤）</td><td>全站</td><td>站长可跨地区维护车辆。</td></tr>
+              <tr><td>REVIEWER</td><td>后端按审核地区限制</td><td>仅审核地区（按省级归属校验）</td><td>越权请求会被拒绝并返回未授权错误。</td></tr>
+            </tbody>
+          </table></div>
+        </section>
+
+        <section class="block">
+          <h3>接口映射</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>动作</th><th>接口</th><th>说明</th><th>跳转</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>管理列表查询</td>
+                <td class="mono">GET /api/vehicles/manage</td>
+                <td>审核中心专用分页查询，支持 keyword、regionId、lastLaunch、lastId。</td>
+                <td><button class="link" @click="openPage('/api/vehicles/manage')">查看 API</button></td>
+              </tr>
+              <tr>
+                <td>详情加载</td>
+                <td class="mono">GET /api/vehicles/{id}</td>
+                <td>编辑弹窗打开时拉取详情数据并回填表单。</td>
+                <td><button class="link" @click="openPage('/api/vehicles/{id}')">查看 API</button></td>
+              </tr>
+              <tr>
+                <td>保存修改</td>
+                <td class="mono">PUT /api/vehicles/{id}</td>
+                <td>提交编辑后的车辆信息，成功后刷新管理列表。</td>
+                <td><button class="link" @click="openPage('/api/vehicles/{id}')">查看 API</button></td>
+              </tr>
+              <tr>
+                <td>删除车辆</td>
+                <td class="mono">DELETE /api/vehicles/{id}</td>
+                <td>二次确认后删除车辆，成功后刷新列表并关闭可能已打开的编辑弹窗。</td>
+                <td><button class="link" @click="openPage('/api/vehicles/{id}')">查看 API</button></td>
+              </tr>
+            </tbody>
+          </table></div>
+        </section>
+
+        <section class="block">
+          <h3>常见问题与处理</h3>
+          <ul>
+            <li>401 未授权：通常是会话失效或角色不满足 `REVIEWER/STATION`，先重新登录并确认角色。</li>
+            <li>审核员跨区修改失败：后端会按审核地区做写权限校验，非本审核范围车辆不可改删。</li>
+            <li>删除失败（外键约束）：需先清理关联的收藏/评论等子表记录，再删除主车辆记录。</li>
+          </ul>
         </section>
       </article>
 
@@ -535,6 +605,7 @@ GET|/api/users/me
 PUT|/api/users/me/display-name
 GET|/api/users/me/images
 GET|/api/vehicles
+GET|/api/vehicles/manage
 POST|/api/vehicles
 DELETE|/api/vehicles/{id}
 GET|/api/vehicles/{id}
@@ -617,7 +688,7 @@ const flowRows = [
   {
     id: 'WF-06',
     title: '审核链路',
-    frontend: '审核中心会把 submissionId、审批结果和驳回原因提交到 /api/reviews/inbox、/pending、/{id}/approve、/{id}/reject，并据返回状态更新列表。',
+    frontend: '审核中心会把 submissionId、审批结果和驳回原因提交到 /api/reviews/inbox、/pending、/{id}/approve、/{id}/reject；车辆管理子页会调用 /api/vehicles/manage 与 /api/vehicles/{id}（查改删）维护车辆。',
     nginx: 'Nginx 把审核请求统一转发到 ReviewController 并附带代理头，保持入口一致。',
     redis: '审核通过或驳回后服务层会删除相关车辆页和快照缓存键，后续读取会回源最新数据。',
     spring: 'RoleGuard 先校验 REVIEWER/STATION 权限与区域范围，然后服务层在事务里变更 submission 与关联实体并返回新状态。',
@@ -673,6 +744,7 @@ const deployConfigs = [
   { key: 'MINIO_ENDPOINT / MINIO_CDN_HOST / MINIO_BUCKET', file: 'docker/.env + application.yml', how: 'MINIO_ENDPOINT 固定 http://minio:9000，MINIO_CDN_HOST 改公网域名或反向代理地址', recommend: 'MINIO_CDN_HOST=https://img.example.com/bus-gallery; MINIO_BUCKET=bus-gallery', effect: '图片生成 URL 可被前端直接访问' },
   { key: 'AUTH_SECURITY_* / AUTH_RATE_*', file: 'docker/.env + application.yml', how: '按用户规模调验证码阈值和发送频率，防止误伤正常用户', recommend: 'CAPTCHA_TTL=180; LOGIN_CAPTCHA_FAILURE_THRESHOLD=5; SEND_CODE_IP_PER_DAY=200', effect: '认证安全与体验平衡' },
   { key: 'UPLOAD_SECURITY_*', file: 'docker/.env + application.yml', how: '按业务图片规格调整大小、像素和频率阈值', recommend: 'MAX_FILE_BYTES=15728640; USER_PER_MINUTE=20; GLOBAL_PER_MINUTE=300', effect: '上传链路稳定并降低恶意请求' },
+  { key: 'IMAGE_ACCESS_UPLOAD_* / IMAGE_ACCESS_THUMBNAIL_WATERMARK_*', file: 'docker/.env + application.yml', how: '按展示需求开启原图水印、控制压缩质量与最大边长，缩略图水印可独立配置', recommend: 'UPLOAD_WATERMARK_ENABLED=true; UPLOAD_JPEG_QUALITY=0.82~0.9; UPLOAD_MAX_SIDE=2560', effect: '上传后自动水印与画质压缩，平衡可读性与带宽成本' },
   { key: 'limit_req / client_max_body_size / timeout', file: 'docker/nginx/default.conf', how: '根据并发和图片体积调整限流 burst、body 大小和超时', recommend: 'client_max_body_size 50M; proxy_read_timeout 300s', effect: '网关限流更稳，上传超时/413 更少' }
 ];
 
@@ -696,7 +768,12 @@ AUTH_RATE_SEND_CODE_IP_PER_DAY=200
 
 UPLOAD_SECURITY_MAX_FILE_BYTES=15728640
 UPLOAD_SECURITY_USER_PER_MINUTE=20
-UPLOAD_SECURITY_GLOBAL_PER_MINUTE=300`;
+UPLOAD_SECURITY_GLOBAL_PER_MINUTE=300
+
+IMAGE_ACCESS_UPLOAD_WATERMARK_ENABLED=true
+IMAGE_ACCESS_UPLOAD_WATERMARK_TEXT=BUS GALLERY
+IMAGE_ACCESS_UPLOAD_JPEG_QUALITY=0.86
+IMAGE_ACCESS_UPLOAD_MAX_SIDE=2560`;
 
 const appConfigExample = `# backend/src/main/resources/application.yml
 spring:
@@ -733,7 +810,14 @@ busgallery:
     max-file-bytes: \${UPLOAD_SECURITY_MAX_FILE_BYTES:15728640}
     upload-user-per-minute: \${UPLOAD_SECURITY_USER_PER_MINUTE:20}
   image-access:
-    token-secret: \${IMAGE_ACCESS_TOKEN_SECRET:change-me-image-access-secret}`;
+    token-secret: \${IMAGE_ACCESS_TOKEN_SECRET:change-me-image-access-secret}
+    full-ttl-seconds: \${IMAGE_ACCESS_FULL_TTL_SECONDS:300}
+    thumbnail-watermark-enabled: \${IMAGE_ACCESS_THUMBNAIL_WATERMARK_ENABLED:true}
+    thumbnail-watermark-text: \${IMAGE_ACCESS_THUMBNAIL_WATERMARK_TEXT:BUS GALLERY}
+    upload-watermark-enabled: \${IMAGE_ACCESS_UPLOAD_WATERMARK_ENABLED:false}
+    upload-watermark-text: \${IMAGE_ACCESS_UPLOAD_WATERMARK_TEXT:BUS GALLERY}
+    upload-jpeg-quality: \${IMAGE_ACCESS_UPLOAD_JPEG_QUALITY:0.86}
+    upload-max-side: \${IMAGE_ACCESS_UPLOAD_MAX_SIDE:2560}`;
 
 const nginxConfigExample = `# docker/nginx/default.conf
 limit_req_zone $binary_remote_addr zone=auth_ip:10m rate=12r/s;
@@ -767,7 +851,7 @@ const apiConfigEntries = [
   { topic: '网关限流', file: 'docker/nginx/default.conf', keys: 'limit_req_zone, limit_req', effect: '控制 auth/upload/api 入口限流' },
   { topic: 'Redis 连接', file: 'docker/.env + application.yml', keys: 'REDIS_HOST/PORT/PASSWORD', effect: '会话、幂等、缓存、限流能力' },
   { topic: '上传安全', file: 'application.yml', keys: 'busgallery.upload-security.*', effect: '文件尺寸、像素、频率阈值' },
-  { topic: '图片签名', file: 'application.yml', keys: 'busgallery.image-access.*', effect: '签名密钥与有效期' }
+  { topic: '图片签名+水印压缩', file: 'application.yml', keys: 'busgallery.image-access.token-secret, *.upload-*, *.thumbnail-watermark-*', effect: '控制访问签名、上传自动水印和压缩策略' }
 ];
 
 const middlewarePages = [
@@ -829,7 +913,10 @@ function flowOf(api) {
   if (api.group === 'Snapshot') return 'WF-09';
   if (api.group === 'Metrics') return 'WF-10';
   if (api.group === 'Image') return api.method === 'POST' ? 'WF-05' : api.method === 'GET' ? 'WF-08' : 'WF-07';
-  if (api.group === 'Vehicle') return api.method === 'GET' ? 'WF-01' : 'WF-07';
+  if (api.group === 'Vehicle') {
+    if (api.path === '/api/vehicles/manage') return 'WF-06';
+    return api.method === 'GET' ? 'WF-01' : 'WF-07';
+  }
   if (api.group === 'Catalog') return 'WF-02';
   if (['Region', 'Company', 'Brand', 'Model'].includes(api.group)) return api.method === 'GET' ? (api.path.endsWith('/vehicles') ? 'WF-01' : 'WF-02') : 'WF-07';
   return 'WF-02';
@@ -852,7 +939,7 @@ function cnName(api) {
     if (p.includes('/email/bind/confirm')) return '确认绑定邮箱';
   }
   if (g === 'User') { if (p.endsWith('/me')) return '获取当前用户资料'; if (p.endsWith('/me/display-name')) return '修改用户昵称'; if (p.endsWith('/me/images')) return '获取我的图片'; if (p.includes('/images')) return '获取指定用户图片'; return '获取指定用户资料'; }
-  if (g === 'Vehicle') { if (m === 'GET' && p === '/api/vehicles') return '查询车辆分页列表'; if (m === 'GET' && p.includes('/plate/')) return '按车牌查询车辆分组'; if (m === 'GET') return '查询车辆详情'; if (m === 'POST') return '新增车辆'; if (m === 'PUT') return '更新车辆'; return '删除车辆'; }
+  if (g === 'Vehicle') { if (m === 'GET' && p === '/api/vehicles') return '查询车辆分页列表'; if (m === 'GET' && p === '/api/vehicles/manage') return '查询审核中心车辆管理列表'; if (m === 'GET' && p.includes('/plate/')) return '按车牌查询车辆分组'; if (m === 'GET') return '查询车辆详情'; if (m === 'POST') return '新增车辆'; if (m === 'PUT') return '更新车辆'; return '删除车辆'; }
   if (g === 'Comment') return m === 'GET' ? '查询车辆评论列表' : '发布车辆评论';
   if (g === 'Favorite') return p.endsWith('/toggle') ? '切换收藏状态' : p.endsWith('/summary') ? '查询收藏摘要' : '查询收藏列表';
   if (g === 'Upload') return '上传车辆与图片';
@@ -871,6 +958,7 @@ function cnName(api) {
 
 function headersOf(api) {
   const p = api.path;
+  if (p === '/api/vehicles/manage') return 'Authorization: Bearer <token> (REVIEWER/STATION)';
   if (p.startsWith('/api/admin')) return 'Authorization: Bearer <token> (STATION)';
   if (p.startsWith('/api/reviews')) return 'Authorization: Bearer <token> (REVIEWER/STATION)';
   if (p === '/api/upload') return 'Authorization: Bearer <token>, Idempotency-Key?';
@@ -888,6 +976,7 @@ function sectionsOf(api) {
   const key = `${api.method} ${api.path}`;
   const path = pathFields(api.path); const query = []; const body = []; const multipart = [];
   if (key === 'GET /api/vehicles') query.push('size', 'regionId', 'companyId', 'brandId', 'modelId', 'keyword', 'lastLaunch', 'lastId');
+  if (key === 'GET /api/vehicles/manage') query.push('size', 'regionId', 'companyId', 'brandId', 'modelId', 'keyword', 'lastLaunch', 'lastId');
   if (key === 'GET /api/users/me/images' || key === 'GET /api/users/{userId}/images' || key === 'GET /api/vehicles/{vehicleId}/comments') query.push('page', 'size');
   if (key === 'GET /api/favorites') query.push('userId?');
   if (key === 'GET /api/images/latest') query.push('limit');
@@ -980,8 +1069,8 @@ function errorExample(api) { if (api.headers.includes('Authorization')) return J
 const configByGroup = {
   Auth: [{ key: 'auth.session.ttl-seconds', file: 'application.yml', how: '调整会话 TTL', effect: '影响登录有效期' }, { key: 'auth.security.*', file: 'application.yml', how: '调整验证码/风控阈值', effect: '影响认证安全策略' }],
   Vehicle: [{ key: 'busgallery.cache.vehicles.page-ttl-seconds', file: 'application.yml', how: '调整列表缓存 TTL', effect: '影响查询性能与实时性' }],
-  Upload: [{ key: 'busgallery.upload-security.*', file: 'application.yml', how: '调整上传阈值', effect: '影响上传安全与体验' }, { key: 'client_max_body_size', file: 'docker/nginx/default.conf', how: '调整体积上限', effect: '避免 413' }],
-  Image: [{ key: 'busgallery.image-access.token-secret', file: 'application.yml', how: '生产环境替换默认密钥', effect: '影响签名安全性' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', how: '改公网域名', effect: '影响图片访问地址' }],
+  Upload: [{ key: 'busgallery.upload-security.*', file: 'application.yml', how: '调整上传阈值', effect: '影响上传安全与体验' }, { key: 'busgallery.image-access.upload-*', file: 'application.yml', how: '配置上传自动水印与压缩参数', effect: '影响原图可读性、文件体积和带宽' }, { key: 'client_max_body_size', file: 'docker/nginx/default.conf', how: '调整体积上限', effect: '避免 413' }],
+  Image: [{ key: 'busgallery.image-access.token-secret', file: 'application.yml', how: '生产环境替换默认密钥', effect: '影响签名安全性' }, { key: 'busgallery.image-access.thumbnail-watermark-*', file: 'application.yml', how: '配置缩略图水印开关与文案', effect: '影响列表图防盗链与品牌露出' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', how: '改公网域名', effect: '影响图片访问地址' }],
   Review: [{ key: 'RoleGuard', file: 'ReviewController + RoleGuard.java', how: '按权限模型调整', effect: '影响审核越权控制' }],
   Admin: [{ key: 'RoleGuard.requireStation()', file: 'AdminController.java', how: '控制后台权限入口', effect: '影响后台接口访问' }],
   Metrics: [{ key: 'busgallery.metrics.slow-query-ms', file: 'application.yml', how: '调整慢 SQL 阈值', effect: '影响监控采样灵敏度' }]
@@ -1274,8 +1363,10 @@ const flowPages = computed(() => flowRows.map((f) => {
 }));
 
 const isModule1Page = computed(() => selectedPageId.value === 'm1' || selectedPageId.value === 'm1-config');
-const isModule2Page = computed(() => selectedPageId.value === 'm2-intro' || selectedPageId.value.startsWith('api-') || selectedPageId.value.startsWith('flow-'));
+const isModule2Page = computed(() => selectedPageId.value === 'm2-intro' || selectedPageId.value === 'm2-review-manage' || selectedPageId.value.startsWith('api-') || selectedPageId.value.startsWith('flow-'));
 const isModule3Page = computed(() => selectedPageId.value === 'm3-intro' || selectedPageId.value.startsWith('m3-'));
+const isApiTreeActive = computed(() => selectedPageId.value.startsWith('api-'));
+const isFlowTreeActive = computed(() => selectedPageId.value.startsWith('flow-'));
 const currentApi = computed(() => apis.find((a) => a.pageId === selectedPageId.value) || null);
 const currentFlow = computed(() => flowPages.value.find((f) => f.pageId === selectedPageId.value) || null);
 const currentMiddleware = computed(() => middlewareMap[selectedPageId.value] || null);
@@ -1283,7 +1374,7 @@ const laneHoverStyle = computed(() => ({ left: `${laneHover.x}px`, top: `${laneH
 
 function expandFor(id) {
   if (id === 'm1' || id === 'm1-config') module1Expanded.value = true;
-  if (id === 'm2-intro') module2Expanded.value = true;
+  if (id === 'm2-intro' || id === 'm2-review-manage') module2Expanded.value = true;
   if (id.startsWith('api-')) { module2Expanded.value = true; apiTreeExpanded.value = true; const api = apis.find((a) => a.pageId === id); if (api) apiGroupExpanded[api.group] = true; }
   if (id.startsWith('flow-')) { module2Expanded.value = true; flowTreeExpanded.value = true; }
   if (id === 'm3-intro' || id.startsWith('m3-')) module3Expanded.value = true;
@@ -1332,7 +1423,7 @@ function handleSeqMousemove(event) {
   laneHover.y = Math.max(8, event.clientY - hostRect.top - 12);
 }
 
-const allPageIds = computed(() => ['m1', 'm1-config', 'm2-intro', 'm3-intro', 'm4', ...apis.map((a) => a.pageId), ...flowPages.value.map((f) => f.pageId), ...middlewarePages.map((m) => m.pageId)]);
+const allPageIds = computed(() => ['m1', 'm1-config', 'm2-intro', 'm2-review-manage', 'm3-intro', 'm4', ...apis.map((a) => a.pageId), ...flowPages.value.map((f) => f.pageId), ...middlewarePages.map((m) => m.pageId)]);
 onMounted(() => { const hash = decodeURIComponent(window.location.hash.replace(/^#/, '')); if (hash && allPageIds.value.includes(hash)) selectPage(hash); });
 watch(selectedPageId, (id) => { const h = '#' + encodeURIComponent(id); if (window.location.hash !== h) window.history.replaceState(null, '', window.location.pathname + window.location.search + h); });
 </script>
@@ -1479,10 +1570,15 @@ watch(selectedPageId, (id) => { const h = '#' + encodeURIComponent(id); if (wind
 }
 
 .page {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  padding: 18px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 0 0;
+}
+
+.page > header:not(.api-hero) {
+  border-bottom: 1px solid #dbe3ee;
+  padding-bottom: 12px;
 }
 
 .page h2 {
@@ -1504,10 +1600,11 @@ watch(selectedPageId, (id) => { const h = '#' + encodeURIComponent(id); if (wind
 
 .block {
   margin-top: 16px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 13px;
-  background: #fff;
+  border: none;
+  border-top: 1px solid #e1e7ee;
+  border-radius: 0;
+  padding: 13px 0 0;
+  background: transparent;
 }
 
 .block h3 {
@@ -1522,8 +1619,8 @@ watch(selectedPageId, (id) => { const h = '#' + encodeURIComponent(id); if (wind
 
 .table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: none;
+  border-radius: 0;
 }
 
 table {
@@ -1690,15 +1787,20 @@ th {
   gap: 8px;
 }
 
+.page.api-doc {
+  padding-top: 0;
+}
+
 .api-doc {
-  background: #f8fafc;
+  background: transparent;
 }
 
 .api-hero {
-  border: 1px solid #dbe3ee;
-  border-radius: 12px;
-  background: #fff;
-  padding: 14px;
+  border: none;
+  border-bottom: 1px solid #dbe3ee;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 12px;
 }
 
 .api-hero__title {
@@ -1734,10 +1836,10 @@ th {
 }
 
 .api-layout {
-  margin-top: 14px;
+  margin-top: 10px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 520px;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 16px;
   align-items: start;
 }
 
@@ -1749,9 +1851,22 @@ th {
   min-width: 0;
 }
 
-.api-card {
-  border-color: #dbe3ee;
-  background: #fff;
+.api-doc .api-card {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.api-doc .api-aside .api-card {
+  border-left: 1px solid #dbe3ee;
+  padding-left: 14px;
+}
+
+.api-doc .endpoint-line {
+  border: none;
+  background: #eef2f7;
+  padding: 7px 10px;
 }
 
 .api-sticky {
@@ -2194,6 +2309,13 @@ th {
     top: auto;
   }
 
+  .api-doc .api-aside .api-card {
+    border-left: none;
+    border-top: 1px solid #dbe3ee;
+    padding-left: 0;
+    padding-top: 12px;
+  }
+
 }
 
 @media (max-width: 768px) {
@@ -2202,7 +2324,7 @@ th {
   }
 
   .page {
-    padding: 13px;
+    padding: 6px 0 0;
   }
 
   .page h2 {

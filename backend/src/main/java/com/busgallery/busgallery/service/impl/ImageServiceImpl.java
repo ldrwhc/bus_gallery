@@ -97,15 +97,22 @@ public class ImageServiceImpl implements ImageService {
         String objectName = buildObjectName(file.getOriginalFilename());
         try {
             UploadSecurityService.ValidatedImage validated = uploadSecurityService.validateAndRead(file);
-            byte[] data = validated.getData();
-            Map<String, String> exif = ExifExtractor.extract(data);
+            byte[] originalData = validated.getData();
+            Map<String, String> exif = ExifExtractor.extract(originalData);
             String exifJson = ExifUtils.toJson(exif);
+            ProcessedUpload processed = processUploadedImage(
+                    originalData,
+                    validated.getMimeType(),
+                    validated.getWidth(),
+                    validated.getHeight()
+            );
+            byte[] data = processed.data();
 
             StorageObject storageObject;
             StorageObject thumbObject = null;
             try (ByteArrayInputStream inputStream = new ByteArrayInputStream(data)) {
                 storageObject = storageService.upload(
-                        objectName, inputStream, data.length, validated.getMimeType()
+                        objectName, inputStream, data.length, processed.mimeType()
                 );
             }
             byte[] thumbBytes = createThumbnail(data);
@@ -123,9 +130,9 @@ public class ImageServiceImpl implements ImageService {
             image.setUrl(storageObject.getObjectName());
             image.setThumbnailUrl(thumbObject != null ? thumbObject.getObjectName() : storageObject.getObjectName());
             image.setSizeBytes((long) data.length);
-            image.setMimeType(validated.getMimeType());
-            image.setWidth(validated.getWidth());
-            image.setHeight(validated.getHeight());
+            image.setMimeType(processed.mimeType());
+            image.setWidth(processed.width());
+            image.setHeight(processed.height());
             image.setUploadUser(meta.getUploadUser());
             image.setUploaderId(meta.getUploaderId());
             image.setUploaderUsername(meta.getUploaderUsername());
@@ -214,7 +221,81 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
+    private ProcessedUpload processUploadedImage(byte[] originalData, String mimeType, int width, int height) {
+        String normalizedMimeType = normalizeMimeType(mimeType);
+        int maxSide = Math.max(0, imageAccessProperties.getUploadMaxSide());
+        float jpegQuality = clampQuality(imageAccessProperties.getUploadJpegQuality());
+        boolean watermarkEnabled = imageAccessProperties.isUploadWatermarkEnabled()
+                && StringUtils.hasText(imageAccessProperties.getUploadWatermarkText());
+        boolean shouldResize = maxSide > 0 && Math.max(width, height) > maxSide;
+        boolean shouldReencodeJpeg = isJpegMimeType(normalizedMimeType) && jpegQuality < 0.999f;
+        if (!watermarkEnabled && !shouldResize && !shouldReencodeJpeg) {
+            return new ProcessedUpload(originalData, normalizedMimeType, width, height);
+        }
+        try {
+            BufferedImage source = ImageIO.read(new ByteArrayInputStream(originalData));
+            if (source == null) {
+                return new ProcessedUpload(originalData, normalizedMimeType, width, height);
+            }
+            double scale = 1.0d;
+            if (maxSide > 0) {
+                scale = Math.min(1.0d, (double) maxSide / Math.max(source.getWidth(), source.getHeight()));
+            }
+            int targetW = Math.max(1, (int) Math.round(source.getWidth() * scale));
+            int targetH = Math.max(1, (int) Math.round(source.getHeight() * scale));
+            int imageType = "image/png".equals(normalizedMimeType) ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+            BufferedImage processed = new BufferedImage(targetW, targetH, imageType);
+            Graphics2D g2d = processed.createGraphics();
+            try {
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.drawImage(source, 0, 0, targetW, targetH, null);
+            } finally {
+                g2d.dispose();
+            }
+            if (watermarkEnabled) {
+                applyWatermark(processed, imageAccessProperties.getUploadWatermarkText(), 0.16f);
+            }
+            byte[] bytes;
+            if ("image/png".equals(normalizedMimeType)) {
+                bytes = writePng(processed);
+            } else {
+                bytes = writeJpegWithQuality(processed, jpegQuality);
+            }
+            return new ProcessedUpload(bytes, normalizedMimeType, targetW, targetH);
+        } catch (IOException e) {
+            log.warn("Post-processing upload image failed, fallback to original data", e);
+            return new ProcessedUpload(originalData, normalizedMimeType, width, height);
+        }
+    }
+
+    private String normalizeMimeType(String mimeType) {
+        if (!StringUtils.hasText(mimeType)) {
+            return "image/jpeg";
+        }
+        String normalized = mimeType.trim().toLowerCase();
+        if ("image/png".equals(normalized)) {
+            return "image/png";
+        }
+        if ("image/jpeg".equals(normalized) || "image/jpg".equals(normalized)) {
+            return "image/jpeg";
+        }
+        return "image/jpeg";
+    }
+
+    private boolean isJpegMimeType(String mimeType) {
+        return "image/jpeg".equals(mimeType) || "image/jpg".equals(mimeType);
+    }
+
+    private float clampQuality(float quality) {
+        return Math.max(0.1f, Math.min(1.0f, quality));
+    }
+
     private void applyThumbnailWatermark(BufferedImage image, String watermarkText) {
+        applyWatermark(image, watermarkText, 0.2f);
+    }
+
+    private void applyWatermark(BufferedImage image, String watermarkText, float alpha) {
         if (image == null || !StringUtils.hasText(watermarkText)) {
             return;
         }
@@ -224,7 +305,7 @@ public class ImageServiceImpl implements ImageService {
             int minSide = Math.min(image.getWidth(), image.getHeight());
             int fontSize = Math.max(14, minSide / 16);
             g2.setFont(new Font("SansSerif", Font.BOLD, fontSize));
-            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.2f));
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0.05f, Math.min(0.7f, alpha))));
             g2.setColor(Color.WHITE);
 
             String text = watermarkText.trim();
@@ -239,6 +320,12 @@ public class ImageServiceImpl implements ImageService {
         } finally {
             g2.dispose();
         }
+    }
+
+    private byte[] writePng(BufferedImage image) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", baos);
+        return baos.toByteArray();
     }
 
     private byte[] writeJpegWithQuality(BufferedImage image, float quality) throws IOException {
@@ -276,6 +363,9 @@ public class ImageServiceImpl implements ImageService {
         return list.stream()
                 .map(this::withSignedUrls)
                 .toList();
+    }
+
+    private record ProcessedUpload(byte[] data, String mimeType, int width, int height) {
     }
 }
 

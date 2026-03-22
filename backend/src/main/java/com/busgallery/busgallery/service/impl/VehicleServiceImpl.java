@@ -23,6 +23,8 @@ public class VehicleServiceImpl implements VehicleService {
     private final VehicleMapper vehicleMapper;
     private final VehicleConfigMapper vehicleConfigMapper;
     private final VehicleImageMapper vehicleImageMapper;
+    private final VehicleFavoriteMapper vehicleFavoriteMapper;
+    private final VehicleCommentMapper vehicleCommentMapper;
     private final BrandMapper brandMapper;
     private final ModelMapper modelMapper;
     private final CompanyMapper companyMapper;
@@ -125,7 +127,10 @@ public class VehicleServiceImpl implements VehicleService {
         return saved;
     }
 
+    @Transactional
     public void delete(Long id) {
+        vehicleFavoriteMapper.deleteByVehicleId(id);
+        vehicleCommentMapper.deleteByVehicleId(id);
         vehicleImageMapper.deleteByVehicleId(id);
         vehicleConfigMapper.deleteByVehicleId(id);
         vehicleMapper.delete(id);
