@@ -22,6 +22,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -147,6 +148,29 @@ public class ImageAccessService {
             objectName = resolvePrimaryObjectName(image);
         }
         return StringUtils.hasText(objectName) ? objectName : null;
+    }
+
+    public boolean objectExistsRef(String ref) {
+        String objectName = resolveObjectNameRef(ref);
+        if (!StringUtils.hasText(objectName)) {
+            return false;
+        }
+        try {
+            minioClient.statObject(
+                    StatObjectArgs.builder()
+                            .bucket(storageProperties.getBucket())
+                            .object(objectName)
+                            .build()
+            );
+            return true;
+        } catch (ErrorResponseException ex) {
+            if (ex.errorResponse() != null && Objects.equals("NoSuchKey", ex.errorResponse().code())) {
+                return false;
+            }
+            return false;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private String resolvePrimaryObjectName(Image image) {

@@ -64,4 +64,10 @@
         LIMIT 1
     </select>
 
+    <select id="countByImageId" resultType="long">
+        SELECT COUNT(1)
+        FROM vehicle_image
+        WHERE image_id = #{imageId}
+    </select>
+
 </mapper>

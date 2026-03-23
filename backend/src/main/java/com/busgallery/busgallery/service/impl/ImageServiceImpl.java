@@ -71,6 +71,10 @@ public class ImageServiceImpl implements ImageService {
         return withSignedUrls(imageMapper.selectLatest(actual));
     }
 
+    public List<Image> listAllRaw() {
+        return imageMapper.selectAll();
+    }
+
     public List<Image> listByUploader(Long uploaderId, int page, int size) {
         if (uploaderId == null) {
             return Collections.emptyList();
@@ -156,6 +160,7 @@ public class ImageServiceImpl implements ImageService {
         return withSignedUrls(imageMapper.selectById(image.getId()));
     }
 
+    @Transactional
     public void delete(Long id) {
         Image image = imageMapper.selectById(id);
         if (image == null) {

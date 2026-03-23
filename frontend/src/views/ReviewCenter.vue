@@ -247,7 +247,7 @@
             v-model="manageDialogVisible"
             title="编辑车辆"
             width="min(860px, 92vw)"
-            :close-on-click-modal="false"
+            :close-on-click-modal="true"
             destroy-on-close
         >
             <el-form v-loading="manageEditLoading" label-position="top" :model="manageForm">
@@ -773,7 +773,8 @@ const submitManageUpdate = async () => {
     }
     manageSaving.value = true;
     try {
-        await updateVehicle(manageEditingVehicleId.value, payload);
+        const updatedDetail = await updateVehicle(manageEditingVehicleId.value, payload);
+        store.commit('vehicles/SYNC_VEHICLE_DETAIL', updatedDetail);
         ElMessage.success('车辆信息已更新');
         manageDialogVisible.value = false;
         await loadManageList(true);
@@ -795,7 +796,9 @@ const confirmDeleteVehicle = async (row) => {
             {
                 type: 'warning',
                 confirmButtonText: '确认删除',
-                cancelButtonText: '取消'
+                cancelButtonText: '取消',
+                closeOnClickModal: true,
+                closeOnPressEscape: true
             }
         );
     } catch (error) {

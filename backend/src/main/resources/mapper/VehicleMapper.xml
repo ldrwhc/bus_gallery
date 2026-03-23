@@ -163,7 +163,14 @@
                 FROM vehicle v
                 WHERE 1 = 1
                 <if test="regionId != null">
-                        AND v.region_id = #{regionId}
+                        AND (
+                                v.region_id = #{regionId}
+                                OR EXISTS (
+                                        SELECT 1 FROM region r_scope
+                                        WHERE r_scope.id = v.region_id
+                                          AND r_scope.province_id = #{regionId}
+                                )
+                        )
                 </if>
                 <if test="companyId != null">
                         AND v.company_id = #{companyId}
@@ -226,7 +233,14 @@
                 FROM vehicle v
                 WHERE 1 = 1
                 <if test="regionId != null">
-                        AND v.region_id = #{regionId}
+                        AND (
+                                v.region_id = #{regionId}
+                                OR EXISTS (
+                                        SELECT 1 FROM region r_scope
+                                        WHERE r_scope.id = v.region_id
+                                          AND r_scope.province_id = #{regionId}
+                                )
+                        )
                 </if>
                 <if test="companyId != null">
                         AND v.company_id = #{companyId}

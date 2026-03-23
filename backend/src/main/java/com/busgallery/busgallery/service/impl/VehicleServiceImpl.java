@@ -2,6 +2,7 @@ package com.busgallery.busgallery.service.impl;
 
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.mapper.*;
+import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -11,7 +12,9 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
@@ -29,6 +32,7 @@ public class VehicleServiceImpl implements VehicleService {
     private final ModelMapper modelMapper;
     private final CompanyMapper companyMapper;
     private final RegionMapper regionMapper;
+    private final ImageService imageService;
     private final StringRedisTemplate stringRedisTemplate;
 
     public Vehicle findById(Long id) {
@@ -103,6 +107,7 @@ public class VehicleServiceImpl implements VehicleService {
         Vehicle saved = vehicleMapper.selectById(vehicle.getId());
         populateVehicleRelations(saved);
         bumpVehiclePageVersion();
+        invalidateVehicleSnapshots(saved != null ? saved.getPlateNumber() : null);
         return saved;
     }
 
@@ -115,6 +120,7 @@ public class VehicleServiceImpl implements VehicleService {
                           String companyName,
                           String regionProvince,
                           String regionCity) {
+        Vehicle existing = vehicle != null && vehicle.getId() != null ? vehicleMapper.selectById(vehicle.getId()) : null;
         ensureRegionExists(vehicle, regionProvince, regionCity);
         ensureModelExists(vehicle, brandId, brandName, modelName);
         ensureCompanyExists(vehicle, companyName);
@@ -124,17 +130,33 @@ public class VehicleServiceImpl implements VehicleService {
         Vehicle saved = vehicleMapper.selectById(vehicle.getId());
         populateVehicleRelations(saved);
         bumpVehiclePageVersion();
+        invalidateVehicleSnapshots(
+                existing != null ? existing.getPlateNumber() : null,
+                saved != null ? saved.getPlateNumber() : null
+        );
         return saved;
     }
 
     @Transactional
     public void delete(Long id) {
+        Vehicle existing = vehicleMapper.selectById(id);
+        List<VehicleImage> relations = vehicleImageMapper.selectByVehicleId(id);
         vehicleFavoriteMapper.deleteByVehicleId(id);
         vehicleCommentMapper.deleteByVehicleId(id);
+        for (VehicleImage relation : relations) {
+            Long imageId = relation != null && relation.getImage() != null ? relation.getImage().getId() : null;
+            if (imageId == null) {
+                continue;
+            }
+            if (vehicleImageMapper.countByImageId(imageId) <= 1) {
+                imageService.delete(imageId);
+            }
+        }
         vehicleImageMapper.deleteByVehicleId(id);
         vehicleConfigMapper.deleteByVehicleId(id);
         vehicleMapper.delete(id);
         bumpVehiclePageVersion();
+        invalidateVehicleSnapshots(existing != null ? existing.getPlateNumber() : null);
     }
 
     private void bumpVehiclePageVersion() {
@@ -142,6 +164,51 @@ public class VehicleServiceImpl implements VehicleService {
             stringRedisTemplate.opsForValue().increment("bg:vehicle:page:version");
         } catch (Exception ignore) {
         }
+    }
+
+    private void invalidateVehicleSnapshots(String... plateNumbers) {
+        if (plateNumbers == null || plateNumbers.length == 0) {
+            return;
+        }
+        for (String plateNumber : plateNumbers) {
+            String normalizedPlate = normalizePlate(plateNumber);
+            if (!StringUtils.hasText(normalizedPlate)) {
+                continue;
+            }
+            String latestKey = buildSnapshotLatestKey(normalizedPlate);
+            Set<String> keysToDelete = new LinkedHashSet<>();
+            keysToDelete.add(latestKey);
+            keysToDelete.add(buildSnapshotStaleKey(normalizedPlate));
+            keysToDelete.add(buildSnapshotLockKey(normalizedPlate));
+            try {
+                String version = stringRedisTemplate.opsForValue().get(latestKey);
+                if (StringUtils.hasText(version)) {
+                    keysToDelete.add(buildSnapshotVersionKey(normalizedPlate, version));
+                }
+                stringRedisTemplate.delete(keysToDelete);
+            } catch (Exception ignore) {
+            }
+        }
+    }
+
+    private String normalizePlate(String plateNumber) {
+        return plateNumber == null ? null : plateNumber.replaceAll("\\s+", "");
+    }
+
+    private String buildSnapshotLatestKey(String normalizedPlate) {
+        return "bg:snapshot:plate:" + normalizedPlate + ":latest";
+    }
+
+    private String buildSnapshotVersionKey(String normalizedPlate, String version) {
+        return "bg:snapshot:plate:" + normalizedPlate + ":v" + version;
+    }
+
+    private String buildSnapshotStaleKey(String normalizedPlate) {
+        return "bg:snapshot:plate:" + normalizedPlate + ":stale";
+    }
+
+    private String buildSnapshotLockKey(String normalizedPlate) {
+        return "bg:snapshot:plate:" + normalizedPlate + ":lock";
     }
 
     private void populateVehicleRelations(Vehicle vehicle) {

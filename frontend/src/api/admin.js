@@ -29,3 +29,7 @@ export const fetchAdminModels = () => http.get('/admin/tables/models');
 export const createAdminModel = (payload) => http.post('/admin/tables/models', payload);
 export const updateAdminModel = (id, payload) => http.put(`/admin/tables/models/${id}`, payload);
 export const deleteAdminModel = (id) => http.delete(`/admin/tables/models/${id}`);
+
+export const fetchAdminSuspectImages = () => http.get('/admin/images/suspects');
+export const cleanupAdminSuspectImages = (imageIds) =>
+    http.post('/admin/images/suspects/cleanup', imageIds ? { imageIds } : {});

@@ -557,13 +557,13 @@ const handlePageChange = (page) => {
 const openImage = async (image) => {
     if (!image?.vehicleId) return;
     activeVehicleId.value = image.vehicleId;
-    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: image.vehicleId, force: true });
+    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: image.vehicleId });
 };
 
 const openFavorite = async (detail) => {
     if (!detail?.vehicle?.id) return;
     activeVehicleId.value = detail.vehicle.id;
-    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: detail.vehicle.id, force: true });
+    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: detail.vehicle.id });
 };
 
 const closeVehicleDetail = () => {
@@ -844,8 +844,8 @@ const submitEdit = async () => {
             await submitVehicleUpdateReview(editTarget.value.vehicleId, editTarget.value.imageId, payload);
             ElMessage.success('修改申请已提交，等待审核');
         } else {
-            await updateVehicle(editTarget.value.vehicleId, payload);
-            await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: editTarget.value.vehicleId, force: true });
+            const updatedDetail = await updateVehicle(editTarget.value.vehicleId, payload);
+            store.commit('vehicles/SYNC_VEHICLE_DETAIL', updatedDetail);
             ElMessage.success('车辆信息已更新');
         }
         await Promise.all([

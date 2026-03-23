@@ -59,4 +59,6 @@ public interface VehicleImageMapper {
     int deleteByImageId(@Param("imageId") Long imageId);
 
     Long selectPrimaryVehicleIdByImageId(@Param("imageId") Long imageId);
+
+    long countByImageId(@Param("imageId") Long imageId);
 }

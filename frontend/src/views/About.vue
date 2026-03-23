@@ -200,6 +200,7 @@ npm run dev</code></pre></div>
           <h3>页面能力</h3>
           <ul>
             <li>查询：支持按车牌/自编号关键词查询；支持游标分页（lastLaunch + lastId）。</li>
+            <li>查询范围会自动按审核员的省级审核区展开，省下属城市关联的车辆也会显示在管理列表中。</li>
             <li>编辑：点击“编辑”后加载车辆详情，支持修改车辆基础信息、配置信息、地区、公司、品牌、车型等。</li>
             <li>删除：点击“删除”会弹二次确认框，确认后执行删除并刷新列表。</li>
             <li>与审核页切换：在同一页面内切换“车辆审核/车辆管理”，无需路由跳转。</li>
@@ -212,7 +213,7 @@ npm run dev</code></pre></div>
             <thead><tr><th>角色</th><th>查询范围</th><th>编辑/删除范围</th><th>说明</th></tr></thead>
             <tbody>
               <tr><td>STATION</td><td>全站（可带 regionId 过滤）</td><td>全站</td><td>站长可跨地区维护车辆。</td></tr>
-              <tr><td>REVIEWER</td><td>后端按审核地区限制</td><td>仅审核地区（按省级归属校验）</td><td>越权请求会被拒绝并返回未授权错误。</td></tr>
+              <tr><td>REVIEWER</td><td>后端按审核地区限制，省级范围会自动覆盖本省所有市级车辆</td><td>仅审核地区（按省级归属校验）</td><td>越权请求会被拒绝并返回未授权错误。</td></tr>
             </tbody>
           </table></div>
         </section>
@@ -225,7 +226,7 @@ npm run dev</code></pre></div>
               <tr>
                 <td>管理列表查询</td>
                 <td class="mono">GET /api/vehicles/manage</td>
-                <td>审核中心专用分页查询，支持 keyword、regionId、lastLaunch、lastId。</td>
+                <td>审核中心专用分页查询，支持 keyword、regionId、lastLaunch、lastId；当审核范围是省级时会自动包含省内市级车辆。</td>
                 <td><button class="link" @click="openPage('/api/vehicles/manage')">查看 API</button></td>
               </tr>
               <tr>
@@ -237,7 +238,7 @@ npm run dev</code></pre></div>
               <tr>
                 <td>保存修改</td>
                 <td class="mono">PUT /api/vehicles/{id}</td>
-                <td>提交编辑后的车辆信息，成功后刷新管理列表。</td>
+                <td>提交编辑后的车辆信息，成功后会同步刷新管理列表、本地详情缓存，并触发其他页面快照回源获取最新数据。</td>
                 <td><button class="link" @click="openPage('/api/vehicles/{id}')">查看 API</button></td>
               </tr>
               <tr>
@@ -254,7 +255,9 @@ npm run dev</code></pre></div>
           <h3>常见问题与处理</h3>
           <ul>
             <li>401 未授权：通常是会话失效或角色不满足 `REVIEWER/STATION`，先重新登录并确认角色。</li>
+            <li>车辆管理列表为空：若审核范围是省级，后端现在会自动展开到省内所有市级车辆；若仍为空，优先检查审核地区分配是否正确。</li>
             <li>审核员跨区修改失败：后端会按审核地区做写权限校验，非本审核范围车辆不可改删。</li>
+            <li>修改后其他页面仍是旧数据：当前写链路会同步本地缓存并清理车辆分页/车牌快照缓存，若线上仍旧数据，优先排查 Redis 是否可写。</li>
             <li>删除失败（外键约束）：需先清理关联的收藏/评论等子表记录，再删除主车辆记录。</li>
           </ul>
         </section>
@@ -479,19 +482,141 @@ npm run dev</code></pre></div>
           </tbody></table></div>
         </section>
 
+        <section v-if="currentMiddleware.name === 'Redis'" class="block redis-hero-block">
+          <div class="redis-hero">
+            <div class="redis-hero-main">
+              <span class="redis-kicker">BUS GALLERY CACHE CONTROL</span>
+              <h3>Redis 一眼看懂</h3>
+              <p>把这页当成缓存驾驶舱来看：左边看职责分层，右边看规模；再往下看写后读一致性和键空间地图，就能快速定位“为什么这里会读到旧数据”。</p>
+              <div class="redis-hero-tags">
+                <span v-for="item in redisOperationsOverview" :key="item.title" class="redis-hero-tag" :class="'tone-' + item.tone">{{ item.title }}</span>
+              </div>
+            </div>
+            <div class="redis-hero-stats">
+              <article v-for="item in redisHeroStats" :key="item.label" class="redis-stat-card">
+                <div class="redis-stat-value">{{ item.value }}</div>
+                <div class="redis-stat-label">{{ item.label }}</div>
+                <p>{{ item.note }}</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section v-if="currentMiddleware.name === 'Redis'" class="block">
-          <h3>Redis 全量键值清单（Keys / Values）</h3>
-          <div class="table-wrap"><table><thead><tr><th>分类</th><th>Key</th><th>Value</th><th>TTL/失效</th><th>产生时机</th><th>更新/删除时机</th><th>用途</th></tr></thead><tbody>
-            <tr v-for="row in redisKeyRows" :key="row.key">
-              <td>{{ row.group }}</td>
-              <td class="mono">{{ row.key }}</td>
-              <td class="mono">{{ row.value }}</td>
-              <td class="mono">{{ row.ttl }}</td>
-              <td>{{ row.created }}</td>
-              <td>{{ row.updated }}</td>
-              <td>{{ row.usage }}</td>
-            </tr>
-          </tbody></table></div>
+          <h3>职责分层</h3>
+          <div class="redis-overview-grid">
+            <article v-for="item in redisOperationsOverview" :key="item.title" class="redis-overview-card" :class="'tone-' + item.tone">
+              <div class="redis-overview-head">
+                <h4>{{ item.title }}</h4>
+                <span class="redis-overview-badge">{{ item.badge }}</span>
+              </div>
+              <p>{{ item.desc }}</p>
+              <div class="redis-overview-meta">
+                <span><strong>代表键：</strong>{{ item.key }}</span>
+                <span><strong>动作：</strong>{{ item.action }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section v-if="currentMiddleware.name === 'Redis'" class="block">
+          <h3>写后读一致性策略</h3>
+          <div class="redis-strategy-grid">
+            <article v-for="item in redisConsistencyCards" :key="item.title" class="redis-strategy-card" :class="'tone-' + item.tone">
+              <div class="redis-strategy-title">{{ item.title }}</div>
+              <p>{{ item.desc }}</p>
+              <div class="redis-strategy-kv"><span>触发时机</span><strong>{{ item.trigger }}</strong></div>
+              <div class="redis-strategy-kv"><span>关键键</span><code>{{ item.key }}</code></div>
+              <div class="redis-strategy-kv"><span>结果</span><strong>{{ item.result }}</strong></div>
+            </article>
+          </div>
+        </section>
+
+        <section v-if="currentMiddleware.name === 'Redis'" class="block">
+          <h3>Redis 键空间地图</h3>
+          <div class="redis-key-groups">
+            <article v-for="group in redisKeyGroupCards" :key="group.name" class="redis-key-group" :class="'tone-' + group.tone">
+              <div class="redis-key-group-head">
+                <div>
+                  <h4>{{ group.name }}</h4>
+                  <p>{{ group.summary }}</p>
+                </div>
+                <span class="redis-key-group-count">{{ group.count }} 类键</span>
+              </div>
+              <div class="redis-key-group-list">
+                <div v-for="row in group.rows" :key="group.name + row.key" class="redis-key-card">
+                  <div class="redis-key-card-head">
+                    <code>{{ row.key }}</code>
+                    <span class="redis-key-card-ttl">{{ row.ttl }}</span>
+                  </div>
+                  <p>{{ row.usage }}</p>
+                  <div class="redis-key-card-meta">
+                    <span>创建：{{ row.created }}</span>
+                    <span>更新：{{ row.updated }}</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section v-if="currentMiddleware.name === 'Redis'" class="block">
+          <div class="redis-archive-head">
+            <div>
+              <h3>Redis 全量键值清单（细表备查）</h3>
+              <p>这部分默认收起，只在需要核对具体 key 模板、TTL、删除时机时再展开，避免阅读节奏被超长表格打断。</p>
+            </div>
+            <button class="redis-archive-toggle" @click="redisArchiveOpen = !redisArchiveOpen">
+              {{ redisArchiveOpen ? '收起明细表' : '展开明细表' }}
+            </button>
+          </div>
+          <div class="redis-archive-toolbar">
+            <div class="redis-archive-stats">
+              <span class="redis-archive-pill">当前显示 {{ filteredRedisKeyRows.length }} / {{ redisKeyRows.length }}</span>
+              <span class="redis-archive-pill">{{ redisArchiveGroup === '全部' ? '全部分类' : redisArchiveGroup }}</span>
+            </div>
+            <label class="redis-archive-search">
+              <span>搜索</span>
+              <input v-model="redisArchiveKeyword" type="text" placeholder="按 key / TTL / 用途 / 时机搜索" />
+            </label>
+          </div>
+          <div class="redis-archive-groups">
+            <button
+              v-for="group in redisArchiveGroups"
+              :key="group"
+              class="redis-archive-chip"
+              :class="{ active: redisArchiveGroup === group }"
+              @click="redisArchiveGroup = group"
+            >
+              {{ group }}
+            </button>
+          </div>
+          <div v-if="redisArchiveOpen" class="table-wrap redis-archive-table">
+            <table>
+              <thead><tr><th>分类</th><th>Key</th><th>Value</th><th>TTL/失效</th><th>产生时机</th><th>更新/删除时机</th><th>用途</th></tr></thead>
+              <tbody>
+                <tr v-for="row in filteredRedisKeyRows" :key="row.key">
+                  <td>{{ row.group }}</td>
+                  <td class="mono">{{ row.key }}</td>
+                  <td class="mono">{{ row.value }}</td>
+                  <td class="mono">{{ row.ttl }}</td>
+                  <td>{{ row.created }}</td>
+                  <td>{{ row.updated }}</td>
+                  <td>{{ row.usage }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="redis-archive-preview">
+            <article v-for="row in redisArchivePreviewRows" :key="'preview-' + row.key" class="redis-archive-preview-card">
+              <div class="redis-archive-preview-head">
+                <span class="redis-archive-preview-group">{{ row.group }}</span>
+                <span class="redis-archive-preview-ttl">{{ row.ttl }}</span>
+              </div>
+              <code>{{ row.key }}</code>
+              <p>{{ row.usage }}</p>
+            </article>
+          </div>
         </section>
 
         <section v-if="currentMiddleware.name === 'Redis'" class="block">
@@ -505,53 +630,273 @@ npm run dev</code></pre></div>
             <ul>
               <li v-for="step in item.steps" :key="item.id + step">{{ step }}</li>
             </ul>
-            <div class="redis-seq" v-if="item.parsed.events.length">
-              <div class="redis-seq-legend">
-                <span class="redis-legend-item"><i class="main"></i>主流程</span>
-                <span class="redis-legend-item"><i class="alt"></i>如果（条件成立）</span>
-                <span class="redis-legend-item"><i class="else"></i>否则（条件不成立）</span>
+            <div class="redis-sequence" v-if="item.diagram && item.diagram.entries.length">
+              <div class="redis-sequence-legend">
+                <span class="redis-legend-item"><i class="main"></i>主调用</span>
+                <span class="redis-legend-item"><i class="reply"></i>返回/回包</span>
+                <span class="redis-legend-item"><i class="alt"></i>如果分支</span>
+                <span class="redis-legend-item"><i class="else"></i>否则分支</span>
               </div>
-              <div class="redis-seq-head">
-                <div class="redis-seq-step-h">步骤</div>
-                <div class="redis-seq-flow-h">流程说明</div>
-                <div class="redis-seq-lanes-h">
-                  <div v-for="lane in item.parsed.lanes" :key="item.id + lane" class="redis-seq-lane-h">{{ lane }}</div>
-                </div>
-              </div>
-              <div class="redis-seq-body">
-                <div v-for="(evt, idx) in item.parsed.events" :key="item.id + evt.type + idx" class="redis-seq-row">
-                  <template v-if="evt.type === 'message'">
-                    <div class="redis-seq-step mono">{{ idx + 1 }}</div>
-                    <div class="redis-seq-flow">
-                      <div class="redis-seq-action">{{ evt.action }}</div>
-                      <p class="redis-seq-hint">{{ evt.hint }}</p>
-                      <span v-if="evt.branchPath" class="redis-seq-branch-tag">{{ evt.branchPath }}</span>
-                    </div>
-                    <div class="redis-seq-main">
-                      <div class="redis-seq-track">
-                        <span
-                          v-for="(_, laneIdx) in item.parsed.lanes"
-                          :key="item.id + '-guide-' + idx + '-' + laneIdx"
-                          class="redis-seq-guide"
-                          :style="redisSeqGuideStyle(laneIdx, item.parsed.lanes.length)"
-                        ></span>
-                        <span class="redis-seq-line" :style="redisSeqLineStyle(evt, item.parsed.lanes.length)"></span>
-                        <span class="redis-seq-end-arrow from" :class="redisSeqArrowDirClass(evt)" :style="redisSeqEndArrowStyle(evt, item.parsed.lanes.length, 'from')"></span>
-                        <span class="redis-seq-end-arrow to" :class="redisSeqArrowDirClass(evt)" :style="redisSeqEndArrowStyle(evt, item.parsed.lanes.length, 'to')"></span>
-                      </div>
-                    </div>
-                  </template>
-                  <template v-else>
-                    <div class="redis-seq-step mono">{{ idx + 1 }}</div>
-                    <div class="redis-seq-flow branch">
-                      <div class="redis-branch-title">{{ evt.text }}</div>
-                      <p class="redis-branch-tip">{{ evt.tip }}</p>
-                    </div>
-                    <div class="redis-seq-main branch">
-                      <div class="redis-seq-branch-row" :class="evt.branchType">{{ evt.pathHint }}</div>
-                    </div>
-                  </template>
-                </div>
+              <div class="redis-sequence-scroll">
+                <svg
+                  class="redis-sequence-canvas"
+                  :width="item.diagram.width"
+                  :height="item.diagram.height"
+                  :viewBox="`0 0 ${item.diagram.width} ${item.diagram.height}`"
+                  preserveAspectRatio="xMidYMin meet"
+                >
+                  <rect
+                    class="redis-sequence-surface"
+                    x="1"
+                    y="1"
+                    :width="item.diagram.width - 2"
+                    :height="item.diagram.height - 2"
+                    rx="28"
+                  />
+
+                  <g v-for="lane in item.diagram.lanes" :key="item.id + '-lane-' + lane.label">
+                    <line
+                      class="redis-sequence-lane-line"
+                      :x1="lane.x"
+                      :x2="lane.x"
+                      :y1="lane.lineY1"
+                      :y2="lane.lineY2"
+                    />
+                    <rect
+                      class="redis-sequence-lane-card"
+                      :x="lane.cardX"
+                      :y="lane.cardY"
+                      :width="lane.cardWidth"
+                      :height="lane.cardHeight"
+                      rx="18"
+                      :fill="lane.bg"
+                      :stroke="lane.border"
+                    />
+                    <rect
+                      class="redis-sequence-lane-badge"
+                      :x="lane.badgeX"
+                      :y="lane.badgeY"
+                      :width="lane.badgeWidth"
+                      :height="lane.badgeHeight"
+                      rx="11"
+                    />
+                    <text
+                      class="redis-sequence-lane-badge-text mono"
+                      :x="lane.x"
+                      :y="lane.badgeTextY"
+                      text-anchor="middle"
+                    >
+                      {{ lane.index + 1 }}
+                    </text>
+                    <text
+                      class="redis-sequence-lane-label"
+                      :x="lane.x"
+                      :y="lane.labelY"
+                      :fill="lane.ink"
+                      text-anchor="middle"
+                    >
+                      <tspan
+                        v-for="(line, idx) in lane.labelLines"
+                        :key="item.id + '-lane-text-' + lane.index + '-' + idx"
+                        :x="lane.x"
+                        :dy="idx === 0 ? 0 : 13"
+                      >
+                        {{ line }}
+                      </tspan>
+                    </text>
+                  </g>
+
+                  <g v-for="entry in item.diagram.entries" :key="item.id + '-entry-' + entry.step + '-' + entry.type">
+                    <title>{{ entry.detail }}</title>
+
+                    <template v-if="entry.type === 'message'">
+                      <line
+                        v-if="entry.connectorX"
+                        class="redis-sequence-card-link"
+                        :x1="entry.connectorX"
+                        :x2="entry.connectorX"
+                        :y1="entry.cardY + entry.cardHeight"
+                        :y2="entry.lineY - 8"
+                        :stroke="entry.border"
+                      />
+                      <line
+                        v-if="!entry.isSelf"
+                        class="redis-sequence-message-line"
+                        :x1="entry.fromX"
+                        :y1="entry.lineY"
+                        :x2="entry.toX"
+                        :y2="entry.lineY"
+                        :stroke="entry.stroke"
+                        :stroke-dasharray="entry.isReply ? '8 6' : undefined"
+                      />
+                      <path
+                        v-else
+                        class="redis-sequence-message-line"
+                        :d="entry.selfPath"
+                        :stroke="entry.stroke"
+                        :stroke-dasharray="entry.isReply ? '8 6' : undefined"
+                      />
+                      <circle :cx="entry.fromX" :cy="entry.lineY" r="4" :fill="entry.stroke" opacity="0.32" />
+                      <circle v-if="!entry.isSelf" :cx="entry.toX" :cy="entry.lineY" r="4.4" :fill="entry.stroke" />
+                      <polygon :points="entry.arrowHead" :fill="entry.stroke" />
+
+                      <rect
+                        class="redis-sequence-card"
+                        :x="entry.cardX"
+                        :y="entry.cardY"
+                        :width="entry.cardWidth"
+                        :height="entry.cardHeight"
+                        rx="18"
+                        :fill="entry.fill"
+                        :stroke="entry.border"
+                      />
+                      <rect
+                        class="redis-sequence-step-pill"
+                        :x="entry.stepBoxX"
+                        :y="entry.stepBoxY"
+                        :width="entry.stepBoxWidth"
+                        :height="entry.stepBoxHeight"
+                        rx="11"
+                        :fill="entry.chipFill"
+                      />
+                      <text
+                        class="redis-sequence-step-text mono"
+                        :x="entry.stepTextX"
+                        :y="entry.stepTextY"
+                        :fill="entry.chipInk"
+                        text-anchor="middle"
+                      >
+                        {{ entry.step }}
+                      </text>
+                      <text
+                        class="redis-sequence-route-text"
+                        :x="entry.routeX"
+                        :y="entry.routeY"
+                        :fill="entry.ink"
+                      >
+                        <tspan
+                          v-for="(line, idx) in entry.routeLines"
+                          :key="item.id + '-route-' + entry.step + '-' + idx"
+                          :x="entry.routeX"
+                          :dy="idx === 0 ? 0 : 13"
+                        >
+                          {{ line }}
+                        </tspan>
+                      </text>
+                      <text
+                        class="redis-sequence-action-text"
+                        :x="entry.textX"
+                        :y="entry.actionY"
+                        :fill="entry.textFill"
+                      >
+                        <tspan
+                          v-for="(line, idx) in entry.actionLines"
+                          :key="item.id + '-action-' + entry.step + '-' + idx"
+                          :x="entry.textX"
+                          :dy="idx === 0 ? 0 : 14"
+                        >
+                          {{ line }}
+                        </tspan>
+                      </text>
+                      <text
+                        class="redis-sequence-hint-text"
+                        :x="entry.textX"
+                        :y="entry.hintY"
+                        :fill="entry.hintFill"
+                      >
+                        <tspan
+                          v-for="(line, idx) in entry.hintLines"
+                          :key="item.id + '-hint-' + entry.step + '-' + idx"
+                          :x="entry.textX"
+                          :dy="idx === 0 ? 0 : 12"
+                        >
+                          {{ line }}
+                        </tspan>
+                      </text>
+                      <g v-if="entry.branchTagText">
+                        <rect
+                          class="redis-sequence-tag-pill"
+                          :x="entry.tagX"
+                          :y="entry.tagY"
+                          :width="entry.tagWidth"
+                          :height="entry.tagHeight"
+                          rx="10"
+                          :fill="entry.chipFill"
+                        />
+                        <text
+                          class="redis-sequence-tag-text"
+                          :x="entry.tagTextX"
+                          :y="entry.tagTextY"
+                          :fill="entry.chipInk"
+                        >
+                          {{ entry.branchTagText }}
+                        </text>
+                      </g>
+                    </template>
+
+                    <template v-else>
+                      <rect
+                        class="redis-sequence-branch-box"
+                        :x="entry.boxX"
+                        :y="entry.boxY"
+                        :width="entry.boxWidth"
+                        :height="entry.boxHeight"
+                        rx="18"
+                        :fill="entry.fill"
+                        :stroke="entry.border"
+                        stroke-dasharray="8 6"
+                      />
+                      <rect
+                        class="redis-sequence-step-pill"
+                        :x="entry.stepBoxX"
+                        :y="entry.stepBoxY"
+                        :width="entry.stepBoxWidth"
+                        :height="entry.stepBoxHeight"
+                        rx="11"
+                        :fill="entry.chipFill"
+                      />
+                      <text
+                        class="redis-sequence-step-text mono"
+                        :x="entry.stepTextX"
+                        :y="entry.stepTextY"
+                        :fill="entry.chipInk"
+                        text-anchor="middle"
+                      >
+                        {{ entry.step }}
+                      </text>
+                      <text
+                        class="redis-sequence-branch-title-text"
+                        :x="entry.titleX"
+                        :y="entry.titleY"
+                        :fill="entry.textFill"
+                      >
+                        <tspan
+                          v-for="(line, idx) in entry.titleLines"
+                          :key="item.id + '-branch-title-' + entry.step + '-' + idx"
+                          :x="entry.titleX"
+                          :dy="idx === 0 ? 0 : 14"
+                        >
+                          {{ line }}
+                        </tspan>
+                      </text>
+                      <text
+                        class="redis-sequence-branch-tip-text"
+                        :x="entry.tipX"
+                        :y="entry.tipY"
+                        :fill="entry.hintFill"
+                      >
+                        <tspan
+                          v-for="(line, idx) in entry.tipLines"
+                          :key="item.id + '-branch-tip-' + entry.step + '-' + idx"
+                          :x="entry.tipX"
+                          :dy="idx === 0 ? 0 : 12"
+                        >
+                          {{ line }}
+                        </tspan>
+                      </text>
+                    </template>
+                  </g>
+                </svg>
               </div>
             </div>
           </div>
@@ -688,6 +1033,8 @@ import { computed, reactive, ref, watch, onMounted, onBeforeUnmount, nextTick } 
 const rawApiLines = `
 GET|/api/admin/overview
 GET|/api/admin/submissions
+GET|/api/admin/images/suspects
+POST|/api/admin/images/suspects/cleanup
 GET|/api/admin/tables/brands
 POST|/api/admin/tables/brands
 DELETE|/api/admin/tables/brands/{id}
@@ -857,9 +1204,9 @@ const flowRows = [
   {
     id: 'WF-06',
     title: '审核链路',
-    frontend: '审核中心会把 submissionId、审批结果和驳回原因提交到 /api/reviews/inbox、/pending、/{id}/approve、/{id}/reject；车辆管理子页会调用 /api/vehicles/manage 与 /api/vehicles/{id}（查改删）维护车辆。',
+    frontend: '审核中心会把 submissionId、审批结果和驳回原因提交到 /api/reviews/inbox、/pending、/{id}/approve、/{id}/reject；车辆管理子页会调用 /api/vehicles/manage 与 /api/vehicles/{id}（查改删）维护车辆，省级审核范围会自动展开到省内市级车辆，保存后还会同步本地详情缓存。',
     nginx: 'Nginx 把审核请求统一转发到 ReviewController 并附带代理头，保持入口一致。',
-    redis: '审核通过或驳回后服务层会删除相关车辆页和快照缓存键，后续读取会回源最新数据。',
+    redis: '审核通过、审核页改车或删车后，服务层会递增车辆分页版本键，并删除对应车牌的 latest/version/stale/lock 快照键，确保其他页面下一次读取一定回源最新数据。',
     spring: 'RoleGuard 先校验 REVIEWER/STATION 权限与区域范围，然后服务层在事务里变更 submission 与关联实体并返回新状态。',
     db: 'MySQL 更新 vehicle_submission 状态及关联主表记录后把结果返回给 Spring 形成审核响应。',
     other: '审核链路当前无 MQ，状态变更在同一事务中生效并立即反馈前端。'
@@ -867,9 +1214,9 @@ const flowRows = [
   {
     id: 'WF-07',
     title: '后台管理链路',
-    frontend: '后台页面把字典维护、角色调整、车辆和图片管理操作转换成 CRUD 请求发送到 /api/admin/* 与相关写接口。',
+    frontend: '后台页面把字典维护、角色调整、车辆和图片管理操作转换成 CRUD 请求发送到 /api/admin/* 与相关写接口；异常图片页会调用 /api/admin/images/suspects 与 /api/admin/images/suspects/cleanup 扫描并清理残留图片。',
     nginx: 'Nginx 对后台接口执行 /api 限流和反向代理后交给 AdminController 与对应业务 Controller。',
-    redis: '后台写成功后会递增版本键或删除命中缓存，确保后续查询不再返回旧数据。',
+    redis: '后台涉及车辆写操作时会递增版本键或删除命中快照缓存，异常图片巡检本身不依赖 Redis，但清理后会让后续图片/车辆查询直接读取最新主数据。',
     spring: 'RequireLogin 与 RoleGuard 先做角色校验，随后服务层在事务中执行多表写入并返回更新后的实体或空响应。',
     db: 'MySQL 对 region、company、brand、model、vehicle、image 等主数据表执行增删改查并把结果持久化给查询链路复用。',
     other: '写链路抛出异常时事务会回滚，统一错误响应会返回前端避免部分成功。'
@@ -889,7 +1236,7 @@ const flowRows = [
     title: '快照链路',
     frontend: '首页热门模块和车牌详情页会提交 plateNumber 或 size 到 /api/snapshots/plate/{plateNumber} 与 /api/snapshots/hot，然后按快照字段一次性渲染。',
     nginx: 'Nginx 按常规 /api 规则转发快照请求到 SnapshotController。',
-    redis: 'SnapshotService 先查 latest/version 键，未命中再查 stale 并使用 lock 防击穿，命中直接返回，未命中才回源构建快照。',
+    redis: 'SnapshotService 先查 latest/version 键，未命中再查 stale 并使用 lock 防击穿；当车辆在审核页或后台被修改/删除后，对应车牌快照键会被主动清掉，下一次快照请求必定回源重建。',
     spring: 'SnapshotController 调用 SnapshotServiceImpl 聚合车辆、评论、收藏和推荐结果，序列化后写回 Redis 并响应 SnapshotPayload。',
     db: '回源时 MySQL 会按车牌查询 vehicle、image、comment、favorite 等表并把聚合结果交给 Service。',
     other: '快照中的图片字段会结合 MinIO 对象元数据补齐访问地址后再返回前端。'
@@ -1025,7 +1372,7 @@ const apiConfigEntries = [
 
 const middlewarePages = [
   { pageId: 'm3-nginx', name: 'Nginx', intro: '统一入口网关，负责反向代理、限流、静态与对象代理。', role: '将 /api 请求转发到 backend，将 /bus-gallery 路径代理到 MinIO。', io: [{ input: 'HTTP 请求', process: 'location 匹配 + limit_req + proxy_pass', output: 'backend 响应或 429' }, { input: '/bus-gallery/*', process: '代理到 minio:9000', output: '对象流' }], configs: [{ key: 'limit_req_zone / limit_req', file: 'docker/nginx/default.conf', effect: '分层限流' }, { key: 'client_max_body_size 50M', file: 'docker/nginx/default.conf', effect: '上传体积上限' }, { key: 'proxy_read_timeout 300s', file: 'docker/nginx/default.conf', effect: '长请求超时控制' }], workflows: [{ flow: 'WF-03', input: '/api/auth/*', process: '认证接口限流+转发', output: '认证响应' }, { flow: 'WF-05', input: '/api/upload', process: '上传转发', output: '上传链路执行' }, { flow: 'WF-08', input: '/api/images/access/{token}', process: '先后端验签', output: '图片流' }] },
-  { pageId: 'm3-redis', name: 'Redis', intro: '会话、限流、验证码、幂等、快照、防击穿全部依赖 Redis。', role: '读链路做缓存，写链路做版本失效和幂等控制，是高频关键中间件。', io: [{ input: 'token/captcha/challenge/identity', process: '读写 key + TTL + 递增', output: '会话状态/限流判定' }, { input: 'plate 快照查询', process: 'latest/stale/lock 协同', output: '命中或回源快照' }, { input: 'Idempotency-Key', process: 'setIfAbsent 防重复', output: '允许或拒绝提交' }], configs: [{ key: 'spring.data.redis.*', file: 'backend/src/main/resources/application.yml', effect: '连接参数' }, { key: 'appendonly yes', file: 'docker/redis/redis.conf', effect: 'AOF 持久化' }, { key: 'auth.session.ttl-seconds', file: 'application.yml', effect: '会话 TTL' }, { key: 'busgallery.cache.*', file: 'application.yml', effect: '业务缓存 TTL' }], workflows: [{ flow: 'WF-03', input: '登录与验证码请求', process: 'session/captcha/risk key 管理', output: '认证状态' }, { flow: 'WF-05', input: '上传请求', process: '限流+幂等', output: '允许上传或拒绝' }, { flow: 'WF-09', input: '快照请求', process: '防击穿与缓存复用', output: '快照结果' }] },
+  { pageId: 'm3-redis', name: 'Redis', intro: '会话、限流、验证码、幂等、分页缓存、车牌快照与防击穿都依赖 Redis。', role: '读链路负责缓存与热点兜底，写链路负责版本推进、快照删键和幂等控制，是全站一致性最敏感的中间件之一。', io: [{ input: 'token/captcha/challenge/identity', process: '读写 key + TTL + 递增', output: '会话状态/限流判定' }, { input: 'plate 快照查询', process: 'latest/stale/lock 协同 + 主动删键', output: '命中或回源快照' }, { input: 'Idempotency-Key', process: 'setIfAbsent 防重复', output: '允许或拒绝提交' }], configs: [{ key: 'spring.data.redis.*', file: 'backend/src/main/resources/application.yml', effect: '连接参数' }, { key: 'appendonly yes', file: 'docker/redis/redis.conf', effect: 'AOF 持久化' }, { key: 'auth.session.ttl-seconds', file: 'application.yml', effect: '会话 TTL' }, { key: 'busgallery.cache.*', file: 'application.yml', effect: '业务缓存 TTL' }], workflows: [{ flow: 'WF-03', input: '登录与验证码请求', process: 'session/captcha/risk key 管理', output: '认证状态' }, { flow: 'WF-05', input: '上传请求', process: '限流+幂等', output: '允许上传或拒绝' }, { flow: 'WF-06', input: '审核页修改/删除车辆', process: '分页版本推进 + 快照删键', output: '其他页面回源最新数据' }, { flow: 'WF-09', input: '快照请求', process: '防击穿与缓存复用', output: '快照结果' }] },
   { pageId: 'm3-mysql', name: 'MySQL', intro: '承载用户、车辆、图片、评论、收藏、审核等核心持久化数据。', role: '通过 MyBatis/JPA 执行查询和事务写入。', io: [{ input: '业务请求参数', process: 'SQL 查询/更新', output: '实体与结果集' }, { input: '审核与后台写操作', process: '事务更新多表', output: '一致落库' }], configs: [{ key: 'spring.datasource.*', file: 'application.yml', effect: '连接地址和凭证' }, { key: 'spring.datasource.hikari.*', file: 'application.yml', effect: '连接池并发能力' }, { key: 'docker/init/init.sql', file: 'docker/init/init.sql', effect: '初始化表结构' }], workflows: [{ flow: 'WF-01', input: '车辆筛选条件', process: 'vehicle 相关表查询', output: '列表与详情' }, { flow: 'WF-06', input: '审核动作', process: 'submission 状态更新', output: '审核结果' }, { flow: 'WF-07', input: '后台 CRUD', process: '主数据维护', output: '最新主数据' }] },
   { pageId: 'm3-spring', name: 'Spring', intro: '鉴权拦截、控制器路由、服务层事务、异常处理均在 Spring 层。', role: 'WebMvcConfig 注入 AuthTokenInterceptor 到 /api/**，RoleGuard 做权限裁剪。', io: [{ input: 'HTTP 请求', process: 'Interceptor -> Controller -> Service -> Mapper', output: '统一响应' }, { input: 'Authorization/token', process: '会话解析并写入上下文', output: '用户上下文或 401' }], configs: [{ key: 'WebMvcConfig.addInterceptors', file: 'backend/config/WebMvcConfig.java', effect: '统一鉴权入口' }, { key: '@RequireLogin + RoleGuard', file: 'controller/auth', effect: '角色权限控制' }, { key: '@Transactional', file: 'service/controller', effect: '关键写链路事务一致性' }], workflows: [{ flow: 'WF-03', input: '认证请求', process: '认证/风控/会话签发', output: 'token' }, { flow: 'WF-05', input: '上传请求', process: '安全校验 + 幂等 + 水印压缩 + 业务写入', output: '上传结果' }, { flow: 'WF-10', input: '/api/metrics/db', process: '聚合慢 SQL 指标', output: '监控数据' }] },
   { pageId: 'm3-minio', name: 'MinIO', intro: '对象存储服务，负责图片数据落地与读取。', role: '上传写对象，访问通过后端签名校验后读取对象流。', io: [{ input: '上传文件', process: 'putObject 写入对象桶', output: 'objectName + url' }, { input: '签名 token', process: '验签后 getObject', output: '图片字节流' }], configs: [{ key: 'minio.endpoint/access-key/secret-key/bucket', file: 'application.yml + docker/.env', effect: '连接对象存储' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', effect: '外网访问域名' }, { key: 'location /bus-gallery/', file: 'docker/nginx/default.conf', effect: '统一对象访问入口' }], workflows: [{ flow: 'WF-05', input: '上传请求', process: '写对象并回写元数据', output: '可访问对象路径' }, { flow: 'WF-08', input: '图片访问请求', process: '验签后读取对象', output: '图片流' }] }
@@ -1046,7 +1393,7 @@ const module5InterviewQa = [
   { id: 5, q: '查询性能怎么保证？', a: '列表查询使用固定页大小+游标分页，减少深分页成本；并通过缓存键和版本失效机制降低重复查询压力。生产还应配合 explain 和慢 SQL 采样持续优化索引。' },
   { id: 6, q: '游标分页在并发写入下会不会乱序？', a: '游标由 launchDate+id 组成，能够保持稳定顺序并降低 offset 扫描成本。并发写入下可能出现“新数据插入到前页”的自然现象，前端通过刷新首屏解决。' },
   { id: 7, q: '哪些接口实现了幂等？', a: '上传链路支持 Idempotency-Key，后端用 Redis setIfAbsent 抢占键位避免重复写入。这样能覆盖用户重复点击和网络重试导致的重复提交。' },
-  { id: 8, q: '对象存储与数据库双写如何一致？', a: '当前以服务层事务+失败回滚为主，核心目标是避免半成功。更严格场景可补充异步补偿任务，定期扫描孤儿对象和孤儿元数据。' },
+  { id: 8, q: '对象存储与数据库双写如何一致？', a: '当前以服务层事务+失败回滚为主，核心目标是避免半成功；同时后台已提供异常图片巡检与清理入口，用于扫描无关联记录、原图缺失或缩略图缺失的残留数据。更严格场景仍建议补异步补偿任务。' },
   { id: 9, q: '图片压缩与水印放在同步链路会不会拖慢？', a: '当前是上传后同步处理，优势是结果一致、逻辑简单。高并发场景可拆为异步处理或增加专用处理队列，避免 CPU 密集逻辑挤占 API 线程。' },
   { id: 10, q: '压缩质量与尺寸参数如何确定？', a: '现在参数由配置驱动（如 upload-jpeg-quality、upload-max-side），先满足可读性与带宽平衡。上线后应基于样本图和终端网络数据做分层调优。' },
   { id: 11, q: '原图和缩略图权限是否一致？', a: '两者都走签名访问链路，但可分别配置水印策略。这样既保证访问安全，又允许在列表图和详情图采用不同防盗链强度。' },
@@ -1055,13 +1402,13 @@ const module5InterviewQa = [
   { id: 14, q: '权限校验放在哪一层？', a: '入口由 Controller 注解和 RoleGuard 兜底，细粒度规则在 Service/业务方法内二次校验（如地区范围校验），避免单点绕过。' },
   { id: 15, q: '怎么证明没有越权？', a: '需要用角色矩阵做接口回归：匿名/普通用户/审核员/站长分别验证读写边界。当前设计已固化角色分层，建议补齐自动化权限测试。' },
   { id: 16, q: '缓存如何分层？', a: '车辆列表、快照等高频读采用 Redis 缓存；写操作后通过版本键或删键失效。这样能兼顾读性能和一致性。' },
-  { id: 17, q: '写后读一致性怎么保证？', a: '关键写链路完成后主动失效相关缓存键，后续读取回源重建。相比定时 TTL 失效，这种方式对强一致展示更友好。' },
+  { id: 17, q: '写后读一致性怎么保证？', a: '关键写链路完成后主动失效相关缓存键，后续读取回源重建。比如审核页修改车辆会同步推进分页版本键并删除对应车牌快照键，因此首页、个人页和详情弹层不会长期停留在旧数据。' },
   { id: 18, q: 'Redis 故障会怎样？', a: '系统会损失会话、限流和缓存能力，核心接口可降级回源 DB 但压力会上升。生产应配高可用 Redis 和熔断降级策略。' },
   { id: 19, q: 'Nginx 限流和应用限流冲突如何定位？', a: '通过网关日志和后端错误码分层定位：网关拒绝通常直接 429，应用拒绝会带业务错误体。运维侧应建立统一链路日志字段。' },
   { id: 20, q: '你们看哪些业务指标？', a: '至少包括上传成功率、审核处理时延、图片访问 401/403 比例、车辆查询 P95、慢 SQL 比例。指标要和业务可用性直接关联。' },
   { id: 21, q: '有没有端到端可观测性？', a: '当前有慢 SQL 和接口日志基础能力，适合中小规模排障。进一步可接入 trace-id 贯穿 Nginx、Spring、Redis、MinIO、MySQL。' },
   { id: 22, q: '错误码体系怎么用于前端重试？', a: '401 引导登录恢复，429 引导退避重试，400 提示用户修正输入。保持稳定错误语义比“只看 message”更易治理。' },
-  { id: 23, q: '历史脏数据怎么治理？', a: '建议提供离线校验脚本：检查对象存在性、关联完整性、枚举合法性，并输出修复 SQL/操作清单。线上只做拦截，离线做修复。' },
+  { id: 23, q: '历史脏数据怎么治理？', a: '当前已提供站长可见的异常图片巡检页，用来扫描无车辆关联、原图缺失、缩略图缺失的图片并支持一键清理。除此之外仍建议保留离线校验脚本，批量检查对象存在性、关联完整性和枚举合法性。' },
   { id: 24, q: '当前单点风险有哪些？', a: 'Redis、MySQL、MinIO 都是关键依赖；任一不可用都会影响核心流程。生产应至少做主从/集群、备份和故障演练。' },
   { id: 25, q: '流量增长 10 倍先扩哪里？', a: '先扩上传与图片处理能力（CPU 密集），再扩数据库读能力（索引+读写分离），最后优化缓存命中和热点治理。' },
   { id: 26, q: '测试覆盖怎么做才够？', a: '单测覆盖业务规则，集成测试覆盖事务和权限，端到端测试覆盖上传-审核-访问全链路。当前可运行后应优先补权限和上传异常路径测试。' },
@@ -1113,17 +1460,17 @@ const redisKeyRows = [
   { group: 'OTP', key: 'busgallery:auth:ticket:reset:{ticket}', value: 'ResetTicketPayload JSON', ttl: 'auth.security.reset-ticket-ttl-seconds (默认 600s)', created: '找回密码验证码通过后签发 reset ticket', updated: 'consumeResetTicket 一次性消费后删除', usage: '找回密码二段式重置' },
   { group: '限流', key: 'busgallery:rl:{scope}:{dimension}:{sha256(identity)}:{slot}', value: 'counter(number)', ttl: 'window + 2s', created: 'RateLimitService.check 首次请求自动创建', updated: '窗口内自增；slot 变化后新键', usage: 'auth/login/upload 等维度限流' },
   { group: '幂等', key: 'idempotent:upload:{idempotencyKey}', value: '"1"', ttl: '上传接口固定 10m', created: 'UploadController 调用 runOnce 时 setIfAbsent', updated: '业务异常时主动删除；成功后等 TTL 过期', usage: '拦截重复上传提交' },
-  { group: '车辆列表缓存', key: 'bg:vehicle:page:version', value: 'version(number)', ttl: '无固定 TTL', created: '首次写操作 increment 自动创建', updated: '车辆增改删后 increment', usage: '版本键，驱动 page 缓存整体失效' },
-  { group: '车辆列表缓存', key: 'bg:vehicle:page:v{ver}:s{size}:r{r}:c{c}:b{b}:m{m}:k{kw}:l{lastLaunch}:i{lastId}', value: 'VehiclePageResponse JSON', ttl: 'busgallery.cache.vehicles.page-ttl-seconds (默认 30s)', created: '列表查询 miss 后回源写入', updated: '版本提升后自然失效，TTL 兜底过期', usage: '车辆分页查询加速' },
+  { group: '车辆列表缓存', key: 'bg:vehicle:page:version', value: 'version(number)', ttl: '无固定 TTL', created: '首次写操作 increment 自动创建', updated: '车辆增改删、审核页修改/删除车辆后 increment', usage: '版本键，驱动 page 缓存整体失效' },
+  { group: '车辆列表缓存', key: 'bg:vehicle:page:v{ver}:s{size}:r{r}:c{c}:b{b}:m{m}:k{kw}:l{lastLaunch}:i{lastId}', value: 'VehiclePageResponse JSON', ttl: 'busgallery.cache.vehicles.page-ttl-seconds (默认 30s)', created: '列表查询 miss 后回源写入', updated: '版本提升后自然失效，TTL 兜底过期', usage: '车辆分页查询加速；审核页保存后其他列表页会切到新版本命名空间' },
   { group: '评论缓存', key: 'bg:comments:ver:{vehicleId}', value: 'version(number)', ttl: '无固定 TTL', created: '首次评论写入 bumpVersion', updated: '每次新增评论 increment', usage: '评论 list/count 的版本失效锚点' },
   { group: '评论缓存', key: 'bg:comments:list:v{ver}:vid{vehicleId}:p{page}:s{size}', value: 'List<VehicleComment> JSON', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论列表 miss 后回源写入', updated: '评论新增导致版本变化后自然失效', usage: '评论列表查询加速' },
   { group: '评论缓存', key: 'bg:comments:count:v{ver}:vid{vehicleId}', value: 'count(string)', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论总数 miss 后回源写入', updated: '评论新增导致版本变化后自然失效', usage: '评论数量读取加速' },
   { group: '收藏缓存', key: 'bg:fav:summary:{vehicleId}', value: 'FavoriteSummary JSON', ttl: 'busgallery.cache.favorites.summary-ttl-seconds (默认 30s)', created: 'summary miss 或 toggle 后写入', updated: 'toggle 后覆盖最新总数和 topUsers', usage: '收藏摘要展示' },
   { group: '收藏缓存', key: 'bg:fav:liked:{vehicleId}:{userId}', value: '"true"/"false"', ttl: 'busgallery.cache.favorites.liked-ttl-seconds (默认 30s)', created: 'summary 查询当前用户收藏态时写入', updated: 'toggle 后覆盖写最新 liked', usage: '当前用户是否已收藏判定' },
-  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:latest', value: 'version(string)', ttl: '10m', created: '快照回源构建后写入', updated: '每次重建快照覆盖写最新版本', usage: '指向当前有效快照版本' },
-  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:v{version}', value: 'base64(gzip(json))', ttl: '10m', created: '快照回源构建后写入版本键', updated: '新版本创建新 key', usage: '快照主缓存数据' },
-  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:stale', value: 'base64(gzip(json))', ttl: '1h', created: '快照回源构建后同步写 stale', updated: '每次重建都覆盖 stale', usage: '回源锁竞争时兜底返回旧快照' },
-  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:lock', value: '"1"', ttl: '30s', created: '快照 miss 时 setIfAbsent 抢锁', updated: '持锁线程回源结束后 delete', usage: '防止同车牌并发回源导致缓存击穿' }
+  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:latest', value: 'version(string)', ttl: '10m', created: '快照回源构建后写入', updated: '每次重建快照覆盖写最新版本；车辆修改/删除时主动 delete', usage: '指向当前有效快照版本' },
+  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:v{version}', value: 'base64(gzip(json))', ttl: '10m', created: '快照回源构建后写入版本键', updated: '新版本创建新 key；车辆修改/删除时命中版本键会被一起 delete', usage: '快照主缓存数据' },
+  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:stale', value: 'base64(gzip(json))', ttl: '1h', created: '快照回源构建后同步写 stale', updated: '每次重建都覆盖 stale；车辆修改/删除时主动 delete', usage: '回源锁竞争时兜底返回旧快照' },
+  { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:lock', value: '"1"', ttl: '30s', created: '快照 miss 时 setIfAbsent 抢锁', updated: '持锁线程回源结束后 delete；车辆修改/删除时也会清理残余锁键', usage: '防止同车牌并发回源导致缓存击穿' }
 ];
 
 const redisInterviewFlows = [
@@ -1302,7 +1649,8 @@ SPR-->>FE: 返回最新状态`
     steps: [
       '先读 latest->version key，命中直接返回；未命中时先尝试读取 stale 兜底。',
       '只有抢到 lock 的请求允许回源构建快照，其余请求返回 stale 或等待下一次命中。',
-      '回源完成后同时更新 version/latest/stale，再释放 lock，避免热点车牌并发打爆数据库。'
+      '回源完成后同时更新 version/latest/stale，再释放 lock，避免热点车牌并发打爆数据库。',
+      '如果车辆在审核页或后台被修改/删除，对应车牌的 latest/version/stale/lock 会先被删掉，确保下一次请求不会继续命中旧快照。'
     ],
     mermaid: `sequenceDiagram
 participant FE as Frontend
@@ -1325,6 +1673,29 @@ alt miss
 else hit
   SPR-->>FE: 直接返回缓存快照
 end`
+  },
+  {
+    id: 'R9',
+    title: '审核页改车后的缓存刷新链路',
+    keys: 'bg:vehicle:page:version / bg:snapshot:plate:{old|newPlate}:*',
+    steps: [
+      '审核页保存车辆后，后端先更新 MySQL，再推进分页版本键。',
+      '如果车辆车牌未变，会删除该车牌的 latest/version/stale/lock；如果车牌变了，旧车牌和新车牌都会一起删。',
+      '前端拿到最新 detail 后会同步 Vuex 的 detailMap 和当前 gallery 记录，避免当前单页里继续展示旧数据。',
+      '其他页面下一次打开该车辆时会回源构建新快照，因此首页、个人页、详情弹层会看到最新结果。'
+    ],
+    mermaid: `sequenceDiagram
+participant FE as ReviewCenter
+participant SPR as VehicleService
+participant RED as Redis
+participant DB as MySQL
+FE->>SPR: PUT /api/vehicles/{id}
+SPR->>DB: 更新 vehicle / config / image
+SPR->>RED: INCR bg:vehicle:page:version
+SPR->>RED: DEL bg:snapshot:plate:{oldPlate}:latest|v{version}|stale|lock
+SPR->>RED: DEL bg:snapshot:plate:{newPlate}:latest|v{version}|stale|lock
+SPR-->>FE: 返回最新 detail
+FE->>FE: 同步 detailMap / gallery`
   }
 ];
 
@@ -1340,66 +1711,435 @@ function redisActionHint(action) {
   return '执行当前接口步骤并进入下一环节';
 }
 
-function redisSeqPathColor(branchPath) {
-  if (!branchPath) return '#0284c7';
-  if (branchPath.includes('否则')) return '#ea580c';
-  return '#0d9488';
+const redisSequenceToneTokens = {
+  main: {
+    stroke: '#2563eb',
+    fill: '#f8fbff',
+    border: '#93c5fd',
+    chipFill: '#dbeafe',
+    chipInk: '#1d4ed8',
+    ink: '#1e3a8a',
+    textFill: '#0f172a',
+    hintFill: '#475569'
+  },
+  reply: {
+    stroke: '#64748b',
+    fill: '#f8fafc',
+    border: '#cbd5e1',
+    chipFill: '#e2e8f0',
+    chipInk: '#334155',
+    ink: '#334155',
+    textFill: '#0f172a',
+    hintFill: '#475569'
+  },
+  alt: {
+    stroke: '#10b981',
+    fill: '#f0fdf4',
+    border: '#86efac',
+    chipFill: '#d1fae5',
+    chipInk: '#047857',
+    ink: '#047857',
+    textFill: '#14532d',
+    hintFill: '#166534'
+  },
+  else: {
+    stroke: '#f97316',
+    fill: '#fff7ed',
+    border: '#fdba74',
+    chipFill: '#ffedd5',
+    chipInk: '#c2410c',
+    ink: '#c2410c',
+    textFill: '#9a3412',
+    hintFill: '#9a3412'
+  }
+};
+const redisSequenceLaneThemes = [
+  { bg: '#eef6ff', border: '#bfdbfe', ink: '#1d4ed8' },
+  { bg: '#ecfeff', border: '#a5f3fc', ink: '#0e7490' },
+  { bg: '#ecfdf5', border: '#a7f3d0', ink: '#047857' },
+  { bg: '#fff7ed', border: '#fdba74', ink: '#c2410c' },
+  { bg: '#f5f3ff', border: '#ddd6fe', ink: '#6d28d9' }
+];
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
-function redisSeqLanePercent(laneIndex, laneCount) {
-  if (laneCount <= 0) return 50;
-  return ((laneIndex + 0.5) / laneCount) * 100;
+function redisSequenceLaneTheme(index) {
+  return redisSequenceLaneThemes[index % redisSequenceLaneThemes.length];
 }
 
-function redisSeqGuideStyle(laneIndex, laneCount) {
-  return { left: `${redisSeqLanePercent(laneIndex, laneCount)}%` };
+function redisSequenceTone(entry) {
+  if (entry.type === 'branch') {
+    if (entry.branchType === 'alt') return 'alt';
+    if (entry.branchType === 'else') return 'else';
+    return 'reply';
+  }
+  if (entry.arrow === '-->>') return 'reply';
+  if ((entry.branchPath || '').includes('否则')) return 'else';
+  if ((entry.branchPath || '').includes('如果')) return 'alt';
+  return 'main';
 }
 
-function redisSeqLineStyle(evt, laneCount) {
-  const from = redisSeqLanePercent(evt.fromLane, laneCount);
-  const to = redisSeqLanePercent(evt.toLane, laneCount);
-  const left = Math.min(from, to);
-  const width = Math.max(Math.abs(to - from), 1.2);
+function redisSequenceHint(entry) {
+  const base = entry.hint || redisActionHint(entry.action || '');
+  if (!entry.branchPath) return base;
+  return `${base}，当前分支：${entry.branchPath}`;
+}
+
+function splitRedisSequenceText(text, maxChars, maxLines = 3) {
+  let remaining = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!remaining) return [];
+  const lines = [];
+  while (remaining && lines.length < maxLines) {
+    if (remaining.length <= maxChars) {
+      lines.push(remaining);
+      break;
+    }
+    let breakAt = maxChars;
+    const slice = remaining.slice(0, maxChars + 1);
+    const softBreak = Math.max(
+      slice.lastIndexOf('，'),
+      slice.lastIndexOf('。'),
+      slice.lastIndexOf('；'),
+      slice.lastIndexOf('：'),
+      slice.lastIndexOf('、'),
+      slice.lastIndexOf(','),
+      slice.lastIndexOf('.'),
+      slice.lastIndexOf(' '),
+      slice.lastIndexOf(')')
+    );
+    if (softBreak >= Math.floor(maxChars * 0.55)) {
+      breakAt = softBreak + 1;
+    }
+    const current = remaining.slice(0, breakAt).trim();
+    if (current) {
+      lines.push(current);
+    }
+    remaining = remaining.slice(breakAt).trim();
+    if (lines.length === maxLines - 1 && remaining.length > maxChars) {
+      lines.push(`${remaining.slice(0, Math.max(maxChars - 1, 1)).trim()}…`);
+      return lines;
+    }
+  }
+  return lines;
+}
+
+function splitRedisSequenceTextByWidth(text, maxWidth, maxLines = 3, fontSize = 11) {
+  let remaining = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!remaining) return [];
+  const lines = [];
+  const softBreaks = new Set(['，', '。', '；', '：', '、', ',', '.', ' ', '/', ')', '）']);
+  while (remaining && lines.length < maxLines) {
+    if (redisSequenceTextWidth(remaining, fontSize) <= maxWidth) {
+      lines.push(remaining);
+      break;
+    }
+    let end = 0;
+    let lastSoftBreak = -1;
+    for (let idx = 0; idx < remaining.length; idx += 1) {
+      const candidate = remaining.slice(0, idx + 1);
+      if (redisSequenceTextWidth(candidate, fontSize) > maxWidth) {
+        break;
+      }
+      end = idx + 1;
+      if (softBreaks.has(remaining[idx])) {
+        lastSoftBreak = idx + 1;
+      }
+    }
+    if (end <= 0) {
+      end = 1;
+    }
+    let breakAt = end;
+    if (lastSoftBreak >= Math.floor(end * 0.55)) {
+      breakAt = lastSoftBreak;
+    }
+    let current = remaining.slice(0, breakAt).trim();
+    if (!current) {
+      current = remaining.slice(0, end).trim();
+      breakAt = end;
+    }
+    if (lines.length === maxLines - 1 && breakAt < remaining.length) {
+      let truncated = current;
+      while (truncated && redisSequenceTextWidth(`${truncated}…`, fontSize) > maxWidth) {
+        truncated = truncated.slice(0, -1).trim();
+      }
+      lines.push(`${truncated || remaining.slice(0, 1)}…`);
+      return lines;
+    }
+    lines.push(current);
+    remaining = remaining.slice(breakAt).trim();
+  }
+  return lines;
+}
+
+function buildRedisSequenceArrowHead(x, y, direction) {
+  if (direction === 'left') {
+    return `${x},${y} ${x + 13},${y - 7} ${x + 13},${y + 7}`;
+  }
+  return `${x},${y} ${x - 13},${y - 7} ${x - 13},${y + 7}`;
+}
+
+function redisSequenceTextWidth(text, fontSize = 11) {
+  const normalized = String(text || '');
+  let units = 0;
+  for (const ch of normalized) {
+    units += /[A-Za-z0-9_.:/{}[\]|()-]/.test(ch) ? 0.62 : 1;
+  }
+  return Math.max(42, Math.ceil(units * fontSize + 14));
+}
+
+function maxRedisSequenceLineWidth(lines, fontSize) {
+  if (!lines?.length) return 0;
+  return Math.max(...lines.map((line) => redisSequenceTextWidth(line, fontSize)), 0);
+}
+
+function buildRedisSequenceDiagram(parsed, viewportWidth = 0) {
+  const laneLabels = parsed?.lanes?.length ? parsed.lanes : ['Flow'];
+  const laneCount = laneLabels.length;
+  const minWidth = laneCount <= 2 ? 760 : laneCount === 3 ? 820 : 860;
+  const requestedWidth = Number.isFinite(viewportWidth) ? viewportWidth : 0;
+  let width = Math.max(minWidth, requestedWidth);
+  const minSidePadding = laneCount <= 2 ? 116 : laneCount === 3 ? 104 : 92;
+  const minLaneGap = laneCount <= 2 ? 252 : laneCount === 3 ? 222 : laneCount === 4 ? 192 : 174;
+  let laneGap = laneCount <= 1 ? 0 : Math.max(minLaneGap, Math.floor((width - minSidePadding * 2) / (laneCount - 1)));
+  width = Math.max(width, minSidePadding * 2 + (laneCount - 1) * laneGap);
+  const sidePadding = laneCount <= 1 ? width / 2 : Math.round((width - (laneCount - 1) * laneGap) / 2);
+  const laneCardWidth = clamp(Math.round((laneGap || 180) * 0.68), 112, 148);
+  const laneLabelLines = laneLabels.map((label) => splitRedisSequenceText(label, 7, 2));
+  const laneCardHeight = laneLabelLines.some((lines) => lines.length > 1) ? 60 : 50;
+  const laneCardY = 20;
+  const headerHeight = laneCardY + laneCardHeight + 22;
+  const laneBadgeWidth = 24;
+  const laneBadgeHeight = 18;
+
+  const lanes = laneLabels.map((label, index) => {
+    const theme = redisSequenceLaneTheme(index);
+    const x = sidePadding + index * laneGap;
+    const labelLines = laneLabelLines[index];
+    return {
+      label,
+      index,
+      x,
+      labelLines,
+      cardX: x - laneCardWidth / 2,
+      cardY: laneCardY,
+      cardWidth: laneCardWidth,
+      cardHeight: laneCardHeight,
+      badgeX: x - laneBadgeWidth / 2,
+      badgeY: laneCardY + 7,
+      badgeWidth: laneBadgeWidth,
+      badgeHeight: laneBadgeHeight,
+      badgeTextY: laneCardY + 20,
+      labelY: laneCardY + (labelLines.length > 1 ? 40 : 36),
+      ...theme
+    };
+  });
+
+  let cursorY = headerHeight + 14;
+  const entries = (parsed?.events || []).map((entry, index) => {
+    const tone = redisSequenceTone(entry);
+    const toneToken = redisSequenceToneTokens[tone] || redisSequenceToneTokens.main;
+    if (entry.type === 'branch') {
+      const boxX = 52;
+      const boxWidth = width - 104;
+      const titleLines = splitRedisSequenceTextByWidth(entry.text, Math.max(120, boxWidth - 86), 2, 10);
+      const tipLines = splitRedisSequenceTextByWidth(entry.tip, Math.max(180, boxWidth - 38), 2, 9);
+      const boxHeight = 20 + titleLines.length * 14 + 7 + tipLines.length * 12 + 14;
+      const stepBoxWidth = 28;
+      const stepBoxHeight = 18;
+      const branchEntry = {
+        type: 'branch',
+        step: index + 1,
+        tone,
+        detail: entry.pathHint || entry.tip,
+        boxX,
+        boxY: cursorY,
+        boxWidth,
+        boxHeight,
+        stepBoxX: boxX + 12,
+        stepBoxY: cursorY + 9,
+        stepBoxWidth,
+        stepBoxHeight,
+        stepTextX: boxX + 12 + stepBoxWidth / 2,
+        stepTextY: cursorY + 22,
+        titleX: boxX + 54,
+        titleY: cursorY + 23,
+        titleLines,
+        tipX: boxX + 18,
+        tipY: cursorY + 23 + titleLines.length * 14 + 9,
+        tipLines,
+        fill: toneToken.fill,
+        border: toneToken.border,
+        chipFill: toneToken.chipFill,
+        chipInk: toneToken.chipInk,
+        textFill: toneToken.ink,
+        hintFill: toneToken.hintFill
+      };
+      cursorY += boxHeight + 16;
+      return branchEntry;
+    }
+
+    const action = normalizeAction(entry.action);
+    const fromLane = lanes[entry.fromLane] || lanes[0];
+    const toLane = lanes[entry.toLane] || lanes[0];
+    const isSelf = entry.fromLane === entry.toLane;
+    const fromX = fromLane.x;
+    const toX = toLane.x;
+    const spanWidth = Math.abs(toX - fromX);
+    const availableSideWidth = Math.max(width - fromX - 28, fromX - 28);
+    const maxCardWidth = isSelf
+      ? clamp(Math.floor(Math.max(availableSideWidth - 12, 188)), 188, Math.min(width - 48, 360))
+      : clamp(Math.floor(spanWidth + Math.min(128, laneGap * 0.56)), 196, Math.min(width - 48, 360));
+    const baseCardWidth = isSelf
+      ? clamp(Math.floor(Math.max((laneGap || 200) * 0.86, 188)), 188, maxCardWidth)
+      : clamp(Math.floor(Math.max(spanWidth * 0.68, 196)), 196, maxCardWidth);
+    const routeMaxWidth = Math.max(96, maxCardWidth - 64);
+    const bodyMaxWidth = Math.max(124, maxCardWidth - 28);
+    const routeLines = splitRedisSequenceTextByWidth(`${entry.from} ${entry.arrow === '-->>' ? '返回' : '调用'} ${entry.to}`, routeMaxWidth, 2, 9);
+    const hintLines = splitRedisSequenceTextByWidth(redisSequenceHint(entry), bodyMaxWidth, 2, 9);
+    const actionLines = splitRedisSequenceTextByWidth(action, bodyMaxWidth, laneCount <= 3 ? 3 : 4, 10);
+    const branchTagText = entry.branchPath || '';
+    const tagHeight = branchTagText ? 16 : 0;
+    const rawTagWidth = branchTagText ? redisSequenceTextWidth(branchTagText, 8) : 0;
+    const desiredCardWidth = Math.max(
+      baseCardWidth,
+      maxRedisSequenceLineWidth(routeLines, 9) + 64,
+      maxRedisSequenceLineWidth(actionLines, 10) + 28,
+      maxRedisSequenceLineWidth(hintLines, 9) + 28,
+      branchTagText ? rawTagWidth + 24 : 0
+    );
+    const boxHeight = 14 + routeLines.length * 13 + 7 + actionLines.length * 14 + 7 + hintLines.length * 12 + (tagHeight ? 20 : 0) + 10;
+    let cardWidth = clamp(Math.ceil(desiredCardWidth), isSelf ? 188 : 196, maxCardWidth);
+    let cardX = 24;
+    let lineY = 0;
+    let selfPath = '';
+    let arrowHead = '';
+    let rowHeight = 0;
+    let connectorX = 0;
+
+    if (isSelf) {
+      const loopWidth = 52;
+      const loopDepth = 42;
+      const availableRight = width - fromX - 24;
+      const availableLeft = fromX - 24;
+      const preferRight = availableRight >= availableLeft;
+      if (preferRight && availableRight >= cardWidth + 24) {
+        cardX = fromX + 24;
+      } else if (availableLeft >= cardWidth + 24) {
+        cardX = fromX - cardWidth - 24;
+      } else if (availableRight >= availableLeft) {
+        cardX = width - cardWidth - 24;
+      } else {
+        cardX = 24;
+      }
+      cardX = clamp(cardX, 24, width - cardWidth - 24);
+      const loopDirection = cardX >= fromX ? 1 : -1;
+      lineY = cursorY + boxHeight + 16;
+      selfPath = `M ${fromX} ${lineY} C ${fromX + loopDirection * loopWidth} ${lineY}, ${fromX + loopDirection * loopWidth} ${lineY + loopDepth}, ${fromX} ${lineY + loopDepth}`;
+      arrowHead = buildRedisSequenceArrowHead(fromX, lineY + loopDepth, loopDirection > 0 ? 'left' : 'right');
+      connectorX = clamp(fromX, cardX + 28, cardX + cardWidth - 28);
+      rowHeight = boxHeight + loopDepth + 26;
+    } else {
+      const midpoint = (fromX + toX) / 2;
+      cardX = clamp(midpoint - cardWidth / 2, 24, width - cardWidth - 24);
+      lineY = cursorY + boxHeight + 16;
+      arrowHead = buildRedisSequenceArrowHead(toX, lineY, toX < fromX ? 'left' : 'right');
+      connectorX = clamp(midpoint, cardX + 28, cardX + cardWidth - 28);
+      rowHeight = boxHeight + 30;
+    }
+
+    const stepBoxWidth = 28;
+    const stepBoxHeight = 18;
+    const textX = cardX + 14;
+    const routeX = cardX + 50;
+    const routeY = cursorY + 23;
+    const actionY = routeY + routeLines.length * 13 + 7;
+    const hintY = actionY + actionLines.length * 14 + 7;
+    const tagWidth = branchTagText ? clamp(rawTagWidth, 60, cardWidth - 24) : 0;
+    const messageEntry = {
+      type: 'message',
+      step: index + 1,
+      tone,
+      detail: buildRedisFlowDetail(entry),
+      fromX,
+      toX,
+      lineY,
+      cardX,
+      cardY: cursorY,
+      cardWidth,
+      cardHeight: boxHeight,
+      connectorX,
+      routeX,
+      routeY,
+      routeLines,
+      actionLines,
+      actionY,
+      hintLines,
+      hintY,
+      textX,
+      stepBoxX: cardX + 12,
+      stepBoxY: cursorY + 9,
+      stepBoxWidth,
+      stepBoxHeight,
+      stepTextX: cardX + 12 + stepBoxWidth / 2,
+      stepTextY: cursorY + 22,
+      branchTagText,
+      tagX: cardX + 12,
+      tagY: cursorY + boxHeight - 18,
+      tagWidth,
+      tagHeight,
+      tagTextX: cardX + 20,
+      tagTextY: cursorY + boxHeight - 7,
+      stroke: toneToken.stroke,
+      fill: toneToken.fill,
+      border: toneToken.border,
+      chipFill: toneToken.chipFill,
+      chipInk: toneToken.chipInk,
+      ink: toneToken.ink,
+      textFill: toneToken.textFill,
+      hintFill: toneToken.hintFill,
+      isReply: entry.arrow === '-->>',
+      isSelf,
+      selfPath,
+      arrowHead
+    };
+    cursorY += rowHeight;
+    return messageEntry;
+  });
+
+  const height = cursorY + 24;
   return {
-    left: `${left}%`,
-    width: `${width}%`,
-    '--seq-color': redisSeqPathColor(evt.branchPath)
-  };
-}
-
-function redisSeqArrowDirClass(evt) {
-  return evt.toLane < evt.fromLane ? 'left' : 'right';
-}
-
-function redisSeqEndArrowStyle(evt, laneCount, side) {
-  const lane = side === 'from' ? evt.fromLane : evt.toLane;
-  return {
-    left: `${redisSeqLanePercent(lane, laneCount)}%`,
-    '--seq-color': redisSeqPathColor(evt.branchPath),
-    opacity: side === 'from' ? '0.55' : '1'
+    width,
+    headerHeight,
+    height,
+    lanes: lanes.map((lane) => ({
+      ...lane,
+      lineY1: headerHeight - 6,
+      lineY2: height - 24
+    })),
+    entries
   };
 }
 
 function buildBranchMeta(keyword, desc) {
   const normalized = normalizeBranchDesc(desc);
   if (keyword === 'alt') {
-    const content = normalized ? `如果（满足：${normalized}）` : '如果（满足：条件成立）';
     return {
       branchType: 'alt',
-      text: content,
-      pathLabel: content,
-      tip: '满足判断条件时走绿色路径',
-      pathHint: '进入“如果”分支，后续连线显示为绿色'
+      text: '如果',
+      pathLabel: normalized ? `如果：${normalized}` : '如果',
+      tip: normalized || '满足当前判断条件',
+      pathHint: normalized ? `进入“如果”分支，条件：${normalized}` : '进入“如果”分支，后续连线显示为绿色'
     };
   }
   if (keyword === 'else') {
-    const content = normalized ? `否则（分支条件：${normalized}）` : '否则（不满足主判断条件）';
     return {
       branchType: 'else',
-      text: content,
-      pathLabel: content,
-      tip: '不满足主判断条件时走橙色路径',
-      pathHint: '进入“否则”分支，后续连线显示为橙色'
+      text: '否则',
+      pathLabel: normalized ? `否则：${normalized}` : '否则',
+      tip: normalized || '不满足主判断条件',
+      pathHint: normalized ? `进入“否则”分支，条件：${normalized}` : '进入“否则”分支，后续连线显示为橙色'
     };
   }
   return {
@@ -1443,6 +2183,7 @@ function buildRedisFlowDetail(evt) {
   if (action.includes('POST /api/auth/login')) return '前端提交账号密码（及必要时验证码），后端依次做风控计数、验证码校验、密码校验和会话签发。';
   if (action.includes('POST /api/upload (Idempotency-Key)')) return '前端携带 Idempotency-Key 发起上传，后端先做幂等抢占，再进入上传压缩/水印/落库链路。';
   if (action.includes('GET /api/vehicles')) return '前端请求车辆分页列表，后端先读 version 与 page 缓存，命中走缓存，未命中再回源 MySQL。';
+  if (action.includes('PUT /api/vehicles/{id}')) return '审核页或后台提交车辆修改请求，后端更新主数据后会推进分页版本，并清掉相关车牌快照键。';
   if (action.includes('GET /api/snapshots/{plate}')) return '前端请求车牌快照，后端按 latest/version/stale/lock 的顺序执行防击穿流程。';
   if (action.includes('携带 token 请求业务接口')) return '客户端携带 token 调业务接口，后端先读取会话键恢复用户身份，再按角色与审核地区做权限边界判定。';
   if (action.includes('发送邮箱验证码')) return '前端请求发送 OTP，后端先占用 cooldown 键，成功后写 challenge 键并异步发邮件。';
@@ -1479,6 +2220,7 @@ function buildRedisFlowDetail(evt) {
   if (action.includes('GET bg:vehicle:page:version')) return '读取分页版本键 bg:vehicle:page:version，确定本次查询应访问的缓存命名空间。';
   if (action.includes('GET bg:vehicle:page:v{ver}:...')) return '按筛选条件读取分页缓存键 bg:vehicle:page:v{ver}:s{size}:...，命中则直接返回列表。';
   if (action.includes('SET page key + TTL')) return '将查询结果写入分页缓存键 bg:vehicle:page:v{ver}:...，并设置 busgallery.cache.vehicles.page-ttl-seconds 过期时间。';
+  if (action.includes('INCR bg:vehicle:page:version')) return '递增车辆分页版本键 bg:vehicle:page:version，让旧列表缓存整体退场；审核页改车后其他列表页会自动转向新版本。';
   if (action.includes('INCR bg:comments:ver:{vehicleId}')) return '评论写入后递增版本键 bg:comments:ver:{vehicleId}，使旧评论缓存自动失效。';
   if (action.includes('SET bg:fav:summary:{vehicleId}')) return '覆盖写收藏摘要键 bg:fav:summary:{vehicleId}，同步最新 total/topUsers。';
   if (action.includes('SET bg:fav:liked:{vehicleId}:{userId}')) return '覆盖写用户收藏态键 bg:fav:liked:{vehicleId}:{userId}，保证写后读立即一致。';
@@ -1487,6 +2229,8 @@ function buildRedisFlowDetail(evt) {
   if (action.includes('SETNX lock (30s)')) return '尝试占用回源锁 bg:snapshot:plate:{plate}:lock（30秒），只允许一个请求回源数据库。';
   if (action.includes('SET v{version} + latest (10m)')) return '回源后写入版本快照键和 latest 索引键（10分钟），让后续请求直接命中。';
   if (action.includes('SET stale (1h)')) return '同步更新 stale 键（1小时），作为回源锁争用时的兜底返回数据。';
+  if (action.includes('DEL bg:snapshot:plate:{oldPlate}:latest|v{version}|stale|lock')) return '删除旧车牌快照相关键，避免改车牌或改车型后继续命中历史快照。';
+  if (action.includes('DEL bg:snapshot:plate:{newPlate}:latest|v{version}|stale|lock')) return '删除新车牌当前命名空间下的快照键，确保下次打开详情时一定回源重建。';
   if (action.includes('DEL lock')) return '回源结束后删除锁键 bg:snapshot:plate:{plate}:lock，释放其他请求回源资格。';
   if (action.includes('校验用户名密码')) return '查询 MySQL 用户表并验证密码哈希；通过后进入会话签发步骤。';
   if (action.includes('执行上传与落库')) return '执行上传处理链路：图片校验/压缩/水印 -> MinIO 存储 -> MySQL 落库（vehicle、image、submission）。';
@@ -1496,6 +2240,8 @@ function buildRedisFlowDetail(evt) {
   if (action.includes('return db result')) return '返回 MySQL 回源结果，并由上游决定是否回填 Redis 缓存。';
   if (action.includes('返回 stale')) return '当前线程未拿到回源锁，返回 stale 快照避免并发打爆数据库。';
   if (action.includes('直接返回缓存快照')) return '最新快照已命中，直接返回缓存版本数据。';
+  if (action.includes('返回最新 detail')) return '后端把最新车辆详情直接回给前端，前端可以立刻更新当前页面缓存而不用再二次查详情。';
+  if (action.includes('同步 detailMap / gallery')) return '前端把刚保存成功的 detail 写回 Vuex 的 detailMap 和当前 gallery 记录，保证单页应用内的打开弹层立即看到新数据。';
   if (/^GET\s+/i.test(action)) {
     const key = action.replace(/^GET\s+/i, '').trim();
     return `读取 Redis 键或索引「${key}」，并按命中结果决定后续走缓存返回、回源构建或兜底分支。`;
@@ -1594,10 +2340,155 @@ function parseMermaidSequence(mermaidText) {
   return { lanes, events };
 }
 
-const redisInterviewFlowViews = redisInterviewFlows.map((item) => ({
-  ...item,
-  parsed: parseMermaidSequence(item.mermaid)
+const redisSequenceViewportWidth = ref(0);
+let docsMainResizeObserver = null;
+
+function syncRedisSequenceViewportWidth() {
+  if (typeof window === 'undefined') return;
+  const root = docsMainRef.value;
+  if (!root) return;
+  const styles = window.getComputedStyle(root);
+  const paddingLeft = Number.parseFloat(styles.paddingLeft || '0') || 0;
+  const paddingRight = Number.parseFloat(styles.paddingRight || '0') || 0;
+  redisSequenceViewportWidth.value = Math.max(0, Math.floor(root.clientWidth - paddingLeft - paddingRight - 56));
+}
+
+const redisInterviewFlowViews = computed(() => redisInterviewFlows.map((item) => {
+  const parsed = parseMermaidSequence(item.mermaid);
+  return {
+    ...item,
+    parsed,
+    diagram: buildRedisSequenceDiagram(parsed, redisSequenceViewportWidth.value)
+  };
 }));
+const redisHeroStats = computed(() => ([
+  { label: 'Key 模板', value: String(redisKeyRows.length), note: '当前文档列出的 Redis 键模板总数' },
+  { label: '业务分层', value: String(new Set(redisKeyRows.map((row) => row.group)).size), note: '会话、限流、快照、分页等职责分区' },
+  { label: '一致性策略', value: '4', note: '版本推进、主动删键、覆盖写、TTL 回收' },
+  { label: '深挖流程', value: String(redisInterviewFlows.length), note: '把高频 Redis 问题拆成可讲清的流程图' }
+]));
+const redisOperationsOverview = [
+  {
+    title: '身份状态',
+    badge: 'Session + OTP',
+    desc: '登录态、图形验证码、邮箱验证码和找回票据都依赖 Redis 的短 TTL 状态机，目标是既能实时失效，又能支持风控和踢线。',
+    key: 'busgallery:sessions:* / busgallery:auth:*',
+    action: 'SET / GET / DEL / SADD',
+    tone: 'teal'
+  },
+  {
+    title: '入口保护',
+    badge: 'Rate Limit',
+    desc: '登录、上传等高风险入口通过窗口计数和幂等占位控制放行节奏，拦截恶意重试和重复提交。',
+    key: 'busgallery:rl:* / idempotent:upload:*',
+    action: 'INCR / EXPIRE / SETNX',
+    tone: 'rose'
+  },
+  {
+    title: '高频查询',
+    badge: 'Page Cache',
+    desc: '车辆分页、评论和收藏把高频读取从 DB 挪到 Redis，读多写少的场景优先命中缓存，写后靠版本或覆盖写保持一致。',
+    key: 'bg:vehicle:* / bg:comments:* / bg:fav:*',
+    action: 'GET / SET / INCR',
+    tone: 'sky'
+  },
+  {
+    title: '热点快照',
+    badge: 'Snapshot',
+    desc: '车牌快照走 latest + version + stale + lock 组合拳，兼顾热点命中、防击穿和写后主动失效。',
+    key: 'bg:snapshot:plate:*',
+    action: 'GET / SET / SETNX / DEL',
+    tone: 'amber'
+  }
+];
+const redisConsistencyCards = [
+  {
+    title: '列表版本推进',
+    desc: '车辆增改删、审核页改车后只递增一个版本键，不去批量枚举删所有分页缓存。',
+    trigger: '车辆新增、编辑、删除',
+    key: 'bg:vehicle:page:version',
+    result: '下一次列表查询切换到新命名空间',
+    tone: 'sky'
+  },
+  {
+    title: '快照主动删键',
+    desc: '车牌相关缓存不等 TTL，写完立即删除 latest / version / stale / lock，防止首页和详情继续命中旧快照。',
+    trigger: '审核页或后台修改/删除车辆',
+    key: 'bg:snapshot:plate:{plate}:*',
+    result: '下一次快照请求必定回源重建',
+    tone: 'amber'
+  },
+  {
+    title: '评论版本切换',
+    desc: '评论列表和计数都挂在 version 后面，新增评论只 bump 一次版本键，老缓存自动退场。',
+    trigger: '新增评论',
+    key: 'bg:comments:ver:{vehicleId}',
+    result: '评论 list/count 自动切到新版本',
+    tone: 'cyan'
+  },
+  {
+    title: '收藏覆盖写',
+    desc: '收藏不是删缓存等回源，而是直接把 summary 和 liked 写成最新值，用户点完立刻看到新状态。',
+    trigger: '切换收藏',
+    key: 'bg:fav:summary:* / bg:fav:liked:*',
+    result: '写后读立即一致',
+    tone: 'emerald'
+  }
+];
+const redisKeyGroupMeta = {
+  '会话': { tone: 'teal', summary: '恢复用户身份、角色与审核地区' },
+  '验证码': { tone: 'sky', summary: '图形验证码只在挑战窗口内有效' },
+  '风控': { tone: 'rose', summary: '失败次数累加决定是否升级验证' },
+  'OTP': { tone: 'violet', summary: '邮箱验证码与 reset ticket 都是一次性状态' },
+  '限流': { tone: 'orange', summary: '按窗口计数，TTL 到期后自然回收' },
+  '幂等': { tone: 'indigo', summary: '上传入口通过占位键拒绝重复提交' },
+  '车辆列表缓存': { tone: 'sky', summary: 'version + page key 驱动分页缓存一致性' },
+  '评论缓存': { tone: 'cyan', summary: '评论 list/count 通过版本键整体切换' },
+  '收藏缓存': { tone: 'emerald', summary: 'toggle 后直接覆盖写回最新摘要' },
+  '快照缓存': { tone: 'amber', summary: 'latest/version/stale/lock 负责热点快照与防击穿' }
+};
+const redisKeyGroupCards = computed(() => {
+  const grouped = redisKeyRows.reduce((acc, row) => {
+    if (!acc[row.group]) acc[row.group] = [];
+    acc[row.group].push(row);
+    return acc;
+  }, {});
+  return Object.keys(grouped).map((name) => {
+    const meta = redisKeyGroupMeta[name] || { tone: 'sky', summary: 'Redis 键模板集合' };
+    return {
+      name,
+      tone: meta.tone,
+      summary: meta.summary,
+      count: grouped[name].length,
+      rows: grouped[name]
+    };
+  });
+});
+const redisArchiveOpen = ref(false);
+const redisArchiveKeyword = ref('');
+const redisArchiveGroup = ref('全部');
+const redisArchiveGroups = computed(() => ['全部', ...new Set(redisKeyRows.map((row) => row.group))]);
+const filteredRedisKeyRows = computed(() => {
+  const keyword = redisArchiveKeyword.value.trim().toLowerCase();
+  return redisKeyRows.filter((row) => {
+    if (redisArchiveGroup.value !== '全部' && row.group !== redisArchiveGroup.value) {
+      return false;
+    }
+    if (!keyword) {
+      return true;
+    }
+    return [
+      row.group,
+      row.key,
+      row.value,
+      row.ttl,
+      row.created,
+      row.updated,
+      row.usage
+    ].some((field) => String(field || '').toLowerCase().includes(keyword));
+  });
+});
+const redisArchivePreviewRows = computed(() => filteredRedisKeyRows.value.slice(0, 4));
 const redisFlowDialog = reactive({
   visible: false,
   title: '',
@@ -1863,7 +2754,7 @@ function cnName(api) {
   if (g === 'Upload') return '上传车辆与图片';
   if (g === 'Image') { if (p.includes('/access/')) return '按签名访问图片'; if (p.endsWith('/latest')) return '查询最新图片'; if (p.includes('/vehicle/')) return '查询车辆图片'; if (m === 'GET') return '查询图片详情'; if (m === 'POST') return '上传图片'; if (m === 'PUT') return '更新图片信息'; return '删除图片'; }
   if (g === 'Review') return p.endsWith('/inbox') ? '查询审核收件箱' : p.endsWith('/pending') ? '查询待审核列表' : p.includes('/approve') ? '通过审核' : p.includes('/reject') ? '驳回审核' : '更新审核提交';
-  if (g === 'Admin') return p.endsWith('/overview') ? '查询后台概览' : p.endsWith('/users') ? '查询后台用户' : p.includes('/users/{id}/role') ? '调整用户角色' : p.endsWith('/submissions') ? '查询提交流水' : m === 'GET' ? '查询字典数据' : m === 'POST' ? '新增字典数据' : m === 'PUT' ? '修改字典数据' : '删除字典数据';
+  if (g === 'Admin') return p.endsWith('/overview') ? '查询后台概览' : p.endsWith('/users') ? '查询后台用户' : p.includes('/users/{id}/role') ? '调整用户角色' : p.endsWith('/submissions') ? '查询提交流水' : p.endsWith('/images/suspects') ? '查询异常图片' : p.endsWith('/images/suspects/cleanup') ? '清理异常图片' : m === 'GET' ? '查询字典数据' : m === 'POST' ? '新增字典数据' : m === 'PUT' ? '修改字典数据' : '删除字典数据';
   if (g === 'Catalog') return p.endsWith('/regions') ? '查询地区目录' : p.endsWith('/companies') ? '查询公司目录' : p.endsWith('/brands') ? '查询品牌目录' : '查询车型目录';
   if (g === 'Region') return m === 'GET' ? (p.endsWith('/companies') ? '查询地区下公司' : p.includes('{id}') ? '查询地区详情' : '查询地区列表') : m === 'POST' ? '新增地区' : m === 'PUT' ? '更新地区' : '删除地区';
   if (g === 'Company') return m === 'GET' ? (p.endsWith('/vehicles') ? '查询公司车辆' : p.endsWith('/model-summaries') ? '查询公司车型汇总' : p.includes('{id}') ? '查询公司详情' : '查询公司列表') : m === 'POST' ? '新增公司' : m === 'PUT' ? '更新公司' : '删除公司';
@@ -1899,6 +2790,7 @@ function sectionsOf(api) {
   if (key === 'GET /api/favorites') query.push('userId?');
   if (key === 'GET /api/images/latest') query.push('limit');
   if (key === 'GET /api/admin/submissions') query.push('status');
+  if (key === 'POST /api/admin/images/suspects/cleanup') body.push('imageIds?');
   if (key === 'GET /api/catalog/regions') query.push('parentId?');
   if (key === 'GET /api/catalog/companies') query.push('regionId?');
   if (key === 'GET /api/catalog/brands') query.push('companyId?');
@@ -1981,7 +2873,7 @@ function reqExample(api) {
   const body = s.body.reduce((a, f) => (a[f.replace(/\?/g, '')] = valueOf(f), a), {});
   return `curl -X ${api.method} "${url}"${api.headers.includes('Authorization') ? ' \\\n  -H "Authorization: Bearer <token>"' : ''}${s.body.length ? ` \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(body, null, 2)}'` : ''}`;
 }
-function successExample(api) { if (api.group === 'Auth' && api.path.includes('/captcha')) return JSON.stringify({ captchaId: 'cap_xxx', imageBase64: 'data:image/png;base64,...', expireInSeconds: 180 }, null, 2); if (api.group === 'Auth' && api.method === 'POST' && (api.path.endsWith('/login') || api.path.endsWith('/register'))) return JSON.stringify({ token: 'session_xxx', profile: { id: 1, username: 'demo', role: 'USER' } }, null, 2); if (api.group === 'Vehicle' && api.method === 'GET' && api.path === '/api/vehicles') return JSON.stringify({ records: [{ vehicle: { id: 101, plateNumber: '粤B12345' } }], total: 1, page: 1, size: 12 }, null, 2); if (api.group === 'Image' && api.path.includes('/access/')) return 'HTTP/1.1 200 OK\nContent-Type: image/jpeg\n(binary stream)'; if (api.method === 'DELETE') return 'HTTP/1.1 200 OK\n(no response body)'; if (api.path.includes('/metrics/db')) return JSON.stringify({ total: 2331, slow: 13, samples: [{ sql: 'SELECT ...', ms: 211.2 }] }, null, 2); return JSON.stringify({ data: 'sample', success: true }, null, 2); }
+function successExample(api) { if (api.group === 'Auth' && api.path.includes('/captcha')) return JSON.stringify({ captchaId: 'cap_xxx', imageBase64: 'data:image/png;base64,...', expireInSeconds: 180 }, null, 2); if (api.group === 'Auth' && api.method === 'POST' && (api.path.endsWith('/login') || api.path.endsWith('/register'))) return JSON.stringify({ token: 'session_xxx', profile: { id: 1, username: 'demo', role: 'USER' } }, null, 2); if (api.group === 'Vehicle' && api.method === 'GET' && api.path === '/api/vehicles') return JSON.stringify({ records: [{ vehicle: { id: 101, plateNumber: '粤B12345' } }], total: 1, page: 1, size: 12 }, null, 2); if (api.group === 'Admin' && api.path.endsWith('/images/suspects')) return JSON.stringify([{ id: 301, issueSummary: 'UNLINKED, PRIMARY_MISSING', relationCount: 0, objectName: 'uploads/2026/03/demo.jpg', createTime: '2026-03-23T10:12:00' }], null, 2); if (api.group === 'Admin' && api.path.endsWith('/images/suspects/cleanup')) return JSON.stringify({ requestedCount: 3, deletedIds: [301, 302], failedIds: [303] }, null, 2); if (api.group === 'Image' && api.path.includes('/access/')) return 'HTTP/1.1 200 OK\nContent-Type: image/jpeg\n(binary stream)'; if (api.method === 'DELETE') return 'HTTP/1.1 200 OK\n(no response body)'; if (api.path.includes('/metrics/db')) return JSON.stringify({ total: 2331, slow: 13, samples: [{ sql: 'SELECT ...', ms: 211.2 }] }, null, 2); return JSON.stringify({ data: 'sample', success: true }, null, 2); }
 function errorExample(api) { if (api.headers.includes('Authorization')) return JSON.stringify({ code: 'A0401', message: 'Unauthorized or session expired' }, null, 2); if (api.path.startsWith('/api/auth') || api.path === '/api/upload') return JSON.stringify({ code: 'A0429', message: '请求过于频繁，请稍后重试' }, null, 2); return JSON.stringify({ code: 'A0400', message: 'Invalid request parameter' }, null, 2); }
 
 const configByGroup = {
@@ -2347,15 +3239,31 @@ const allPageIds = computed(() => ['m1', 'm1-config', 'm2-intro', 'm2-review-man
 onMounted(() => {
   const hash = decodeURIComponent(window.location.hash.replace(/^#/, ''));
   if (hash && allPageIds.value.includes(hash)) selectPage(hash);
-  nextTick(() => annotateDocTerms());
+  nextTick(() => {
+    syncRedisSequenceViewportWidth();
+    annotateDocTerms();
+    if (typeof ResizeObserver !== 'undefined' && docsMainRef.value) {
+      docsMainResizeObserver = new ResizeObserver(() => syncRedisSequenceViewportWidth());
+      docsMainResizeObserver.observe(docsMainRef.value);
+    }
+  });
+  window.addEventListener('resize', syncRedisSequenceViewportWidth);
 });
 watch(selectedPageId, (id) => {
   const h = '#' + encodeURIComponent(id);
   if (window.location.hash !== h) window.history.replaceState(null, '', window.location.pathname + window.location.search + h);
   if (redisFlowDialog.visible) closeRedisFlowDialog();
-  nextTick(() => annotateDocTerms());
+  nextTick(() => {
+    syncRedisSequenceViewportWidth();
+    annotateDocTerms();
+  });
 });
 onBeforeUnmount(() => {
+  docsMainResizeObserver?.disconnect();
+  docsMainResizeObserver = null;
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', syncRedisSequenceViewportWidth);
+  }
   if (typeof document !== 'undefined') {
     document.body.classList.remove('redis-flow-modal-open');
   }
@@ -3234,6 +4142,515 @@ th {
   background: #dcfce7;
 }
 
+.redis-hero-block {
+  overflow: hidden;
+}
+
+.redis-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
+  gap: 18px;
+  padding: 20px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 34%),
+    radial-gradient(circle at right center, rgba(251, 191, 36, 0.2), transparent 30%),
+    linear-gradient(135deg, #0f172a 0%, #0b253f 45%, #15304f 100%);
+  color: #e2e8f0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.redis-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.35);
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.redis-hero h3 {
+  margin: 12px 0 10px;
+  font-size: 28px;
+  color: #f8fafc;
+}
+
+.redis-hero p {
+  margin: 0;
+  line-height: 1.75;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.redis-hero-tags {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.redis-hero-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--tone-border, rgba(125, 211, 252, 0.35));
+  background: var(--tone-bg, rgba(255, 255, 255, 0.06));
+  color: var(--tone-ink, #e2e8f0);
+  font-size: 12px;
+  font-weight: 700;
+  backdrop-filter: blur(10px);
+}
+
+.redis-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.redis-stat-card {
+  min-height: 124px;
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.redis-stat-value {
+  font-size: 32px;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1;
+}
+
+.redis-stat-label {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #bae6fd;
+}
+
+.redis-stat-card p {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.redis-overview-grid,
+.redis-strategy-grid,
+.redis-key-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.redis-overview-grid,
+.redis-strategy-grid,
+.redis-key-groups {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.redis-overview-card,
+.redis-strategy-card,
+.redis-key-group {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--tone-border, #dbeafe);
+  background: linear-gradient(180deg, #ffffff, var(--tone-bg, #f8fbff));
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.redis-overview-card::before,
+.redis-strategy-card::before,
+.redis-key-group::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--tone-solid, #38bdf8);
+}
+
+.redis-overview-card,
+.redis-strategy-card,
+.redis-key-group {
+  padding: 16px 16px 14px 18px;
+}
+
+.redis-overview-head,
+.redis-key-group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.redis-overview-head h4,
+.redis-key-group-head h4 {
+  margin: 0;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.redis-overview-badge,
+.redis-key-group-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--tone-chip-bg, #e0f2fe);
+  color: var(--tone-ink, #0f172a);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.redis-overview-card p,
+.redis-key-group-head p,
+.redis-strategy-card p {
+  margin: 10px 0 0;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.redis-overview-meta {
+  margin-top: 14px;
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.redis-overview-meta strong {
+  color: #0f172a;
+}
+
+.redis-strategy-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.redis-strategy-kv {
+  margin-top: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.redis-strategy-kv span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.redis-strategy-kv strong,
+.redis-strategy-kv code {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.redis-key-group-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.redis-key-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+  padding: 12px;
+}
+
+.redis-key-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.redis-key-card-head code {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #0f172a;
+  word-break: break-all;
+}
+
+.redis-key-card-ttl {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+}
+
+.redis-key-card p {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #334155;
+}
+
+.redis-key-card-meta {
+  margin-top: 10px;
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.redis-archive-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.redis-archive-head h3 {
+  margin: 0;
+}
+
+.redis-archive-head p {
+  margin: 8px 0 0;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.redis-archive-toggle {
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.redis-archive-toggle:hover {
+  background: #dbeafe;
+}
+
+.redis-archive-toolbar {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.redis-archive-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.redis-archive-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #dbe5ee;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.redis-archive-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.redis-archive-search input {
+  width: min(320px, 72vw);
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.redis-archive-search input:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+}
+
+.redis-archive-groups {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.redis-archive-chip {
+  border: 1px solid #dbe5ee;
+  background: #fff;
+  color: #334155;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.redis-archive-chip.active,
+.redis-archive-chip:hover {
+  border-color: #60a5fa;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.redis-archive-table {
+  margin-top: 14px;
+}
+
+.redis-archive-preview {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.redis-archive-preview-card {
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  padding: 12px;
+}
+
+.redis-archive-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.redis-archive-preview-group {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.redis-archive-preview-ttl {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.redis-archive-preview-card code {
+  display: block;
+  margin-top: 10px;
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.redis-archive-preview-card p {
+  margin: 10px 0 0;
+  color: #475569;
+  line-height: 1.65;
+  font-size: 13px;
+}
+
+.tone-teal {
+  --tone-bg: #ecfeff;
+  --tone-border: #99f6e4;
+  --tone-solid: #14b8a6;
+  --tone-ink: #0f766e;
+  --tone-chip-bg: #ccfbf1;
+}
+
+.tone-rose {
+  --tone-bg: #fff1f2;
+  --tone-border: #fecdd3;
+  --tone-solid: #f43f5e;
+  --tone-ink: #be123c;
+  --tone-chip-bg: #ffe4e6;
+}
+
+.tone-sky {
+  --tone-bg: #eff6ff;
+  --tone-border: #bfdbfe;
+  --tone-solid: #3b82f6;
+  --tone-ink: #1d4ed8;
+  --tone-chip-bg: #dbeafe;
+}
+
+.tone-amber {
+  --tone-bg: #fff7ed;
+  --tone-border: #fdba74;
+  --tone-solid: #f59e0b;
+  --tone-ink: #c2410c;
+  --tone-chip-bg: #ffedd5;
+}
+
+.tone-cyan {
+  --tone-bg: #ecfeff;
+  --tone-border: #a5f3fc;
+  --tone-solid: #06b6d4;
+  --tone-ink: #0e7490;
+  --tone-chip-bg: #cffafe;
+}
+
+.tone-emerald {
+  --tone-bg: #ecfdf5;
+  --tone-border: #a7f3d0;
+  --tone-solid: #10b981;
+  --tone-ink: #047857;
+  --tone-chip-bg: #d1fae5;
+}
+
+.tone-violet {
+  --tone-bg: #f5f3ff;
+  --tone-border: #ddd6fe;
+  --tone-solid: #8b5cf6;
+  --tone-ink: #6d28d9;
+  --tone-chip-bg: #ede9fe;
+}
+
+.tone-orange {
+  --tone-bg: #fff7ed;
+  --tone-border: #fed7aa;
+  --tone-solid: #f97316;
+  --tone-ink: #c2410c;
+  --tone-chip-bg: #ffedd5;
+}
+
+.tone-indigo {
+  --tone-bg: #eef2ff;
+  --tone-border: #c7d2fe;
+  --tone-solid: #6366f1;
+  --tone-ink: #4338ca;
+  --tone-chip-bg: #e0e7ff;
+}
+
 .redis-flow {
   border: 1px solid #dbe5ee;
   border-radius: 12px;
@@ -3597,225 +5014,221 @@ th {
   padding-left: 20px;
 }
 
-.redis-seq {
-  margin-top: 8px;
-  border: 1px solid #dbe5ee;
-  border-radius: 10px;
-  background: #fbfdff;
-  overflow-x: auto;
+.redis-flow-modal-summary {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid #d7e4ef;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at right top, rgba(59, 130, 246, 0.14), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-.redis-seq-legend {
+.redis-flow-modal-summary p {
+  margin: 0 0 8px;
+}
+
+.redis-flow-modal-summary ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.redis-sequence {
+  margin-top: 12px;
+  border: 1px solid #d9e5ef;
+  border-radius: 24px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 248, 252, 0.96) 100%),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 32%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 16px 34px rgba(15, 23, 42, 0.05);
+}
+
+.redis-sequence--modal {
+  margin-top: 0;
+}
+
+.redis-sequence-legend {
   display: flex;
-  gap: 12px;
   flex-wrap: wrap;
-  padding: 8px 10px;
-  border-bottom: 1px solid #e5edf5;
-  background: #f8fafc;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .redis-legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 11px;
   color: #334155;
+  border: 1px solid #dbe5ee;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 5px 10px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
 }
 
 .redis-legend-item i {
-  width: 16px;
-  height: 2px;
+  width: 18px;
+  height: 3px;
   display: inline-block;
   border-radius: 99px;
 }
 
 .redis-legend-item i.main {
-  background: #0284c7;
+  background: #2563eb;
+}
+
+.redis-legend-item i.reply {
+  background: repeating-linear-gradient(90deg, #64748b 0 7px, transparent 7px 11px);
 }
 
 .redis-legend-item i.alt {
-  background: #0d9488;
+  background: #10b981;
 }
 
 .redis-legend-item i.else {
-  background: #ea580c;
+  background: #f97316;
 }
 
-.redis-seq-head {
-  display: grid;
-  grid-template-columns: 54px 280px minmax(280px, 1fr);
-  border-bottom: 1px solid #dbe5ee;
-  background: #f8fafc;
-  min-width: 760px;
+.redis-sequence-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
-.redis-seq-step-h {
-  padding: 8px 6px;
-  font-size: 12px;
+.redis-sequence-canvas {
+  display: block;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+}
+
+.redis-sequence-surface {
+  fill: #fbfdff;
+  stroke: #d9e5ef;
+  stroke-width: 1.2;
+}
+
+.redis-sequence-lane-line {
+  stroke: rgba(148, 163, 184, 0.7);
+  stroke-width: 1.5;
+  stroke-dasharray: 8 10;
+}
+
+.redis-sequence-lane-card {
+  stroke-width: 1.2;
+}
+
+.redis-sequence-lane-badge {
+  fill: rgba(255, 255, 255, 0.96);
+  stroke: rgba(148, 163, 184, 0.28);
+  stroke-width: 1;
+}
+
+.redis-sequence-lane-badge-text {
+  font-size: 9px;
   font-weight: 700;
-  color: #1e293b;
-  text-align: center;
+  fill: #334155;
 }
 
-.redis-seq-flow-h {
-  padding: 8px 10px;
-  font-size: 12px;
+.redis-sequence-lane-label {
+  font-size: 10px;
   font-weight: 700;
-  color: #1e293b;
-  border-left: 1px solid #e5edf5;
 }
 
-.redis-seq-lanes-h {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(72px, 1fr);
-  border-left: 1px solid #e5edf5;
+.redis-sequence-card-link {
+  stroke-width: 1.2;
+  stroke-dasharray: 4 4;
 }
 
-.redis-seq-lane-h {
-  padding: 8px 4px;
-  font-size: 11px;
+.redis-sequence-message-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.redis-sequence-card,
+.redis-sequence-branch-box {
+  stroke-width: 1.4;
+}
+
+.redis-sequence-step-pill {
+  stroke: rgba(15, 23, 42, 0.05);
+  stroke-width: 1;
+}
+
+.redis-sequence-step-text {
+  font-size: 9px;
   font-weight: 700;
-  color: #0f172a;
-  text-align: center;
-  border-left: 1px solid #e5edf5;
 }
 
-.redis-seq-body {
-  padding: 6px 0;
-}
-
-.redis-seq-row {
-  display: grid;
-  grid-template-columns: 54px 280px minmax(280px, 1fr);
-  padding: 6px 0;
-  min-width: 760px;
-}
-
-.redis-seq-step {
-  text-align: center;
-  font-size: 12px;
-  color: #334155;
-  padding-top: 10px;
-}
-
-.redis-seq-flow {
-  padding: 0 10px;
-  border-left: 1px solid #eef2f7;
-}
-
-.redis-seq-action {
-  font-size: 13px;
-  color: #0f172a;
-  line-height: 1.4;
-}
-
-.redis-seq-main {
-  padding: 0 10px 0 8px;
-  border-left: 1px solid #eef2f7;
-}
-
-.redis-seq-track {
-  position: relative;
-  height: 36px;
-}
-
-.redis-seq-guide {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: #d7e3ef;
-  transform: translateX(-50%);
-}
-
-.redis-seq-line {
-  position: absolute;
-  top: 18px;
-  height: 2px;
-  background: var(--seq-color, #0284c7);
-  transform: translateX(0);
-}
-
-.redis-seq-end-arrow {
-  position: absolute;
-  top: 12px;
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  transform: translateX(-50%);
-}
-
-.redis-seq-end-arrow.right {
-  border-left: 8px solid var(--seq-color, #0284c7);
-}
-
-.redis-seq-end-arrow.left {
-  border-right: 8px solid var(--seq-color, #0284c7);
-}
-
-.redis-seq-branch-tag {
-  display: inline-block;
-  margin-top: 4px;
-  font-size: 11px;
-  color: #0f766e;
-  background: #ecfeff;
-  border: 1px solid #99f6e4;
-  border-radius: 999px;
-  padding: 1px 6px;
-}
-
-.redis-seq-hint {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #475569;
-  line-height: 1.35;
-}
-
-.redis-seq-flow.branch {
-  padding-top: 2px;
-}
-
-.redis-branch-title {
-  font-size: 13px;
+.redis-sequence-route-text {
+  font-size: 9px;
   font-weight: 700;
-  color: #0f172a;
 }
 
-.redis-branch-tip {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #475569;
+.redis-sequence-action-text {
+  font-size: 10px;
+  font-weight: 700;
 }
 
-.redis-seq-branch-row {
-  margin: 0;
-  border-radius: 8px;
-  padding: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px dashed #7dd3fc;
-  background: #f0f9ff;
-  color: #075985;
+.redis-sequence-hint-text,
+.redis-sequence-branch-tip-text {
+  font-size: 9px;
 }
 
-.redis-seq-branch-row.alt {
-  border-color: #5eead4;
-  background: #f0fdfa;
-  color: #0f766e;
+.redis-sequence-tag-pill {
+  stroke: rgba(15, 23, 42, 0.05);
+  stroke-width: 1;
 }
 
-.redis-seq-branch-row.else {
-  border-color: #fdba74;
-  background: #fff7ed;
-  color: #c2410c;
+.redis-sequence-tag-text {
+  font-size: 8px;
+  font-weight: 700;
 }
 
-.redis-seq-branch-row.end {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-  color: #334155;
+.redis-sequence-branch-title-text {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tone-main {
+  --tone-bg: #eff6ff;
+  --tone-border: #bfdbfe;
+  --tone-solid: #2563eb;
+  --tone-ink: #1d4ed8;
+  --tone-chip-bg: #dbeafe;
+}
+
+.tone-reply {
+  --tone-bg: #f8fafc;
+  --tone-border: #cbd5e1;
+  --tone-solid: #64748b;
+  --tone-ink: #334155;
+  --tone-chip-bg: #e2e8f0;
+}
+
+.tone-alt {
+  --tone-bg: #ecfdf5;
+  --tone-border: #86efac;
+  --tone-solid: #10b981;
+  --tone-ink: #047857;
+  --tone-chip-bg: #d1fae5;
+}
+
+.tone-else {
+  --tone-bg: #fff7ed;
+  --tone-border: #fdba74;
+  --tone-solid: #f97316;
+  --tone-ink: #c2410c;
+  --tone-chip-bg: #ffedd5;
 }
 
 @media (max-width: 1024px) {
@@ -3846,6 +5259,16 @@ th {
     border-top: 1px solid #dbe3ee;
     padding-left: 0;
     padding-top: 12px;
+  }
+
+  .redis-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .redis-overview-grid,
+  .redis-strategy-grid,
+  .redis-key-groups {
+    grid-template-columns: 1fr;
   }
 
 }
@@ -3884,18 +5307,41 @@ th {
     flex-basis: 220px;
   }
 
-  .redis-seq-head,
-  .redis-seq-row {
-    grid-template-columns: 42px 220px minmax(280px, 1fr);
-    min-width: 640px;
+  .redis-hero {
+    padding: 16px;
+    gap: 14px;
   }
 
-  .redis-seq-step {
-    padding-top: 8px;
+  .redis-hero h3 {
+    font-size: 24px;
   }
 
-  .redis-seq-track {
-    height: 34px;
+  .redis-hero-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .redis-overview-head,
+  .redis-key-group-head,
+  .redis-key-card-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .redis-archive-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .redis-sequence {
+    padding: 12px;
+    border-radius: 20px;
+  }
+
+  .redis-sequence-legend {
+    gap: 8px;
+  }
+
+  .redis-sequence-canvas {
+    min-width: 0;
   }
 
   .redis-fc-node.decision {

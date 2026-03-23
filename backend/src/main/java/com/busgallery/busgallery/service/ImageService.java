@@ -37,6 +37,11 @@ public interface ImageService {
     List<Image> listLatest(int limit);
 
     /**
+     * Returns all raw DB images without signed-url decoration.
+     */
+    List<Image> listAllRaw();
+
+    /**
      * listByUploader方法用于处理listByUploader相关的业务逻辑。
      * @param uploaderId uploaderId参数，详见调用方上下文。
      * @param page page参数，详见调用方上下文。

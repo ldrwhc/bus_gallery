@@ -155,6 +155,57 @@
                             </el-table-column>
                         </el-table>
                     </el-tab-pane>
+
+                    <el-tab-pane label="异常图片" name="images">
+                        <div class="row-between">
+                            <p class="muted">检查未关联车辆的图片，以及 MinIO 原图或缩略图已丢失的异常记录。</p>
+                            <div class="toolbar-actions">
+                                <el-button :loading="suspectImagesLoading" @click="loadSuspectImages">重新检查</el-button>
+                                <el-button
+                                    type="danger"
+                                    plain
+                                    :loading="cleaningAllSuspects"
+                                    :disabled="!suspectImageRows.length"
+                                    @click="cleanupAllSuspects"
+                                >
+                                    清理全部异常图片
+                                </el-button>
+                            </div>
+                        </div>
+                        <div v-if="suspectImagesLoading" class="state">正在检查异常图片...</div>
+                        <div v-else-if="!suspectImageRows.length" class="state">未发现异常图片记录</div>
+                        <el-table v-else :data="suspectImageRows" stripe>
+                            <el-table-column prop="id" label="ID" width="90" />
+                            <el-table-column prop="issueSummary" label="异常原因" min-width="220" />
+                            <el-table-column label="上传者" min-width="180">
+                                <template #default="{ row }">
+                                    {{ row.uploaderDisplayName || row.uploadUser || row.uploaderUsername || '-' }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="relationCount" label="关联车辆数" width="110" />
+                            <el-table-column prop="primaryVehicleId" label="主要车辆ID" width="120" />
+                            <el-table-column label="对象路径" min-width="280">
+                                <template #default="{ row }">
+                                    <div class="path-cell">{{ row.objectName || '-' }}</div>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="创建时间" min-width="180">
+                                <template #default="{ row }">{{ row.createTime || '-' }}</template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="140" fixed="right">
+                                <template #default="{ row }">
+                                    <el-button
+                                        size="small"
+                                        type="danger"
+                                        :loading="cleaningSingleImageId === row.id"
+                                        @click="cleanupSingleSuspect(row)"
+                                    >
+                                        清理
+                                    </el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </el-tab-pane>
                 </el-tabs>
             </section>
         </main>
@@ -239,7 +290,9 @@ import {
     fetchAdminModels,
     fetchAdminOverview,
     fetchAdminRegions,
+    fetchAdminSuspectImages,
     fetchAdminUsers,
+    cleanupAdminSuspectImages,
     updateAdminBrand,
     updateAdminCompany,
     updateAdminModel,
@@ -253,6 +306,10 @@ const refreshing = ref(false);
 const usersLoading = ref(false);
 const savingUserId = ref(null);
 const activeTab = ref('regions');
+const suspectImagesLoading = ref(false);
+const suspectImageRows = ref([]);
+const cleaningAllSuspects = ref(false);
+const cleaningSingleImageId = ref(null);
 
 const overview = reactive({
     totalUsers: 0,
@@ -411,6 +468,15 @@ const loadModelTable = async () => {
     const list = await fetchAdminModels();
     modelRows.value = Array.isArray(list) ? list : [];
 };
+const loadSuspectImages = async () => {
+    suspectImagesLoading.value = true;
+    try {
+        const list = await fetchAdminSuspectImages();
+        suspectImageRows.value = Array.isArray(list) ? list : [];
+    } finally {
+        suspectImagesLoading.value = false;
+    }
+};
 
 const reloadAll = async () => {
     refreshing.value = true;
@@ -422,7 +488,8 @@ const reloadAll = async () => {
             loadRegionTable(),
             loadCompanyTable(),
             loadBrandTable(),
-            loadModelTable()
+            loadModelTable(),
+            activeTab.value === 'images' ? loadSuspectImages() : Promise.resolve()
         ]);
     } catch (error) {
         ElMessage.error(error?.message || '后台数据加载失败');
@@ -558,7 +625,13 @@ const saveModel = async () => {
 };
 
 const confirmDelete = async (message, action) => {
-    await ElMessageBox.confirm(message, '确认删除', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' });
+    await ElMessageBox.confirm(message, '确认删除', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        closeOnClickModal: true,
+        closeOnPressEscape: true
+    });
     await action();
 };
 
@@ -590,6 +663,45 @@ const removeModel = (row) =>
         ElMessage.success('车型已删除');
     }).catch(() => {});
 
+const isDialogCancel = (error) => ['cancel', 'close'].includes(String(error?.message || error || '').toLowerCase());
+
+const cleanupSingleSuspect = (row) =>
+    confirmDelete(`确认清理异常图片 #${row.id} 吗？`, async () => {
+        cleaningSingleImageId.value = row.id;
+        const result = await cleanupAdminSuspectImages([row.id]);
+        if (Array.isArray(result?.failedIds) && result.failedIds.length) {
+            throw new Error('异常图片清理失败');
+        }
+        await loadSuspectImages();
+        ElMessage.success('异常图片已清理');
+    }).catch((error) => {
+        if (!isDialogCancel(error) && error?.message) {
+            ElMessage.error(error.message);
+        }
+    }).finally(() => {
+        cleaningSingleImageId.value = null;
+    });
+
+const cleanupAllSuspects = () =>
+    confirmDelete('确认清理当前检测到的全部异常图片吗？该操作不可恢复。', async () => {
+        cleaningAllSuspects.value = true;
+        const result = await cleanupAdminSuspectImages();
+        await loadSuspectImages();
+        const deletedCount = Array.isArray(result?.deletedIds) ? result.deletedIds.length : 0;
+        const failedCount = Array.isArray(result?.failedIds) ? result.failedIds.length : 0;
+        if (failedCount > 0) {
+            ElMessage.warning(`已清理 ${deletedCount} 张，但仍有 ${failedCount} 张失败`);
+            return;
+        }
+        ElMessage.success(`已清理 ${deletedCount} 张异常图片`);
+    }).catch((error) => {
+        if (!isDialogCancel(error) && error?.message) {
+            ElMessage.error(error.message);
+        }
+    }).finally(() => {
+        cleaningAllSuspects.value = false;
+    });
+
 const refreshTabData = async (tab) => {
     if (tab === 'regions') {
         await loadRegionTable();
@@ -605,6 +717,10 @@ const refreshTabData = async (tab) => {
     }
     if (tab === 'models') {
         await Promise.all([loadBrandTable(), loadModelTable()]);
+        return;
+    }
+    if (tab === 'images') {
+        await loadSuspectImages();
     }
 };
 
@@ -629,11 +745,13 @@ onMounted(() => {
 .eyebrow { margin: 0 0 4px; letter-spacing: 0.2em; text-transform: uppercase; color: #94a3b8; font-size: .75rem; }
 .muted { color: #64748b; margin: 6px 0 0; }
 .row-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+.toolbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .stat { background: #fff; border-radius: 14px; padding: 12px 14px; border: 1px solid #e2e8f0; }
 .stat p { margin: 0; color: #64748b; font-size: .84rem; }
 .stat strong { display: block; margin-top: 6px; font-size: 1.25rem; color: #0f172a; }
 .state { text-align: center; padding: 26px 0; color: #94a3b8; }
+.path-cell { word-break: break-all; color: #334155; }
 :deep(.province-select-popper .el-select-dropdown__wrap) { max-height: 280px; }
 @media (max-width: 900px) { .hero { flex-direction: column; align-items: flex-start; } }
 </style>

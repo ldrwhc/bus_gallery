@@ -12,12 +12,16 @@ import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.repository.VehicleSubmissionRepository;
 import com.busgallery.busgallery.service.*;
+import com.busgallery.busgallery.mapper.VehicleImageMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
@@ -32,6 +36,9 @@ public class AdminController {
     private final ModelService modelService;
     private final VehicleSubmissionRepository submissionRepository;
     private final UserSessionService userSessionService;
+    private final ImageService imageService;
+    private final ImageAccessService imageAccessService;
+    private final VehicleImageMapper vehicleImageMapper;
 
     @GetMapping("/overview")
     @RequireLogin
@@ -285,6 +292,112 @@ public class AdminController {
         modelService.delete(id);
     }
 
+    @GetMapping("/images/suspects")
+    @RequireLogin
+    public List<AdminImageIssueRow> listSuspectImages() {
+        RoleGuard.requireStation();
+        return collectSuspectImages(null);
+    }
+
+    @PostMapping("/images/suspects/cleanup")
+    @RequireLogin
+    public AdminImageCleanupResult cleanupSuspectImages(@RequestBody(required = false) AdminImageCleanupRequest request) {
+        RoleGuard.requireStation();
+        List<Long> requestedIds = request == null ? null : request.getImageIds();
+        List<AdminImageIssueRow> suspects = collectSuspectImages(requestedIds);
+        List<Long> deletedIds = new ArrayList<>();
+        List<Long> failedIds = new ArrayList<>();
+        for (AdminImageIssueRow row : suspects) {
+            Long imageId = row.getId();
+            if (imageId == null) {
+                continue;
+            }
+            try {
+                imageService.delete(imageId);
+                deletedIds.add(imageId);
+            } catch (Exception ex) {
+                failedIds.add(imageId);
+            }
+        }
+        return new AdminImageCleanupResult(
+                requestedIds == null ? suspects.size() : requestedIds.size(),
+                deletedIds,
+                failedIds
+        );
+    }
+
+    private List<AdminImageIssueRow> collectSuspectImages(List<Long> requestedIds) {
+        List<Image> images = imageService.listAllRaw();
+        List<Long> normalizedIds = requestedIds == null ? null : requestedIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        return images.stream()
+                .filter(Objects::nonNull)
+                .filter(image -> normalizedIds == null || normalizedIds.contains(image.getId()))
+                .map(this::toSuspectImageRow)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    private AdminImageIssueRow toSuspectImageRow(Image image) {
+        if (image == null || image.getId() == null) {
+            return null;
+        }
+        long relationCount = vehicleImageMapper.countByImageId(image.getId());
+        Long primaryVehicleId = vehicleImageMapper.selectPrimaryVehicleIdByImageId(image.getId());
+        String primaryObject = imageAccessService.resolveObjectNameRef(image.getObjectName());
+        String thumbnailObject = imageAccessService.resolveThumbnailObjectName(image);
+        boolean primaryObjectExists = StringUtils.hasText(primaryObject) && imageAccessService.objectExistsRef(primaryObject);
+        boolean thumbnailObjectExists = !StringUtils.hasText(thumbnailObject) || imageAccessService.objectExistsRef(thumbnailObject);
+        List<String> issueTypes = new ArrayList<>();
+        if (relationCount <= 0) {
+            issueTypes.add("UNLINKED");
+        }
+        if (!primaryObjectExists) {
+            issueTypes.add("PRIMARY_MISSING");
+        }
+        if (!thumbnailObjectExists) {
+            issueTypes.add("THUMBNAIL_MISSING");
+        }
+        if (issueTypes.isEmpty()) {
+            return null;
+        }
+        AdminImageIssueRow row = new AdminImageIssueRow();
+        row.setId(image.getId());
+        row.setObjectName(image.getObjectName());
+        row.setThumbnailObjectName(thumbnailObject);
+        row.setUploadUser(image.getUploadUser());
+        row.setUploaderId(image.getUploaderId());
+        row.setUploaderUsername(image.getUploaderUsername());
+        row.setUploaderDisplayName(image.getUploaderDisplayName());
+        row.setCreateTime(image.getCreateTime());
+        row.setRelationCount(relationCount);
+        row.setPrimaryVehicleId(primaryVehicleId);
+        row.setPrimaryObjectExists(primaryObjectExists);
+        row.setThumbnailObjectExists(thumbnailObjectExists);
+        row.setIssueTypes(issueTypes);
+        row.setIssueSummary(buildIssueSummary(issueTypes));
+        return row;
+    }
+
+    private String buildIssueSummary(List<String> issueTypes) {
+        if (issueTypes == null || issueTypes.isEmpty()) {
+            return "";
+        }
+        List<String> labels = new ArrayList<>();
+        if (issueTypes.contains("UNLINKED")) {
+            labels.add("未关联任何车辆");
+        }
+        if (issueTypes.contains("PRIMARY_MISSING")) {
+            labels.add("原图对象缺失");
+        }
+        if (issueTypes.contains("THUMBNAIL_MISSING")) {
+            labels.add("缩略图对象缺失");
+        }
+        return String.join(" / ", labels);
+    }
+
     private void validateRegionRequest(RegionUpsertRequest request) {
         if (request == null || !StringUtils.hasText(request.getName())) {
             throw new BizException(ErrorCode.INVALID_PARAM, "Region name is required");
@@ -424,5 +537,35 @@ public class AdminController {
         private String description;
         private Long brandId;
         private String brandName;
+    }
+
+    @Data
+    public static class AdminImageIssueRow {
+        private Long id;
+        private String objectName;
+        private String thumbnailObjectName;
+        private String uploadUser;
+        private Long uploaderId;
+        private String uploaderUsername;
+        private String uploaderDisplayName;
+        private LocalDateTime createTime;
+        private long relationCount;
+        private Long primaryVehicleId;
+        private boolean primaryObjectExists;
+        private boolean thumbnailObjectExists;
+        private List<String> issueTypes;
+        private String issueSummary;
+    }
+
+    @Data
+    public static class AdminImageCleanupRequest {
+        private List<Long> imageIds;
+    }
+
+    @Data
+    public static class AdminImageCleanupResult {
+        private final int requestedCount;
+        private final List<Long> deletedIds;
+        private final List<Long> failedIds;
     }
 }

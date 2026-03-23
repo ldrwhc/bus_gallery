@@ -42,10 +42,10 @@ export const fetchManageVehiclePage = (params = {}) =>
 export const fetchVehicleGalleryDetail = (vehicleId) =>
     http.get(`/vehicles/${vehicleId}`).then(normalizeDetail);
 
-export const createVehicle = (payload) => http.post('/vehicles', payload);
+export const createVehicle = (payload) => http.post('/vehicles', payload).then(normalizeDetail);
 
 export const updateVehicle = (vehicleId, payload) =>
-    http.put(`/vehicles/${vehicleId}`, payload);
+    http.put(`/vehicles/${vehicleId}`, payload).then(normalizeDetail);
 
 export const deleteVehicle = (vehicleId) =>
     http.delete(`/vehicles/${vehicleId}`);

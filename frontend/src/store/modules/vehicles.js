@@ -87,6 +87,34 @@ const mutations = {
             [vehicleId]: detail
         };
     },
+    SYNC_VEHICLE_DETAIL(state, detail) {
+        const vehicleId = detail?.vehicle?.id;
+        if (!vehicleId) return;
+        const existingDetail = state.detailMap[vehicleId] || null;
+        const mergedDetail = {
+            ...existingDetail,
+            ...detail,
+            favorite: detail?.favorite ?? existingDetail?.favorite
+        };
+        state.detailMap = {
+            ...state.detailMap,
+            [vehicleId]: mergedDetail
+        };
+        if (!Array.isArray(state.gallery) || !state.gallery.length) {
+            return;
+        }
+        state.gallery = state.gallery.map((record) => {
+            const currentVehicleId = record?.vehicle?.id || record?.vehicleId;
+            if (currentVehicleId !== vehicleId) {
+                return record;
+            }
+            return {
+                ...record,
+                vehicle: mergedDetail.vehicle || record?.vehicle,
+                images: Array.isArray(mergedDetail.images) ? mergedDetail.images : record?.images || []
+            };
+        });
+    },
     SET_VEHICLE_FAVORITE_STATE(state, { vehicleId, liked, likeTotal, likes }) {
         const existing = state.detailMap[vehicleId] || {};
         state.detailMap = {
