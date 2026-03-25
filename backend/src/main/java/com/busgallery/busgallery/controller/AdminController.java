@@ -7,9 +7,11 @@ import com.busgallery.busgallery.auth.UserSessionService;
 import com.busgallery.busgallery.dto.request.UserRoleUpdateRequest;
 import com.busgallery.busgallery.dto.response.AdminOverviewResponse;
 import com.busgallery.busgallery.dto.response.AdminUserResponse;
+import com.busgallery.busgallery.dto.response.PageResponse;
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.mapper.VehicleCommentMapper;
 import com.busgallery.busgallery.repository.VehicleSubmissionRepository;
 import com.busgallery.busgallery.service.*;
 import com.busgallery.busgallery.mapper.VehicleImageMapper;
@@ -39,6 +41,8 @@ public class AdminController {
     private final ImageService imageService;
     private final ImageAccessService imageAccessService;
     private final VehicleImageMapper vehicleImageMapper;
+    private final VehicleCommentMapper vehicleCommentMapper;
+    private final VehicleCommentService vehicleCommentService;
 
     @GetMapping("/overview")
     @RequireLogin
@@ -252,6 +256,32 @@ public class AdminController {
     public List<AdminModelRow> listModels() {
         RoleGuard.requireStation();
         return modelService.findAll().stream().map(this::toModelRow).collect(Collectors.toList());
+    }
+
+    @GetMapping("/comments")
+    @RequireLogin
+    public PageResponse<AdminCommentRow> listComments(@RequestParam(defaultValue = "1") int page,
+                                                      @RequestParam(defaultValue = "20") int size) {
+        RoleGuard.requireStation();
+        int pageNo = Math.max(page, 1);
+        int pageSize = Math.max(size, 1);
+        int offset = (pageNo - 1) * pageSize;
+        List<AdminCommentRow> records = vehicleCommentMapper.selectPage(offset, pageSize).stream()
+                .map(this::toCommentRow)
+                .collect(Collectors.toList());
+        long total = vehicleCommentMapper.countAll();
+        return PageResponse.of(records, total, pageNo, pageSize);
+    }
+
+    @DeleteMapping("/comments/{commentId}")
+    @RequireLogin
+    public void deleteComment(@PathVariable Long commentId) {
+        RoleGuard.requireStation();
+        VehicleComment comment = vehicleCommentMapper.selectById(commentId);
+        if (comment == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "Comment not found");
+        }
+        vehicleCommentService.deleteComment(comment.getVehicleId(), commentId, null, true);
     }
 
     @PostMapping("/tables/models")
@@ -474,6 +504,18 @@ public class AdminController {
         return row;
     }
 
+    private AdminCommentRow toCommentRow(VehicleComment comment) {
+        AdminCommentRow row = new AdminCommentRow();
+        row.setId(comment.getId());
+        row.setVehicleId(comment.getVehicleId());
+        row.setUserId(comment.getUserId());
+        row.setDisplayName(comment.getDisplayName());
+        row.setUsername(comment.getUsername());
+        row.setContent(comment.getContent());
+        row.setCreatedAt(comment.getCreatedAt());
+        return row;
+    }
+
     @Data
     public static class RegionUpsertRequest {
         private String name;
@@ -537,6 +579,17 @@ public class AdminController {
         private String description;
         private Long brandId;
         private String brandName;
+    }
+
+    @Data
+    public static class AdminCommentRow {
+        private Long id;
+        private Long vehicleId;
+        private Long userId;
+        private String displayName;
+        private String username;
+        private String content;
+        private LocalDateTime createdAt;
     }
 
     @Data

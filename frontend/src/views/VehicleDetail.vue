@@ -77,53 +77,58 @@
             </div>
 
             <aside class="comment-column" v-if="!isMobile">
-                <button class="comment-toggle" @click="toggleComments">
-                    {{ commentsOpen ? '收起评论' : `查看评论 (${commentsTotal})` }}
-                </button>
                 <button class="favorite-toggle" @click="toggleLike" :disabled="!isAuthenticated || likeLoading">
                     {{ liked ? '★ 已收藏' : '☆ 收藏' }} <span class="favorite-count" v-if="likeTotal">({{ likeTotal }})</span>
                 </button>
-                <transition name="slide-fade">
-                    <div v-if="commentsOpen" class="comment-panel">
-                        <div v-if="!isAuthenticated" class="login-hint">
-                            <p>登录后可查看并发布评论。</p>
-                            <el-button type="primary" size="small" @click="goLogin">去登录</el-button>
-                        </div>
-                        <div v-else class="comment-body">
-                            <div class="comment-list" v-loading="commentsLoading">
-                                <p v-if="!comments.length && !commentsLoading" class="empty-tip">暂时没有评论</p>
-                                <div v-for="item in comments" :key="item.id" class="comment-item">
-                                    <div class="comment-meta">
-                                        <span class="comment-author">{{ item.displayName || item.username }}</span>
-                                        <span class="comment-time">{{ item.createdAt }}</span>
-                                    </div>
-                                    <p class="comment-content">{{ item.content }}</p>
+                <div class="comment-panel">
+                    <div class="comment-panel__header">
+                        <h3>评论</h3>
+                        <span>{{ commentsTotal || 0 }} 条</span>
+                    </div>
+                    <div v-if="!isAuthenticated" class="login-hint">
+                        <p>登录后可查看并发布评论。</p>
+                        <el-button type="primary" size="small" @click="goLogin">去登录</el-button>
+                    </div>
+                    <div v-else class="comment-body">
+                        <div class="comment-list" v-loading="commentsLoading">
+                            <p v-if="!comments.length && !commentsLoading" class="empty-tip">暂时没有评论</p>
+                            <div v-for="item in comments" :key="item.id" class="comment-item">
+                                <div class="comment-meta">
+                                    <span class="comment-author">{{ item.displayName || item.username }}</span>
+                                    <span class="comment-time">{{ item.createdAt }}</span>
                                 </div>
-                            </div>
-                            <div class="comment-editor">
-                                <el-input
-                                    v-model="commentInput"
-                                    type="textarea"
-                                    :autosize="{ minRows: 2, maxRows: 4 }"
-                                    placeholder="说点什么吧（最多500字）"
-                                    maxlength="500"
-                                    show-word-limit
-                                />
-                                <div class="editor-actions">
-                                    <el-button type="primary" size="small" :loading="commentSubmitting" @click="submitComment">
-                                        发布
+                                <p class="comment-content">{{ item.content }}</p>
+                                <div class="comment-actions" v-if="canDeleteComment(item)">
+                                    <el-button
+                                        size="small"
+                                        text
+                                        type="danger"
+                                        :loading="deletingCommentIds.has(item.id)"
+                                        @click="deleteComment(item)"
+                                    >
+                                        删除
                                     </el-button>
                                 </div>
                             </div>
                         </div>
+                        <div class="comment-editor">
+                            <el-input
+                                v-model="commentInput"
+                                type="textarea"
+                                :autosize="{ minRows: 2, maxRows: 4 }"
+                                placeholder="说点什么吧（最多500字）"
+                                maxlength="500"
+                                show-word-limit
+                            />
+                            <div class="editor-actions">
+                                <el-button type="primary" size="small" :loading="commentSubmitting" @click="submitComment">
+                                    发布
+                                </el-button>
+                            </div>
+                        </div>
                     </div>
-                </transition>
+                </div>
             </aside>
-        </div>
-
-        <div v-if="!isMobile" class="comment-fab" @click="openComments">
-            评论
-            <span v-if="commentsTotal" class="badge">{{ commentsTotal }}</span>
         </div>
 
         <div class="mobile-comments" v-if="isMobile">
@@ -135,6 +140,17 @@
                         <span class="comment-time">{{ item.createdAt }}</span>
                     </div>
                     <p class="comment-content">{{ item.content }}</p>
+                    <div class="comment-actions" v-if="canDeleteComment(item)">
+                        <el-button
+                            size="small"
+                            text
+                            type="danger"
+                            :loading="deletingCommentIds.has(item.id)"
+                            @click="deleteComment(item)"
+                        >
+                            删除
+                        </el-button>
+                    </div>
                 </div>
             </div>
             <div class="mobile-login-hint" v-else>
@@ -175,6 +191,8 @@ const store = useStore();
 
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
 const currentUser = computed(() => store.state.auth.profile);
+const currentUserId = computed(() => currentUser.value?.id || currentUser.value?.userId || null);
+const currentUserRole = computed(() => currentUser.value?.role || '');
 const variants = ref([]);
 const imageList = ref([]);
 const currentImageIndex = ref(0);
@@ -201,12 +219,12 @@ const currentBrand = computed(() => {
     };
 });
 
-const commentsOpen = ref(false);
 const comments = ref([]);
 const commentsTotal = ref(0);
 const commentsLoading = ref(false);
 const commentInput = ref('');
 const commentSubmitting = ref(false);
+const deletingCommentIds = ref(new Set());
 const likes = ref([]);
 const liked = ref(false);
 const likeTotal = ref(0);
@@ -286,7 +304,7 @@ const loadDetail = async (id) => {
             : 0;
     rebuildImages();
     await loadSameCompany(vehicleData.value?.vehicle?.companyId, vehicleData.value?.vehicle?.id);
-    if (isMobile.value) {
+    if (isAuthenticated.value) {
         await loadComments();
     }
     await loadLikeSummary();
@@ -301,7 +319,7 @@ const handleImageChange = async (index) => {
             currentVariantIndex.value = img.__vehicleIndex;
             await loadSameCompany(vehicleData.value?.vehicle?.companyId, vehicleData.value?.vehicle?.id);
             await loadLikeSummary();
-            if (isMobile.value && isAuthenticated.value) {
+            if (isAuthenticated.value) {
                 await loadComments();
             }
             refreshCommentPolling();
@@ -356,12 +374,41 @@ const submitComment = async () => {
     }
 };
 
-const toggleComments = async () => {
-    commentsOpen.value = !commentsOpen.value;
-    if (commentsOpen.value && !comments.length) {
-        await loadComments();
+const canDeleteComment = (comment) => {
+    if (!isAuthenticated.value || !comment) {
+        return false;
     }
-    refreshCommentPolling();
+    if (currentUserRole.value === 'STATION') {
+        return true;
+    }
+    const ownerId = comment?.userId;
+    return ownerId != null && currentUserId.value != null && Number(ownerId) === Number(currentUserId.value);
+};
+
+const deleteComment = async (comment) => {
+    const vehicleId = vehicleData.value?.vehicle?.id;
+    const commentId = comment?.id;
+    if (!vehicleId || !commentId || deletingCommentIds.value.has(commentId)) {
+        return;
+    }
+    if (!canDeleteComment(comment)) {
+        ElMessage.warning('没有权限删除该评论');
+        return;
+    }
+    const nextSet = new Set(deletingCommentIds.value);
+    nextSet.add(commentId);
+    deletingCommentIds.value = nextSet;
+    try {
+        await store.dispatch('vehicles/deleteVehicleComment', { vehicleId, commentId });
+        syncCommentsFromCache(vehicleId);
+        ElMessage.success('评论已删除');
+    } catch (error) {
+        ElMessage.error(error?.message || '删除评论失败');
+    } finally {
+        const releaseSet = new Set(deletingCommentIds.value);
+        releaseSet.delete(commentId);
+        deletingCommentIds.value = releaseSet;
+    }
 };
 
 const mapUsers = (list = []) =>
@@ -404,9 +451,9 @@ const loadLikeSummary = async () => {
         likeTotal.value = cached.total || 0;
         likes.value = mapUsers(cached.topUsers || []).slice(0, 2);
         syncedLiked.value = liked.value;
-        return;
     }
-    if (favoriteLoading.has(id)) return;
+    const shouldFetchRemote = isAuthenticated.value || !favoriteCache.has(id);
+    if (!shouldFetchRemote || favoriteLoading.has(id)) return;
     favoriteLoading.add(id);
     try {
         const resp = await fetchFavoriteSummary(id);
@@ -480,16 +527,8 @@ const toggleLike = () => {
     scheduleLikeSync();
 };
 
-const openComments = async () => {
-    if (!commentsOpen.value) {
-        commentsOpen.value = true;
-    }
-    await loadComments();
-    refreshCommentPolling();
-};
-
 function refreshCommentPolling() {
-    const shouldPoll = isAuthenticated.value && (commentsOpen.value || isMobile.value);
+    const shouldPoll = isAuthenticated.value && Boolean(vehicleData.value?.vehicle?.id);
     if (!shouldPoll) {
         if (commentPollTimer) {
             clearInterval(commentPollTimer);
@@ -500,7 +539,6 @@ function refreshCommentPolling() {
     if (commentPollTimer) return;
     commentPollTimer = setInterval(() => {
         if (!isAuthenticated.value) return;
-        if (!commentsOpen.value && !isMobile.value) return;
         loadComments({ force: true });
     }, COMMENT_POLL_INTERVAL_MS);
 }
@@ -524,10 +562,11 @@ watch(
 );
 
 watch(isAuthenticated, async (val) => {
-    if (val && (commentsOpen.value || isMobile.value)) {
+    if (val) {
         await loadComments();
     } else if (!val) {
         comments.value = [];
+        commentsTotal.value = 0;
     }
     refreshCommentPolling();
     await loadLikeSummary();
@@ -560,7 +599,7 @@ onBeforeUnmount(() => {
 
 .detail-layout {
     display: grid;
-    grid-template-columns: 1fr 360px;
+    grid-template-columns: minmax(0, 1fr) 380px;
     gap: 16px;
     align-items: start;
 }
@@ -729,22 +768,8 @@ onBeforeUnmount(() => {
     position: sticky;
     top: 16px;
     align-self: start;
-}
-
-.comment-toggle {
-    width: 100%;
-    border: 1px solid #e2e8f0;
-    background: #fff;
-    border-radius: 10px;
-    padding: 10px 14px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.comment-toggle:hover {
-    border-color: #cbd5f5;
-    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+    border-left: 1px solid #d1d5db;
+    padding-left: 16px;
 }
 
 .favorite-toggle {
@@ -787,6 +812,26 @@ onBeforeUnmount(() => {
     overflow: hidden;
 }
 
+.comment-panel__header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.comment-panel__header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #0f172a;
+}
+
+.comment-panel__header span {
+    color: #64748b;
+    font-size: 13px;
+}
+
 .login-hint,
 .mobile-login-hint {
     padding: 16px;
@@ -827,6 +872,12 @@ onBeforeUnmount(() => {
     word-break: break-word;
 }
 
+.comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
 .empty-tip {
     text-align: center;
     color: #94a3b8;
@@ -864,47 +915,6 @@ onBeforeUnmount(() => {
 
 .mobile-comment-input :deep(.el-input) {
     flex: 1 1 auto;
-}
-
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-    transition: all 0.2s ease;
-}
-
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-    opacity: 0;
-    transform: translateY(4px);
-}
-
-.comment-fab {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    z-index: 20;
-    background: rgba(15, 23, 42, 0.8);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 6px 10px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    transition: background 0.15s ease;
-}
-
-.comment-fab:hover {
-    background: rgba(37, 99, 235, 0.9);
-}
-
-.comment-fab .badge {
-    background: #fbbf24;
-    color: #1f2937;
-    padding: 2px 6px;
-    border-radius: 999px;
-    font-size: 12px;
-    line-height: 1;
 }
 
 @media (max-width: 900px) {

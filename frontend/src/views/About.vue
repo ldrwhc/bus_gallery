@@ -179,6 +179,22 @@ npm run dev</code></pre></div>
         </section>
 
         <section class="block">
+          <h3>互动组件与后端组件映射（细化）</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>前端组件</th><th>用户动作</th><th>后端入口</th><th>关键服务/中间件</th><th>备注</th></tr></thead>
+            <tbody>
+              <tr v-for="row in interactionComponentRows" :key="row.front + row.action">
+                <td class="mono">{{ row.front }}</td>
+                <td>{{ row.action }}</td>
+                <td class="mono">{{ row.api }}</td>
+                <td>{{ row.backend }}</td>
+                <td>{{ row.note }}</td>
+              </tr>
+            </tbody>
+          </table></div>
+        </section>
+
+        <section class="block">
           <h3>配置入口（API + 部署）</h3>
           <div class="table-wrap"><table>
             <thead><tr><th>主题</th><th>文件</th><th>建议修改项</th><th>作用</th></tr></thead>
@@ -1127,18 +1143,21 @@ GET|/api/vehicles/{id}
 PUT|/api/vehicles/{id}
 GET|/api/vehicles/{vehicleId}/comments
 POST|/api/vehicles/{vehicleId}/comments
+DELETE|/api/vehicles/{vehicleId}/comments/{commentId}
 GET|/api/vehicles/plate/{plateNumber}
+GET|/api/admin/comments
+DELETE|/api/admin/comments/{commentId}
 `;
 const groupMeta = {
   Auth: { name: '认证与账号', intro: '登录注册、验证码、找回密码' },
   User: { name: '用户中心', intro: '用户资料与图片' },
   Vehicle: { name: '车辆数据', intro: '车辆列表、详情、维护' },
-  Comment: { name: '评论互动', intro: '评论查询与发布' },
-  Favorite: { name: '收藏互动', intro: '收藏切换与摘要' },
+  Comment: { name: '评论互动', intro: '评论查询、发布、删除（作者/站长权限）' },
+  Favorite: { name: '收藏互动', intro: '收藏切换、摘要同步与一致性修复' },
   Upload: { name: '上传提交流程', intro: '上传图片与车辆信息' },
   Image: { name: '图片资源', intro: '图片读取、上传与签名访问' },
   Review: { name: '审核中心', intro: '审核收件箱与审批' },
-  Admin: { name: '后台管理', intro: '站长管理与字典维护' },
+  Admin: { name: '后台管理', intro: '站长管理、字典维护与评论治理' },
   Catalog: { name: '目录聚合', intro: '筛选项聚合查询' },
   Region: { name: '地区主数据', intro: '地区查询与维护' },
   Company: { name: '公司主数据', intro: '公司查询与维护' },
@@ -1183,12 +1202,12 @@ const flowRows = [
   {
     id: 'WF-04',
     title: '用户互动链路',
-    frontend: '用户中心、评论区和收藏按钮把 userId、vehicleId、page、size、content 参数发送到 /api/users*、/api/vehicles/{vehicleId}/comments、/api/favorites*，并即时刷新页面状态。',
+    frontend: 'VehicleDetail.vue 与 VehicleDetailModal.vue 负责评论/收藏交互：电脑端评论区固定在详情右侧并默认显示，移动端在详情下方；评论读有前端缓存 + 8s 轮询；UserProfile.vue 从收藏入口打开详情时会强制刷新 detail 与收藏摘要，避免旧快照导致 liked 状态错误。',
     nginx: 'Nginx 把互动请求按 /api 规则限流并转发到 UserController、CommentController、FavoriteController。',
-    redis: '评论列表、评论计数和收藏摘要优先读 Redis 短缓存，写操作后会删除或提升版本键，下一次读取再回源并重建缓存。',
-    spring: 'RequireLogin 先校验登录态，随后服务层在事务中执行评论新增、收藏切换和用户资料聚合，并返回最新统计结果。',
+    redis: '评论读链路使用版本键模型（bg:comments:ver + list/count）；评论新增和删除都会 bump version。收藏使用覆盖写模型（bg:fav:summary + bg:fav:liked），toggle 后直接写入最终态，保证写后读一致。',
+    spring: 'RequireLogin 先校验登录态；CommentController 支持发布与删除（作者本人或 STATION）；FavoriteServiceImpl 执行收藏切换并返回摘要，前端再用 summary 接口做最终态校准。',
     db: 'MySQL 读写 vehicle_comment、vehicle_favorite、app_user、image 表后把结果交回服务层并触发缓存更新。',
-    other: '该链路采用同步事务提交，不经过消息队列，前端可以在一次响应里拿到最新互动状态。'
+    other: '评论发布后发送 comment.created、收藏切换后发送 favorite.toggled 到 RabbitMQ；消息通过 afterCommit 发布，避免事务回滚时脏消息；副作用（通知/敏感词/热度/推荐/快照预热）采用 best-effort，失败只告警不阻塞主链路。'
   },
   {
     id: 'WF-05',
@@ -1213,10 +1232,10 @@ const flowRows = [
   {
     id: 'WF-07',
     title: '后台管理链路',
-    frontend: '后台页面把字典维护、角色调整、车辆和图片管理操作转换成 CRUD 请求发送到 /api/admin/* 与相关写接口；异常图片页会调用 /api/admin/images/suspects 与 /api/admin/images/suspects/cleanup 扫描并清理残留图片。',
+    frontend: 'AdminDashboard.vue 除了字典维护与角色调整外，新增评论管理区块：分页调用 /api/admin/comments（按 created_at DESC, id DESC），站长可直接删除评论；异常图片页仍通过 /api/admin/images/suspects 与 /cleanup 做巡检清理。',
     nginx: 'Nginx 对后台接口执行 /api 限流和反向代理后交给 AdminController 与对应业务 Controller。',
-    redis: '后台涉及车辆写操作时会递增版本键或删除命中快照缓存，异常图片巡检本身不依赖 Redis，但清理后会让后续图片/车辆查询直接读取最新主数据。',
-    spring: 'RequireLogin 与 RoleGuard 先做角色校验，随后服务层在事务中执行多表写入并返回更新后的实体或空响应。',
+    redis: '后台车辆写操作会推进分页版本键并清理快照键；后台删除评论会复用评论服务并 bump bg:comments:ver:{vehicleId}，让评论缓存自动切换到新版本。',
+    spring: 'RequireLogin + RoleGuard.requireStation 先做站长权限校验；AdminController.deleteComment 会先查评论再复用 VehicleCommentService.deleteComment，前台与后台删除逻辑统一。',
     db: 'MySQL 对 region、company、brand、model、vehicle、image 等主数据表执行增删改查并把结果持久化给查询链路复用。',
     other: '写链路抛出异常时事务会回滚，统一错误响应会返回前端避免部分成功。'
   },
@@ -1369,17 +1388,57 @@ const apiConfigEntries = [
   { topic: '图片签名+水印压缩', file: 'application.yml', keys: 'busgallery.image-access.token-secret, *.upload-*, *.thumbnail-watermark-*', effect: '控制访问签名、上传自动水印和压缩策略' }
 ];
 
+const interactionComponentRows = [
+  {
+    front: 'views/VehicleDetail.vue',
+    action: '发布评论',
+    api: 'POST /api/vehicles/{vehicleId}/comments',
+    backend: 'CommentController -> VehicleCommentServiceImpl -> MySQL + Redis(version) + RabbitMQ(comment.created)',
+    note: '评论发布后先写库并 bump 评论版本键，再由 afterCommit 异步触发副作用。'
+  },
+  {
+    front: 'views/VehicleDetail.vue',
+    action: '删除评论',
+    api: 'DELETE /api/vehicles/{vehicleId}/comments/{commentId}',
+    backend: 'CommentController -> VehicleCommentServiceImpl(作者/站长权限) -> MySQL + Redis(version)',
+    note: '只有评论作者或 STATION 可删；删除后 bump 版本键，评论缓存按版本自然失效。'
+  },
+  {
+    front: 'components/Gallery/VehicleDetailModal.vue',
+    action: '切换收藏',
+    api: 'POST /api/favorites/{vehicleId}/toggle',
+    backend: 'FavoriteServiceImpl -> MySQL + Redis(summary/liked) + RabbitMQ(favorite.toggled)',
+    note: 'toggle 同步返回最终态并覆盖写 summary/liked，随后 afterCommit 发 favorite.toggled。'
+  },
+  {
+    front: 'views/UserProfile.vue',
+    action: '从收藏卡片打开详情',
+    api: 'GET /api/vehicles/{id} + GET /api/favorites/{vehicleId}/summary',
+    backend: 'VehicleController/FavoriteController + Redis + MySQL',
+    note: '会强制刷新 detail，修复旧快照导致的 liked 显示错误。'
+  },
+  {
+    front: 'views/AdminDashboard.vue',
+    action: '站长删除评论',
+    api: 'DELETE /api/admin/comments/{commentId}',
+    backend: 'AdminController -> VehicleCommentServiceImpl(复用前台删除逻辑)',
+    note: '后台治理与前台删除共用服务，缓存失效策略一致。'
+  }
+];
+
 const middlewarePages = [
   { pageId: 'm3-nginx', name: 'Nginx', intro: '统一入口网关，负责反向代理、限流、静态与对象代理。', role: '将 /api 请求转发到 backend，将 /bus-gallery 路径代理到 MinIO。', io: [{ input: 'HTTP 请求', process: 'location 匹配 + limit_req + proxy_pass', output: 'backend 响应或 429' }, { input: '/bus-gallery/*', process: '代理到 minio:9000', output: '对象流' }], configs: [{ key: 'limit_req_zone / limit_req', file: 'docker/nginx/default.conf', effect: '分层限流' }, { key: 'client_max_body_size 50M', file: 'docker/nginx/default.conf', effect: '上传体积上限' }, { key: 'proxy_read_timeout 300s', file: 'docker/nginx/default.conf', effect: '长请求超时控制' }], workflows: [{ flow: 'WF-03', input: '/api/auth/*', process: '认证接口限流+转发', output: '认证响应' }, { flow: 'WF-05', input: '/api/upload', process: '上传转发', output: '上传链路执行' }, { flow: 'WF-08', input: '/api/images/access/{token}', process: '先后端验签', output: '图片流' }] },
   { pageId: 'm3-redis', name: 'Redis', intro: '会话、限流、验证码、幂等、分页缓存、车牌快照与防击穿都依赖 Redis。', role: '读链路负责缓存与热点兜底，写链路负责版本推进、快照删键和幂等控制，是全站一致性最敏感的中间件之一。', io: [{ input: 'token/captcha/challenge/identity', process: '读写 key + TTL + 递增', output: '会话状态/限流判定' }, { input: 'plate 快照查询', process: 'latest/stale/lock 协同 + 主动删键', output: '命中或回源快照' }, { input: 'Idempotency-Key', process: 'setIfAbsent 防重复', output: '允许或拒绝提交' }], configs: [{ key: 'spring.data.redis.*', file: 'backend/src/main/resources/application.yml', effect: '连接参数' }, { key: 'appendonly yes', file: 'docker/redis/redis.conf', effect: 'AOF 持久化' }, { key: 'auth.session.ttl-seconds', file: 'application.yml', effect: '会话 TTL' }, { key: 'busgallery.cache.*', file: 'application.yml', effect: '业务缓存 TTL' }], workflows: [{ flow: 'WF-03', input: '登录与验证码请求', process: 'session/captcha/risk key 管理', output: '认证状态' }, { flow: 'WF-05', input: '上传请求', process: '限流+幂等', output: '允许上传或拒绝' }, { flow: 'WF-06', input: '审核页修改/删除车辆', process: '分页版本推进 + 快照删键', output: '其他页面回源最新数据' }, { flow: 'WF-09', input: '快照请求', process: '防击穿与缓存复用', output: '快照结果' }] },
   { pageId: 'm3-mysql', name: 'MySQL', intro: '承载用户、车辆、图片、评论、收藏、审核等核心持久化数据。', role: '通过 MyBatis/JPA 执行查询和事务写入。', io: [{ input: '业务请求参数', process: 'SQL 查询/更新', output: '实体与结果集' }, { input: '审核与后台写操作', process: '事务更新多表', output: '一致落库' }], configs: [{ key: 'spring.datasource.*', file: 'application.yml', effect: '连接地址和凭证' }, { key: 'spring.datasource.hikari.*', file: 'application.yml', effect: '连接池并发能力' }, { key: 'docker/init/init.sql', file: 'docker/init/init.sql', effect: '初始化表结构' }], workflows: [{ flow: 'WF-01', input: '车辆筛选条件', process: 'vehicle 相关表查询', output: '列表与详情' }, { flow: 'WF-06', input: '审核动作', process: 'submission 状态更新', output: '审核结果' }, { flow: 'WF-07', input: '后台 CRUD', process: '主数据维护', output: '最新主数据' }] },
   { pageId: 'm3-spring', name: 'Spring', intro: '鉴权拦截、控制器路由、服务层事务、异常处理均在 Spring 层。', role: 'WebMvcConfig 注入 AuthTokenInterceptor 到 /api/**，RoleGuard 做权限裁剪。', io: [{ input: 'HTTP 请求', process: 'Interceptor -> Controller -> Service -> Mapper', output: '统一响应' }, { input: 'Authorization/token', process: '会话解析并写入上下文', output: '用户上下文或 401' }], configs: [{ key: 'WebMvcConfig.addInterceptors', file: 'backend/config/WebMvcConfig.java', effect: '统一鉴权入口' }, { key: '@RequireLogin + RoleGuard', file: 'controller/auth', effect: '角色权限控制' }, { key: '@Transactional', file: 'service/controller', effect: '关键写链路事务一致性' }], workflows: [{ flow: 'WF-03', input: '认证请求', process: '认证/风控/会话签发', output: 'token' }, { flow: 'WF-05', input: '上传请求', process: '安全校验 + 幂等 + 水印压缩 + 业务写入', output: '上传结果' }, { flow: 'WF-10', input: '/api/metrics/db', process: '聚合慢 SQL 指标', output: '监控数据' }] },
+  { pageId: 'm3-rabbitmq', name: 'RabbitMQ', intro: '异步事件总线，承接评论发布与收藏切换后的副作用处理。', role: '主事务提交后发布 domain event，消费者异步执行通知、推荐、热度、快照预热等副作用。', io: [{ input: 'comment.created / favorite.toggled 事件', process: 'Topic Exchange 路由到业务队列，失败消息按 DLX 进入死信队列', output: '副作用任务异步执行结果与日志' }, { input: '消费异常', process: 'Listener 捕获异常并记录，副作用服务内部 best-effort 跳过失败动作', output: '主链路可用性不受影响' }], configs: [{ key: 'spring.rabbitmq.*', file: 'backend/src/main/resources/application.yml', effect: '连接、监听、重试策略' }, { key: 'busgallery.events.exchange / dlx-exchange', file: 'application.yml', effect: '业务交换机与死信交换机' }, { key: 'busgallery.events.comment-created-routing-key / favorite-toggled-routing-key', file: 'application.yml', effect: '事件路由键配置' }, { key: 'RabbitEventConfig.*QUEUE/*DLQ', file: 'backend/src/main/java/com/busgallery/busgallery/messaging/RabbitEventConfig.java', effect: '队列、死信队列与绑定关系' }], workflows: [{ flow: 'WF-04', input: '评论发布或收藏切换成功后的事件', process: 'afterCommit 发布 -> queue 消费 -> side-effect best-effort', output: '通知/敏感词/热度/推荐/快照预热异步完成' }] },
   { pageId: 'm3-minio', name: 'MinIO', intro: '对象存储服务，负责图片数据落地与读取。', role: '上传写对象，访问通过后端签名校验后读取对象流。', io: [{ input: '上传文件', process: 'putObject 写入对象桶', output: 'objectName + url' }, { input: '签名 token', process: '验签后 getObject', output: '图片字节流' }], configs: [{ key: 'minio.endpoint/access-key/secret-key/bucket', file: 'application.yml + docker/.env', effect: '连接对象存储' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', effect: '外网访问域名' }, { key: 'location /bus-gallery/', file: 'docker/nginx/default.conf', effect: '统一对象访问入口' }], workflows: [{ flow: 'WF-05', input: '上传请求', process: '写对象并回写元数据', output: '可访问对象路径' }, { flow: 'WF-08', input: '图片访问请求', process: '验签后读取对象', output: '图片流' }] }
 ];
 const middlewareMap = Object.fromEntries(middlewarePages.map((m) => [m.pageId, m]));
 const middlewareEvents = [
   { trigger: '用户登录/注册', exec: 'Nginx -> Spring -> Redis -> MySQL', action: '限流、校验、写 session、返回 token', flow: 'WF-03', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-mysql'] },
   { trigger: '请求车辆列表/详情', exec: 'Nginx -> Spring -> Redis -> MySQL -> MinIO', action: '缓存命中优先，未命中回源组装', flow: 'WF-01', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-mysql', 'm3-minio'] },
+  { trigger: '评论发布/删除/收藏切换', exec: 'Nginx -> Spring -> MySQL -> Redis -> RabbitMQ(异步副作用)', action: '主事务先落库并更新缓存；comment.created / favorite.toggled 通过 afterCommit 发布到业务队列，副作用 best-effort 执行。', flow: 'WF-04', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-mysql', 'm3-redis', 'm3-rabbitmq'] },
   { trigger: '提交上传', exec: 'Nginx -> Spring -> Redis -> MinIO -> MySQL', action: '上传安全检查、幂等、防刷、图片压缩与水印处理后落库', flow: 'WF-05', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-minio', 'm3-mysql'] },
   { trigger: '审核操作', exec: 'Nginx -> Spring -> MySQL -> Redis', action: '角色校验、状态更新、缓存失效', flow: 'WF-06', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-mysql', 'm3-redis'] },
   { trigger: '访问签名图片', exec: 'Nginx -> Spring -> MinIO', action: '验签与过期校验后返回对象流', flow: 'WF-08', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-minio'] }
@@ -1461,9 +1520,9 @@ const redisKeyRows = [
   { group: '幂等', key: 'idempotent:upload:{idempotencyKey}', value: '"1"', ttl: '上传接口固定 10m', created: 'UploadController 调用 runOnce 时 setIfAbsent', updated: '业务异常时主动删除；成功后等 TTL 过期', usage: '拦截重复上传提交' },
   { group: '车辆列表缓存', key: 'bg:vehicle:page:version', value: 'version(number)', ttl: '无固定 TTL', created: '首次写操作 increment 自动创建', updated: '车辆增改删、审核页修改/删除车辆后 increment', usage: '版本键，驱动 page 缓存整体失效' },
   { group: '车辆列表缓存', key: 'bg:vehicle:page:v{ver}:s{size}:r{r}:c{c}:b{b}:m{m}:k{kw}:l{lastLaunch}:i{lastId}', value: 'VehiclePageResponse JSON', ttl: 'busgallery.cache.vehicles.page-ttl-seconds (默认 30s)', created: '列表查询 miss 后回源写入', updated: '版本提升后自然失效，TTL 兜底过期', usage: '车辆分页查询加速；审核页保存后其他列表页会切到新版本命名空间' },
-  { group: '评论缓存', key: 'bg:comments:ver:{vehicleId}', value: 'version(number)', ttl: '无固定 TTL', created: '首次评论写入 bumpVersion', updated: '每次新增评论 increment', usage: '评论 list/count 的版本失效锚点' },
-  { group: '评论缓存', key: 'bg:comments:list:v{ver}:vid{vehicleId}:p{page}:s{size}', value: 'List<VehicleComment> JSON', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论列表 miss 后回源写入', updated: '评论新增导致版本变化后自然失效', usage: '评论列表查询加速' },
-  { group: '评论缓存', key: 'bg:comments:count:v{ver}:vid{vehicleId}', value: 'count(string)', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论总数 miss 后回源写入', updated: '评论新增导致版本变化后自然失效', usage: '评论数量读取加速' },
+  { group: '评论缓存', key: 'bg:comments:ver:{vehicleId}', value: 'version(number)', ttl: '无固定 TTL', created: '首次评论写入 bumpVersion', updated: '评论新增或删除都会 increment', usage: '评论 list/count 的版本失效锚点' },
+  { group: '评论缓存', key: 'bg:comments:list:v{ver}:vid{vehicleId}:p{page}:s{size}', value: 'List<VehicleComment> JSON', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论列表 miss 后回源写入', updated: '评论新增/删除导致版本变化后自然失效', usage: '评论列表查询加速' },
+  { group: '评论缓存', key: 'bg:comments:count:v{ver}:vid{vehicleId}', value: 'count(string)', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论总数 miss 后回源写入', updated: '评论新增/删除导致版本变化后自然失效', usage: '评论数量读取加速' },
   { group: '收藏缓存', key: 'bg:fav:summary:{vehicleId}', value: 'FavoriteSummary JSON', ttl: 'busgallery.cache.favorites.summary-ttl-seconds (默认 30s)', created: 'summary miss 或 toggle 后写入', updated: 'toggle 后覆盖最新总数和 topUsers', usage: '收藏摘要展示' },
   { group: '收藏缓存', key: 'bg:fav:liked:{vehicleId}:{userId}', value: '"true"/"false"', ttl: 'busgallery.cache.favorites.liked-ttl-seconds (默认 30s)', created: 'summary 查询当前用户收藏态时写入', updated: 'toggle 后覆盖写最新 liked', usage: '当前用户是否已收藏判定' },
   { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:latest', value: 'version(string)', ttl: '10m', created: '快照回源构建后写入', updated: '每次重建快照覆盖写最新版本；车辆修改/删除时主动 delete', usage: '指向当前有效快照版本' },
@@ -1622,8 +1681,9 @@ end`
     title: '评论/收藏缓存的一致性策略',
     keys: 'bg:comments:* / bg:fav:*',
     steps: [
-      '评论采用版本键模型：新增评论只 bump ver，list/count 缓存自然切换到新版本。',
+      '评论采用版本键模型：新增或删除评论都会 bump ver，list/count 缓存自然切换到新版本。',
       '收藏采用覆盖写模型：toggle 后直接回写 summary 与 liked 两类键。',
+      '评论与收藏写库成功后会发布 RabbitMQ 事件触发异步副作用，消费者 best-effort 执行失败不影响主事务。',
       '两种策略都以“写请求完成后立刻更新缓存状态”为核心，确保写后读一致性。'
     ],
     mermaid: `sequenceDiagram
@@ -1631,13 +1691,16 @@ participant FE as Frontend
 participant SPR as Comment/Favorite Service
 participant RED as Redis
 participant DB as MySQL
-FE->>SPR: 发布评论 / 切换收藏
-SPR->>DB: insert/update
-alt 评论
+participant MQ as RabbitMQ
+FE->>SPR: 发布评论/删除评论/切换收藏
+SPR->>DB: insert/update/delete
+alt 评论新增/删除
   SPR->>RED: INCR bg:comments:ver:{vehicleId}
+  SPR->>MQ: publish comment.created (新增时)
 else 收藏
   SPR->>RED: SET bg:fav:summary:{vehicleId}
   SPR->>RED: SET bg:fav:liked:{vehicleId}:{userId}
+  SPR->>MQ: publish favorite.toggled
 end
 SPR-->>FE: 返回最新状态`
   },
@@ -2801,12 +2864,12 @@ function cnName(api) {
   }
   if (g === 'User') { if (p.endsWith('/me')) return '获取当前用户资料'; if (p.endsWith('/me/display-name')) return '修改用户昵称'; if (p.endsWith('/me/images')) return '获取我的图片'; if (p.includes('/images')) return '获取指定用户图片'; return '获取指定用户资料'; }
   if (g === 'Vehicle') { if (m === 'GET' && p === '/api/vehicles') return '查询车辆分页列表'; if (m === 'GET' && p === '/api/vehicles/manage') return '查询审核中心车辆管理列表'; if (m === 'GET' && p.includes('/plate/')) return '按车牌查询车辆分组'; if (m === 'GET') return '查询车辆详情'; if (m === 'POST') return '新增车辆'; if (m === 'PUT') return '更新车辆'; return '删除车辆'; }
-  if (g === 'Comment') return m === 'GET' ? '查询车辆评论列表' : '发布车辆评论';
+  if (g === 'Comment') return m === 'GET' ? '查询车辆评论列表' : m === 'POST' ? '发布车辆评论' : '删除车辆评论';
   if (g === 'Favorite') return p.endsWith('/toggle') ? '切换收藏状态' : p.endsWith('/summary') ? '查询收藏摘要' : '查询收藏列表';
   if (g === 'Upload') return '上传车辆与图片';
   if (g === 'Image') { if (p.includes('/access/')) return '按签名访问图片'; if (p.endsWith('/latest')) return '查询最新图片'; if (p.includes('/vehicle/')) return '查询车辆图片'; if (m === 'GET') return '查询图片详情'; if (m === 'POST') return '上传图片'; if (m === 'PUT') return '更新图片信息'; return '删除图片'; }
   if (g === 'Review') return p.endsWith('/inbox') ? '查询审核收件箱' : p.endsWith('/pending') ? '查询待审核列表' : p.includes('/approve') ? '通过审核' : p.includes('/reject') ? '驳回审核' : '更新审核提交';
-  if (g === 'Admin') return p.endsWith('/overview') ? '查询后台概览' : p.endsWith('/users') ? '查询后台用户' : p.includes('/users/{id}/role') ? '调整用户角色' : p.endsWith('/submissions') ? '查询提交流水' : p.endsWith('/images/suspects') ? '查询异常图片' : p.endsWith('/images/suspects/cleanup') ? '清理异常图片' : m === 'GET' ? '查询字典数据' : m === 'POST' ? '新增字典数据' : m === 'PUT' ? '修改字典数据' : '删除字典数据';
+  if (g === 'Admin') return p.endsWith('/overview') ? '查询后台概览' : p.endsWith('/users') ? '查询后台用户' : p.includes('/users/{id}/role') ? '调整用户角色' : p.endsWith('/submissions') ? '查询提交流水' : p.endsWith('/comments') ? '查询后台评论列表' : p.includes('/comments/{commentId}') ? '后台删除评论' : p.endsWith('/images/suspects') ? '查询异常图片' : p.endsWith('/images/suspects/cleanup') ? '清理异常图片' : m === 'GET' ? '查询字典数据' : m === 'POST' ? '新增字典数据' : m === 'PUT' ? '修改字典数据' : '删除字典数据';
   if (g === 'Catalog') return p.endsWith('/regions') ? '查询地区目录' : p.endsWith('/companies') ? '查询公司目录' : p.endsWith('/brands') ? '查询品牌目录' : '查询车型目录';
   if (g === 'Region') return m === 'GET' ? (p.endsWith('/companies') ? '查询地区下公司' : p.includes('{id}') ? '查询地区详情' : '查询地区列表') : m === 'POST' ? '新增地区' : m === 'PUT' ? '更新地区' : '删除地区';
   if (g === 'Company') return m === 'GET' ? (p.endsWith('/vehicles') ? '查询公司车辆' : p.endsWith('/model-summaries') ? '查询公司车型汇总' : p.includes('{id}') ? '查询公司详情' : '查询公司列表') : m === 'POST' ? '新增公司' : m === 'PUT' ? '更新公司' : '删除公司';
@@ -2842,6 +2905,7 @@ function sectionsOf(api) {
   if (key === 'GET /api/favorites') query.push('userId?');
   if (key === 'GET /api/images/latest') query.push('limit');
   if (key === 'GET /api/admin/submissions') query.push('status');
+  if (key === 'GET /api/admin/comments') query.push('page', 'size');
   if (key === 'POST /api/admin/images/suspects/cleanup') body.push('imageIds?');
   if (key === 'GET /api/catalog/regions') query.push('parentId?');
   if (key === 'GET /api/catalog/companies') query.push('regionId?');
@@ -2973,7 +3037,7 @@ const flowStepTags = {
   'WF-01': { frontend: ['参数组装'], nginx: ['入口限流'], redis: ['缓存一致性'], spring: ['拦截器顺序'], db: ['联合索引'], other: ['对象存储读取'] },
   'WF-02': { frontend: ['级联查询'], nginx: ['统一网关'], redis: ['短 TTL'], spring: ['聚合接口'], db: ['层级索引'], other: ['同步返回'] },
   'WF-03': { frontend: ['验证码场景'], nginx: ['认证限流'], redis: ['会话TTL'], spring: ['鉴权流程'], db: ['密码哈希'], other: ['邮件通道'] },
-  'WF-04': { frontend: ['互动触发'], nginx: ['通用限流'], redis: ['热点缓存'], spring: ['登录校验'], db: ['事务写入'], other: ['同步反馈'] },
+  'WF-04': { frontend: ['互动触发'], nginx: ['通用限流'], redis: ['热点缓存'], spring: ['登录校验'], db: ['事务写入'], other: ['afterCommit 发布', '异步副作用'] },
   'WF-05': { frontend: ['multipart'], nginx: ['上传通道'], redis: ['幂等+限流'], spring: ['文件安全校验', '水印压缩处理'], db: ['关系落库'], other: ['MinIO写入'] },
   'WF-06': { frontend: ['审批动作'], nginx: ['统一转发'], redis: ['缓存失效'], spring: ['角色校验'], db: ['状态变更'], other: ['即时生效'] },
   'WF-07': { frontend: ['后台CRUD'], nginx: ['入口保护'], redis: ['版本键'], spring: ['权限拦截'], db: ['主数据维护'], other: ['事务回滚'] },
@@ -2994,7 +3058,8 @@ const flowInterviewNotes = {
     { tag: '会话方案', title: '为什么不是 JWT', explain: 'Redis Session 支持实时失效、踢人和风控状态共享，后台可控性更强。' }
   ],
   'WF-04': [
-    { tag: '写后读一致', title: '互动数据如何更新', explain: '评论和收藏写入后立即删缓存，下一次读请求回源并重建。' }
+    { tag: '写后读一致', title: '互动数据如何更新', explain: '评论新增/删除通过版本键切换缓存，收藏切换通过 summary+liked 覆盖写；写库成功后再发 MQ 事件做异步副作用。' },
+    { tag: '异步边界', title: '为什么 afterCommit 再发 MQ', explain: '确保数据库事务提交成功后才发布事件，避免回滚时出现脏消息导致下游误处理。' }
   ],
   'WF-05': [
     { tag: '幂等', title: '重复提交如何挡住', explain: 'Idempotency-Key 使用 Redis setIfAbsent 抢占，重复请求直接返回已有结果。' },
@@ -3005,7 +3070,7 @@ const flowInterviewNotes = {
     { tag: '权限边界', title: '审核员区域隔离', explain: 'RoleGuard 先校验 REVIEWER 的区域范围，避免跨区域审批。' }
   ],
   'WF-07': [
-    { tag: '后台一致性', title: '为什么要事务包裹', explain: '多表更新任一失败即回滚，防止字典和关联表状态不一致。' }
+    { tag: '后台一致性', title: '为什么要事务包裹', explain: '多表更新任一失败即回滚；后台评论删除复用前台服务，权限和缓存失效逻辑保持一致。' }
   ],
   'WF-08': [
     { tag: '签名安全', title: '防重放怎么做', explain: 'token 含过期时间并参与 HMAC，过期或篡改会直接拒绝访问。' }
@@ -3054,6 +3119,7 @@ const flowMainPathTemplates = {
     { lane: 3, name: 'Spring 鉴权处理' },
     { lane: 2, name: 'Redis 读写缓存' },
     { lane: 4, name: 'MySQL 持久化' },
+    { lane: 5, name: 'RabbitMQ 异步副作用' },
     { lane: 3, name: '返回最新状态' },
     { lane: 0, name: '前端即时刷新' }
   ],
@@ -3121,7 +3187,9 @@ const flowPages = computed(() => flowRows.map((f) => {
   const firstApi = rel[0];
   const tags = flowStepTags[f.id] || {};
   const commonApis = rel.slice(0, 3);
-  const swimlanes = ['浏览器/前端', 'Nginx', 'Redis', 'Spring', 'MySQL', 'MinIO/外部服务'];
+  const otherMiddlewarePage = f.id === 'WF-04' ? 'm3-rabbitmq' : 'm3-minio';
+  const otherMiddlewareName = otherMiddlewarePage === 'm3-rabbitmq' ? 'RabbitMQ' : 'MinIO';
+  const swimlanes = ['浏览器/前端', 'Nginx', 'Redis', 'Spring', 'MySQL', `${otherMiddlewareName}/外部服务`];
   const sequence = [
     {
       name: '前端发起请求',
@@ -3166,8 +3234,8 @@ const flowPages = computed(() => flowRows.map((f) => {
     {
       name: '其他中间件',
       text: f.other,
-      targetPage: 'm3-minio',
-      targetText: '查看 MinIO 页面',
+      targetPage: otherMiddlewarePage,
+      targetText: `查看 ${otherMiddlewareName} 页面`,
       tags: tags.other || [],
       apis: commonApis
     },
@@ -3180,13 +3248,14 @@ const flowPages = computed(() => flowRows.map((f) => {
       apis: commonApis
     }
   ];
+  const otherStepTitle = f.id === 'WF-04' ? 'Spring 发布 MQ 异步事件' : 'Spring 调用对象/外部服务';
   const events = [
     { from: 0, to: 1, title: '前端提交业务请求', ...sequence[0] },
     { from: 1, to: 3, title: '网关转发到 Spring', ...sequence[1] },
     { from: 3, to: 3, title: 'Spring 执行业务编排', ...sequence[3] },
     { from: 3, to: 2, title: 'Spring 访问 Redis', ...sequence[2] },
     { from: 3, to: 4, title: 'Spring 回源 MySQL', ...sequence[4] },
-    { from: 3, to: 5, title: 'Spring 调用对象/外部服务', ...sequence[5] },
+    { from: 3, to: 5, title: otherStepTitle, ...sequence[5] },
     { from: 3, to: 0, title: 'Spring 返回响应给前端', ...sequence[6] }
   ];
   const laneTargetPage = (lane) => {
@@ -3195,7 +3264,7 @@ const flowPages = computed(() => flowRows.map((f) => {
     if (lane === 2) return 'm3-redis';
     if (lane === 3) return 'm3-spring';
     if (lane === 4) return 'm3-mysql';
-    return 'm3-minio';
+    return otherMiddlewarePage;
   };
   const mainPath = (flowMainPathTemplates[f.id] || [
     { lane: 0, name: '前端发起请求' },

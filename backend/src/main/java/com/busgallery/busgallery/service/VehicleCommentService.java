@@ -11,4 +11,6 @@ public interface VehicleCommentService {
     long count(Long vehicleId);
 
     VehicleComment addComment(Long vehicleId, Long userId, String username, String displayName, String content);
+
+    void deleteComment(Long vehicleId, Long commentId, Long operatorUserId, boolean stationOperator);
 }

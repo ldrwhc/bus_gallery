@@ -13,7 +13,9 @@ import com.busgallery.busgallery.service.RegionService;
 import com.busgallery.busgallery.service.VehicleService;
 import com.busgallery.busgallery.util.ExifUtils;
 import com.busgallery.busgallery.util.FuelTypeNormalizer;
+import com.busgallery.busgallery.util.RequestIpUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -51,6 +53,12 @@ public class VehicleController {
     @GetMapping("/{id}")
     public VehicleDetailResponse detail(@PathVariable Long id) {
         return buildVehicleDetail(id);
+    }
+
+    @PostMapping("/{id}/view")
+    public void trackView(@PathVariable Long id, HttpServletRequest request) {
+        String clientIp = RequestIpUtil.resolveClientIp(request);
+        vehicleService.recordView(id, clientIp);
     }
 
     @GetMapping("/plate/{plateNumber}")
@@ -357,6 +365,7 @@ public class VehicleController {
         dto.setCustomNumber(source.getCustomNumber());
         dto.setFactoryDate(source.getFactoryDate());
         dto.setLaunchDate(source.getLaunchDate());
+        dto.setViewCount(source.getViewCount());
         dto.setAirConditioned(source.getAirConditioned());
         dto.setSource(source.getSource());
         dto.setRemark(source.getRemark());
@@ -512,6 +521,7 @@ public class VehicleController {
         private String regionCity;
         private LocalDate factoryDate;
         private LocalDate launchDate;
+        private Long viewCount;
         private Boolean airConditioned;
         private String source;
         private String remark;
@@ -593,6 +603,7 @@ public class VehicleController {
         private String customNumber;
         private LocalDate factoryDate;
         private LocalDate launchDate;
+        private Long viewCount;
         private Boolean airConditioned;
         private String source;
         private String remark;

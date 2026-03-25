@@ -30,6 +30,9 @@ export const createAdminModel = (payload) => http.post('/admin/tables/models', p
 export const updateAdminModel = (id, payload) => http.put(`/admin/tables/models/${id}`, payload);
 export const deleteAdminModel = (id) => http.delete(`/admin/tables/models/${id}`);
 
+export const fetchAdminComments = (params = {}) => http.get('/admin/comments', { params });
+export const deleteAdminComment = (commentId) => http.delete(`/admin/comments/${commentId}`);
+
 export const fetchAdminSuspectImages = () => http.get('/admin/images/suspects');
 export const cleanupAdminSuspectImages = (imageIds) =>
     http.post('/admin/images/suspects/cleanup', imageIds ? { imageIds } : {});

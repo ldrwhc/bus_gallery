@@ -18,6 +18,24 @@
         id, vehicle_id, user_id, username, display_name, content, created_at
     </sql>
 
+    <select id="selectById" resultMap="CommentResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle_comment
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectPage" resultMap="CommentResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle_comment
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(1)
+        FROM vehicle_comment
+    </select>
+
     <select id="selectByVehicleId" resultMap="CommentResultMap">
         SELECT <include refid="BaseColumnList"/>
         FROM vehicle_comment
@@ -50,6 +68,11 @@
         SET display_name = #{displayName}
         WHERE user_id = #{userId}
     </update>
+
+    <delete id="deleteById">
+        DELETE FROM vehicle_comment
+        WHERE id = #{id}
+    </delete>
 
     <delete id="deleteByVehicleId">
         DELETE FROM vehicle_comment

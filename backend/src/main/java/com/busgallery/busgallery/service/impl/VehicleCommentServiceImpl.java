@@ -2,7 +2,11 @@ package com.busgallery.busgallery.service.impl;
 
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.entity.VehicleComment;
+import com.busgallery.busgallery.exception.BizException;
+import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.exception.NotFoundException;
+import com.busgallery.busgallery.messaging.BusEventPublisher;
+import com.busgallery.busgallery.messaging.payload.CommentCreatedEvent;
 import com.busgallery.busgallery.mapper.VehicleCommentMapper;
 import com.busgallery.busgallery.mapper.VehicleMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -27,6 +31,7 @@ public class VehicleCommentServiceImpl implements VehicleCommentService {
     private final VehicleMapper vehicleMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+    private final BusEventPublisher busEventPublisher;
 
     @Value("${busgallery.cache.comments.ttl-seconds:30}")
     private long commentCacheTtlSeconds;
@@ -98,7 +103,36 @@ public class VehicleCommentServiceImpl implements VehicleCommentService {
         comment.setContent(content.trim());
         commentMapper.insert(comment);
         bumpVersion(vehicleId);
-        return commentMapper.selectByVehicleId(vehicleId, 0, 1).stream().findFirst().orElse(comment);
+        VehicleComment latest = commentMapper.selectByVehicleId(vehicleId, 0, 1).stream().findFirst().orElse(comment);
+        busEventPublisher.publishCommentCreated(CommentCreatedEvent.builder()
+                .commentId(latest.getId())
+                .vehicleId(vehicleId)
+                .plateNumber(vehicle.getPlateNumber())
+                .userId(userId)
+                .username(username)
+                .displayName(displayName)
+                .content(latest.getContent())
+                .createdAt(latest.getCreatedAt())
+                .build());
+        return latest;
+    }
+
+    @Override
+    @Transactional
+    public void deleteComment(Long vehicleId, Long commentId, Long operatorUserId, boolean stationOperator) {
+        if (vehicleId == null || commentId == null) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "Invalid vehicle/comment id");
+        }
+        VehicleComment comment = commentMapper.selectById(commentId);
+        if (comment == null || !vehicleId.equals(comment.getVehicleId())) {
+            throw new NotFoundException("Comment not found");
+        }
+        boolean owner = operatorUserId != null && operatorUserId.equals(comment.getUserId());
+        if (!stationOperator && !owner) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "No permission to delete this comment");
+        }
+        commentMapper.deleteById(commentId);
+        bumpVersion(vehicleId);
     }
 
     private String versionKey(Long vehicleId) {

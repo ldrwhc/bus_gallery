@@ -42,6 +42,9 @@ export const fetchManageVehiclePage = (params = {}) =>
 export const fetchVehicleGalleryDetail = (vehicleId) =>
     http.get(`/vehicles/${vehicleId}`).then(normalizeDetail);
 
+export const trackVehicleView = (vehicleId) =>
+    http.post(`/vehicles/${vehicleId}/view`);
+
 export const createVehicle = (payload) => http.post('/vehicles', payload).then(normalizeDetail);
 
 export const updateVehicle = (vehicleId, payload) =>
@@ -75,6 +78,9 @@ export const fetchVehicleComments = (vehicleId, params = {}) =>
 
 export const createVehicleComment = (vehicleId, content) =>
     http.post(`/vehicles/${vehicleId}/comments`, { content });
+
+export const deleteVehicleComment = (vehicleId, commentId) =>
+    http.delete(`/vehicles/${vehicleId}/comments/${commentId}`);
 
 export const toggleFavorite = (vehicleId) => http.post(`/favorites/${vehicleId}/toggle`);
 

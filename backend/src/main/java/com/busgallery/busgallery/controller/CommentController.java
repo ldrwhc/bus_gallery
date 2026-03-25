@@ -2,6 +2,7 @@ package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
 import com.busgallery.busgallery.auth.RequireLogin;
+import com.busgallery.busgallery.auth.UserRole;
 import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.dto.response.PageResponse;
 import com.busgallery.busgallery.entity.VehicleComment;
@@ -50,6 +51,18 @@ public class CommentController {
         return CommentResponse.from(saved);
     }
 
+    @DeleteMapping("/{commentId}")
+    @RequireLogin
+    public void delete(@PathVariable Long vehicleId, @PathVariable Long commentId) {
+        UserSession session = AuthContextHolder.requireUser();
+        commentService.deleteComment(
+                vehicleId,
+                commentId,
+                session.getUserId(),
+                session.getRole() == UserRole.STATION
+        );
+    }
+
     @Data
     public static class CommentCreateRequest {
         @NotBlank(message = "Comment content is required")
@@ -61,6 +74,7 @@ public class CommentController {
     public static class CommentResponse {
         private Long id;
         private Long vehicleId;
+        private Long userId;
         private String displayName;
         private String username;
         private String content;
@@ -70,6 +84,7 @@ public class CommentController {
             CommentResponse response = new CommentResponse();
             response.setId(comment.getId());
             response.setVehicleId(comment.getVehicleId());
+            response.setUserId(comment.getUserId());
             response.setDisplayName(comment.getDisplayName());
             response.setUsername(comment.getUsername());
             response.setContent(comment.getContent());

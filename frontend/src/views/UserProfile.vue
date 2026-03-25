@@ -563,7 +563,7 @@ const openImage = async (image) => {
 const openFavorite = async (detail) => {
     if (!detail?.vehicle?.id) return;
     activeVehicleId.value = detail.vehicle.id;
-    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: detail.vehicle.id });
+    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: detail.vehicle.id, force: true });
 };
 
 const closeVehicleDetail = () => {

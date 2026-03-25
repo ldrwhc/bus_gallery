@@ -10,6 +10,7 @@
         <result property="customNumber" column="custom_number"/>
         <result property="factoryDate" column="factory_date"/>
                 <result property="launchDate" column="launch_date"/>
+                <result property="viewCount" column="view_count"/>
                 <result property="airConditioned" column="air_conditioned"/>
                 <result property="source" column="source"/>
                 <result property="remark" column="remark"/>
@@ -32,6 +33,7 @@
         <result property="customNumber" column="custom_number"/>
         <result property="factoryDate" column="factory_date"/>
         <result property="launchDate" column="launch_date"/>
+        <result property="viewCount" column="view_count"/>
         <result property="airConditioned" column="air_conditioned"/>
         <result property="source" column="source"/>
         <result property="remark" column="remark"/>
@@ -66,7 +68,7 @@
 
         <sql id="BaseColumnList">
                 id, plate_number, custom_number, model_id, company_id, region_id,
-                factory_date, launch_date, air_conditioned, source, remark,
+                factory_date, launch_date, view_count, air_conditioned, source, remark,
                 created_at, updated_at
         </sql>
 
@@ -79,7 +81,7 @@
     <select id="selectDetailById" parameterType="long" resultMap="VehicleDetailMap">
         SELECT
             v.id, v.plate_number, v.custom_number, v.model_id, v.company_id, v.region_id,
-            v.factory_date, v.launch_date, v.air_conditioned, v.source, v.remark,
+            v.factory_date, v.launch_date, v.view_count, v.air_conditioned, v.source, v.remark,
             v.created_at, v.updated_at,
             m.id AS m_id, m.name AS m_name, m.brand_id AS m_brand_id,
             b.id AS b_id, b.name AS b_name, b.chn_name AS b_chn_name,
@@ -111,7 +113,7 @@
     <select id="selectDetailByPlateNumber" parameterType="string" resultMap="VehicleDetailMap">
         SELECT
             v.id, v.plate_number, v.custom_number, v.model_id, v.company_id, v.region_id,
-            v.factory_date, v.launch_date, v.air_conditioned, v.source, v.remark,
+            v.factory_date, v.launch_date, v.view_count, v.air_conditioned, v.source, v.remark,
             v.created_at, v.updated_at,
             m.id AS m_id, m.name AS m_name, m.brand_id AS m_brand_id,
             b.id AS b_id, b.name AS b_name, b.chn_name AS b_chn_name,
@@ -225,6 +227,13 @@
                 CASE WHEN v.launch_date IS NULL THEN 1 ELSE 0 END ASC,
                 v.launch_date DESC,
                 v.id DESC
+                LIMIT #{limit}
+        </select>
+
+        <select id="selectHotByViewCount" resultMap="VehicleResultMap">
+                SELECT <include refid="BaseColumnList"/>
+                FROM vehicle
+                ORDER BY view_count DESC, id DESC
                 LIMIT #{limit}
         </select>
 
@@ -345,4 +354,10 @@
         <delete id="delete" parameterType="long">
                 DELETE FROM vehicle WHERE id = #{id}
         </delete>
+
+        <update id="incrementViewCount">
+                UPDATE vehicle
+                SET view_count = view_count + #{delta}
+                WHERE id = #{vehicleId}
+        </update>
 </mapper>

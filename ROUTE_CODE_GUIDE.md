@@ -50,10 +50,18 @@
 ## 4. 评论
 
 - 前端：`VehicleDetailModal.vue` / `VehicleDetail.vue`
-- API：`/api/vehicles/{id}/comments`
+- API：
+  - `GET /api/vehicles/{vehicleId}/comments`
+  - `POST /api/vehicles/{vehicleId}/comments`
+  - `DELETE /api/vehicles/{vehicleId}/comments/{commentId}`
 - 后端：`CommentController`
 - Service：`VehicleCommentService`
 - Mapper：`VehicleCommentMapper`
+
+细节：
+- 删除权限由后端强校验：评论作者本人或 `STATION`。
+- 删除与发布都会触发评论缓存版本推进（`bg:comments:ver:{vehicleId}`）。
+- 发布评论后会发 `comment.created` 事件，异步执行通知/复审/推荐/快照预热。
 
 ---
 
@@ -64,6 +72,25 @@
 - 后端：`FavoriteController`
 - Service：`FavoriteServiceImpl`
 - Mapper：`FavoriteMapper`
+
+细节：
+- `toggle` 主流程先落 MySQL，再覆盖写 Redis 的 `summary/liked`。
+- `favorite.toggled` 事件会异步更新榜单/推荐/通知；消费者是 best-effort，不阻塞主流程。
+- `UserProfile.vue` 从收藏卡片打开详情会 `force: true` 刷新，修复旧快照导致的收藏态误差。
+
+---
+
+## 5.1 站长后台评论管理
+
+- 前端：`frontend/src/views/AdminDashboard.vue`（评论管理区块）
+- API：
+  - `GET /api/admin/comments?page=1&size=20`
+  - `DELETE /api/admin/comments/{commentId}`
+- 后端：`AdminController`
+- Service：内部复用 `VehicleCommentService.deleteComment`
+
+细节：
+- 后台删除与前台删除共享同一删除服务，权限与缓存失效逻辑完全一致。
 
 ---
 

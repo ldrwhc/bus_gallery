@@ -86,7 +86,7 @@ public class SnapshotServiceImpl implements SnapshotService {
      */
     public List<SnapshotPayload> listHotSnapshots(int limit) {
         int size = Math.max(1, Math.min(limit, 12));
-        List<Vehicle> vehicles = vehicleService.queryPage(size, null, null, null, null, null, null, null);
+        List<Vehicle> vehicles = vehicleService.listHotByViewCount(size);
         List<String> plateNumbers = vehicles.stream()
                 .map(Vehicle::getPlateNumber)
                 .filter(StringUtils::hasText)

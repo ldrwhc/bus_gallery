@@ -206,6 +206,16 @@
 
 ## 6. 评论 Comments
 
+组件与调用位置（前端）：
+- `frontend/src/views/VehicleDetail.vue`
+- `frontend/src/components/Gallery/VehicleDetailModal.vue`
+- 电脑端默认显示在详情右侧；移动端显示在详情下方。
+
+组件内触发细节：
+- 详情页与弹窗都支持发布和删除评论，权限按钮由 `canDeleteComment` 控制（本人或站长可见）。
+- 评论列表在前端有本地缓存（Vuex `commentCache`）和轮询刷新（8s），先回显后校准。
+- 删除成功后前端先本地移除，再由下一次轮询与后端总数对齐。
+
 ### GET `/api/vehicles/{vehicleId}/comments`
 
 响应：
@@ -215,6 +225,8 @@
     {
       "id": 1,
       "vehicleId": 3,
+      "userId": 9,
+      "username": "uploader_a",
       "displayName": "ldr",
       "content": "好车！",
       "createdAt": "2026-03-17T08:45:45"
@@ -235,8 +247,52 @@
 
 响应：
 ```json
-{ "id": 1, "vehicleId": 3, "content": "好车！" }
+{
+  "id": 1,
+  "vehicleId": 3,
+  "userId": 9,
+  "username": "uploader_a",
+  "displayName": "ldr",
+  "content": "好车！",
+  "createdAt": "2026-03-17T08:45:45"
+}
 ```
+
+### DELETE `/api/vehicles/{vehicleId}/comments/{commentId}`
+
+说明：
+- 需要登录（`@RequireLogin`）。
+- 允许删除的角色/用户：
+- 评论作者本人。
+- 站长（`STATION`）。
+- 其他用户删除将返回权限错误（`A0401` 或业务错误码，具体取决于全局异常映射）。
+
+响应：
+- `204 No Content`（或空 body 200，按网关/框架设置）
+
+写入后行为（后端）：
+- MySQL：删除 `vehicle_comment` 记录。
+- Redis：`INCR bg:comments:ver:{vehicleId}`，使 `list/count` 旧缓存自然失效。
+- MQ：当前删除评论不发事件（如后续需要可新增 `comment.deleted` 事件用于审计/推荐回滚）。
+
+发布评论主链路时序（同步）：
+1. `CommentController` 调用 `VehicleCommentServiceImpl.addComment()`。
+2. 事务内写 MySQL 评论记录。
+3. 同步 `INCR bg:comments:ver:{vehicleId}`。
+4. 返回最新评论 DTO 给前端。
+
+发布评论副作用时序（异步）：
+1. `BusEventPublisher` 在事务 `afterCommit` 后发布 `comment.created`。
+2. 消息进入 `busgallery.comment.created.queue`（路由键：`comment.created`）。
+3. `CommentCreatedEventConsumer` 调用 `CommentSideEffectService` 执行副作用。
+
+评论发布异步副作用（`comment.created`）：
+- 通知（日志占位，便于后续接短信/站内信）。
+- 敏感词复审（写 `bg:comment:moderation:flag:{commentId}`）。
+- 热度统计（`bg:vehicle:heat:engagement`）。
+- 推荐信号（`bg:vehicle:recommend:comment-signal:{vehicleId}`）。
+- 快照预热（按车牌触发 SnapshotService）。
+- 失败策略：best-effort，异常仅告警不反抛，不影响主请求成功返回。
 
 ---
 
@@ -262,6 +318,31 @@
 ### GET `/api/favorites`
 
 响应：车辆详情列表
+
+组件内触发细节：
+- 详情页/弹窗收藏按钮都会先更新本地态，再调用 `/summary` 校准最终态。
+- 从个人收藏页点开详情会强制刷新详情数据，避免旧快照导致 `liked` 错判。
+
+收藏状态一致性说明：
+- 前端在详情/弹窗会优先展示缓存态，再主动请求 `/summary` 刷新最终态。
+- 当用户从“个人收藏”进入详情时，前端会强制刷新详情，避免旧快照导致 `liked` 显示错误。
+
+收藏切换主链路时序（同步）：
+1. `FavoriteServiceImpl.toggle()` 在事务内执行 insert/delete。
+2. 实时计算 `total/topUsers`。
+3. 覆盖写 `bg:fav:summary:{vehicleId}` 和 `bg:fav:liked:{vehicleId}:{userId}`。
+4. 直接返回最终态 `FavoriteSummary`。
+
+收藏切换副作用时序（异步）：
+1. 事务提交后发布 `favorite.toggled`。
+2. 消息进入 `busgallery.favorite.toggled.queue`（路由键：`favorite.toggled`）。
+3. 消费器执行榜单聚合、推荐更新、通知。
+
+收藏切换异步副作用（`favorite.toggled`）：
+- 榜单/热度聚合（`bg:vehicle:heat:favorites`）。
+- 推荐信号更新（`bg:vehicle:recommend:favorite-signal:{vehicleId}`）。
+- 通知（日志占位）。
+- 失败策略：best-effort，异常仅告警不反抛，避免 Rabbit listener 重试耗尽影响可用性。
 
 ---
 
@@ -338,7 +419,52 @@
 
 ---
 
-## 13. Swagger
+## 13. 后台 Admin（评论管理）
+
+> 需要站长权限（`STATION`）+ 登录态。
+
+### GET `/api/admin/comments?page=1&size=20`
+
+响应：
+```json
+{
+  "records": [
+    {
+      "id": 1001,
+      "vehicleId": 18,
+      "userId": 9,
+      "username": "user@example.com",
+      "displayName": "昵称",
+      "content": "这车坐起来很稳",
+      "createdAt": "2026-03-25T20:55:10"
+    }
+  ],
+  "total": 128,
+  "page": 1,
+  "size": 20
+}
+```
+
+说明：
+- 排序规则：`created_at DESC, id DESC`（最新评论优先）。
+- 参数保护：`page>=1`、`size>=1`，越界会被后端归一化。
+
+### DELETE `/api/admin/comments/{commentId}`
+
+说明：
+- 站长删除任意评论。
+- 内部复用评论服务删除逻辑，会同步触发评论缓存版本失效（后续读取自动回源重建）。
+
+响应：`204 No Content`（或空 body 200）
+
+实现细节：
+- `AdminController.deleteComment()` 先查评论是否存在，再复用 `VehicleCommentService.deleteComment(...)`。
+- 这样前台/后台共享一套删除逻辑：权限模型统一、缓存版本失效统一、后续审计扩展点统一。
+- 后台删除后同样触发 `bg:comments:ver:{vehicleId}` 递增，详情页评论列表会在下一次读取时自动切换版本。
+
+---
+
+## 14. Swagger
 
 - 在线：`http://localhost:8080/swagger-ui/index.html`
 - 静态导出：`docs/swagger/`

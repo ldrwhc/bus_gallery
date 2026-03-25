@@ -259,6 +259,42 @@ PREPARE stmt FROM @ddl_user_review_region_normalize;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @vehicle_view_count_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'vehicle'
+      AND COLUMN_NAME = 'view_count'
+);
+
+SET @ddl_vehicle_view_count := IF(
+        @vehicle_view_count_exists = 0,
+        'ALTER TABLE `vehicle` ADD COLUMN `view_count` BIGINT NOT NULL DEFAULT 0 AFTER `launch_date`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_vehicle_view_count;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @vehicle_view_count_idx_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'vehicle'
+      AND INDEX_NAME = 'idx_vehicle_view_count'
+);
+
+SET @ddl_vehicle_view_count_idx := IF(
+        @vehicle_view_count_idx_exists = 0,
+        'ALTER TABLE `vehicle` ADD KEY `idx_vehicle_view_count` (`view_count`)',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_vehicle_view_count_idx;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 
 SET @company_logo_exists := (
     SELECT COUNT(*)

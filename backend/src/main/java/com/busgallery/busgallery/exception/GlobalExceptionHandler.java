@@ -8,10 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -51,7 +52,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestPartException.class)
     public ResponseEntity<ErrorResponse> handleMissingPart(MissingServletRequestPartException e) {
         String partName = e.getRequestPartName();
-        String message = "上传缺少必要字段: " + partName;
+        String message = "Missing required upload part: " + partName;
         log.warn("Missing upload part: {}", partName);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.INVALID_PARAM.getCode(), message));
@@ -61,28 +62,43 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMaxUpload(MaxUploadSizeExceededException e) {
         log.warn("Upload size exceeded", e);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCode.INVALID_PARAM.getCode(), "上传文件过大，请压缩后重试"));
+                .body(ErrorResponse.of(ErrorCode.INVALID_PARAM.getCode(), "Upload file too large"));
     }
 
     @ExceptionHandler(MultipartException.class)
     public ResponseEntity<ErrorResponse> handleMultipart(MultipartException e) {
         log.warn("Multipart parse failed: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCode.INVALID_PARAM.getCode(), "上传格式错误，请使用 multipart/form-data"));
+                .body(ErrorResponse.of(ErrorCode.INVALID_PARAM.getCode(), "Invalid multipart/form-data request"));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException e) {
         log.debug("Resource not found: {} {}", e.getHttpMethod(), e.getResourcePath());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(ErrorCode.NOT_FOUND.getCode(), "资源不存在"));
+                .body(ErrorResponse.of(ErrorCode.NOT_FOUND.getCode(), "Resource not found"));
+    }
+
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public ResponseEntity<Void> handleAsyncRequestNotUsable(AsyncRequestNotUsableException e) {
+        if (isClientAbort(e)) {
+            log.debug("Client disconnected during response stream: {}", rootMessage(e));
+        } else {
+            log.warn("Async response stream became unusable: {}", rootMessage(e));
+        }
+        // Avoid JSON serialization for media streaming responses (e.g. image/jpeg).
+        return ResponseEntity.noContent().build();
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleException(Exception e) {
+    public ResponseEntity<?> handleException(Exception e) {
+        if (isClientAbort(e)) {
+            log.debug("Client disconnected before response completed: {}", rootMessage(e));
+            return ResponseEntity.noContent().build();
+        }
         log.error("Unhandled exception", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse.of(ErrorCode.INTERNAL_ERROR.getCode(), "系统内部错误"));
+                .body(ErrorResponse.of(ErrorCode.INTERNAL_ERROR.getCode(), "Internal server error"));
     }
 
     private HttpStatus mapStatus(ErrorCode code) {
@@ -98,6 +114,37 @@ public class GlobalExceptionHandler {
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.BAD_REQUEST;
         };
+    }
+
+    private boolean isClientAbort(Throwable e) {
+        Throwable cursor = e;
+        while (cursor != null) {
+            String className = cursor.getClass().getName();
+            if (className != null && className.contains("ClientAbortException")) {
+                return true;
+            }
+            String message = cursor.getMessage();
+            if (message != null) {
+                String text = message.toLowerCase();
+                if (text.contains("broken pipe")
+                        || text.contains("connection reset by peer")
+                        || text.contains("forcibly closed")) {
+                    return true;
+                }
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
+    }
+
+    private String rootMessage(Throwable e) {
+        Throwable cursor = e;
+        Throwable last = e;
+        while (cursor != null) {
+            last = cursor;
+            cursor = cursor.getCause();
+        }
+        return last == null ? "" : String.valueOf(last.getMessage());
     }
 
     @Data

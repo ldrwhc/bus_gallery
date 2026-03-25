@@ -208,6 +208,52 @@
                     </el-tab-pane>
                 </el-tabs>
             </section>
+
+            <section class="card">
+                <header class="row-between">
+                    <div>
+                        <h2>评论管理</h2>
+                        <p class="muted">站长可删除任意评论；评论作者也可在前台详情页删除自己的评论。</p>
+                    </div>
+                    <el-button :loading="commentAdmin.loading" @click="loadAdminComments(commentAdmin.page)">刷新评论</el-button>
+                </header>
+                <div v-if="commentAdmin.loading && !commentAdmin.records.length" class="state">正在加载评论...</div>
+                <div v-else-if="!commentAdmin.records.length" class="state">暂无评论数据</div>
+                <el-table v-else :data="commentAdmin.records" stripe>
+                    <el-table-column prop="id" label="ID" width="90" />
+                    <el-table-column prop="vehicleId" label="车辆ID" width="110" />
+                    <el-table-column label="用户" min-width="160">
+                        <template #default="{ row }">
+                            {{ row.displayName || row.username || ('用户#' + (row.userId || '-')) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="content" label="评论内容" min-width="260" />
+                    <el-table-column prop="createdAt" label="创建时间" min-width="180" />
+                    <el-table-column label="操作" width="120" fixed="right">
+                        <template #default="{ row }">
+                            <el-button
+                                type="danger"
+                                size="small"
+                                :loading="deletingCommentId === row.id"
+                                @click="removeCommentByStation(row)"
+                            >
+                                删除
+                            </el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+                <div class="row-between" v-if="commentAdmin.total > commentAdmin.size">
+                    <p class="muted">共 {{ commentAdmin.total }} 条评论</p>
+                    <el-pagination
+                        background
+                        layout="prev, pager, next"
+                        :current-page="commentAdmin.page"
+                        :page-size="commentAdmin.size"
+                        :total="commentAdmin.total"
+                        @current-change="loadAdminComments"
+                    />
+                </div>
+            </section>
         </main>
 
         <el-dialog v-model="regionEditor.visible" :title="regionEditor.id ? '编辑地区' : '新增地区'" width="520px">
@@ -282,10 +328,12 @@ import {
     createAdminModel,
     createAdminRegion,
     deleteAdminBrand,
+    deleteAdminComment,
     deleteAdminCompany,
     deleteAdminModel,
     deleteAdminRegion,
     fetchAdminBrands,
+    fetchAdminComments,
     fetchAdminCompanies,
     fetchAdminModels,
     fetchAdminOverview,
@@ -310,6 +358,14 @@ const suspectImagesLoading = ref(false);
 const suspectImageRows = ref([]);
 const cleaningAllSuspects = ref(false);
 const cleaningSingleImageId = ref(null);
+const deletingCommentId = ref(null);
+const commentAdmin = reactive({
+    loading: false,
+    page: 1,
+    size: 20,
+    total: 0,
+    records: []
+});
 
 const overview = reactive({
     totalUsers: 0,
@@ -468,6 +524,22 @@ const loadModelTable = async () => {
     const list = await fetchAdminModels();
     modelRows.value = Array.isArray(list) ? list : [];
 };
+const loadAdminComments = async (page = commentAdmin.page) => {
+    commentAdmin.loading = true;
+    try {
+        const normalizedPage = Number(page) > 0 ? Number(page) : 1;
+        const resp = await fetchAdminComments({
+            page: normalizedPage,
+            size: commentAdmin.size
+        });
+        commentAdmin.records = Array.isArray(resp?.records) ? resp.records : [];
+        commentAdmin.page = resp?.page ?? normalizedPage;
+        commentAdmin.size = resp?.size ?? commentAdmin.size;
+        commentAdmin.total = resp?.total ?? commentAdmin.records.length;
+    } finally {
+        commentAdmin.loading = false;
+    }
+};
 const loadSuspectImages = async () => {
     suspectImagesLoading.value = true;
     try {
@@ -489,6 +561,7 @@ const reloadAll = async () => {
             loadCompanyTable(),
             loadBrandTable(),
             loadModelTable(),
+            loadAdminComments(commentAdmin.page),
             activeTab.value === 'images' ? loadSuspectImages() : Promise.resolve()
         ]);
     } catch (error) {
@@ -662,6 +735,21 @@ const removeModel = (row) =>
         await loadModelTable();
         ElMessage.success('车型已删除');
     }).catch(() => {});
+
+const removeCommentByStation = (row) =>
+    confirmDelete(`确认删除评论 #${row.id} 吗？`, async () => {
+        deletingCommentId.value = row.id;
+        await deleteAdminComment(row.id);
+        const maxPage = Math.max(1, Math.ceil(Math.max(commentAdmin.total - 1, 0) / commentAdmin.size));
+        await loadAdminComments(Math.min(commentAdmin.page, maxPage));
+        ElMessage.success('评论已删除');
+    }).catch((error) => {
+        if (!isDialogCancel(error) && error?.message) {
+            ElMessage.error(error.message);
+        }
+    }).finally(() => {
+        deletingCommentId.value = null;
+    });
 
 const isDialogCancel = (error) => ['cancel', 'close'].includes(String(error?.message || error || '').toLowerCase());
 

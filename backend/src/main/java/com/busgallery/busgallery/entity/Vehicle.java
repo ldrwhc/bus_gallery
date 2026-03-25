@@ -57,6 +57,9 @@ public class Vehicle {
     @Column(name = "launch_date")
     private LocalDate launchDate;
 
+    @Column(name = "view_count")
+    private Long viewCount;
+
     /**
      * 是否空调车（匹配SQL的TINYINT方法用于处理是否空调车（匹配SQL的TINYINT相关的业务逻辑。
      * @param "air_conditioned" "air_conditioned"参数，详见调用方上下文。

@@ -30,15 +30,11 @@
                             <span class="btn-text">{{ liked ? '已收藏' : '收藏' }}</span>
                             <span v-if="likeTotal" class="favorite-count">({{ likeTotal }})</span>
                         </button>
-                        <button class="comment-entry" type="button" aria-label="查看评论" @click="toggleComments">
-                            <span class="btn-icon" aria-hidden="true">💬</span>
-                            <span class="btn-text">评论</span>
-                        </button>
                         <button class="close-btn close-btn--modal" type="button" @click="handleClose">×</button>
                     </div>
                 </header>
 
-                <div class="modal__content">
+                <div class="modal__content" :class="{ 'modal__content--with-comments': !isMobileCommentsMode }">
                     <section v-if="loading" class="modal__state">正在加载车辆详情...</section>
                     <section v-else-if="!vehicle" class="modal__state">暂无车辆详情数据</section>
 
@@ -118,7 +114,6 @@
 
                         <section
                             v-if="isMobileCommentsMode"
-                            ref="mobileCommentsRef"
                             class="info-section mobile-comments"
                         >
                             <div class="mobile-comments__head">
@@ -135,6 +130,17 @@
                                             <span class="comment-time">{{ item.createdAt }}</span>
                                         </div>
                                         <p class="comment-content">{{ item.content }}</p>
+                                        <div class="comment-actions" v-if="canDeleteComment(item)">
+                                            <el-button
+                                                size="small"
+                                                text
+                                                type="danger"
+                                                :loading="deletingCommentIds.has(item.id)"
+                                                @click="deleteComment(item)"
+                                            >
+                                                删除
+                                            </el-button>
+                                        </div>
                                     </div>
                                 </template>
                             </div>
@@ -159,16 +165,12 @@
                             </div>
                         </section>
                     </section>
-                </div>
-
-                <transition name="slide">
-                    <aside v-if="commentsOpen && !isMobileCommentsMode" class="comment-drawer">
+                    <aside v-if="!isMobileCommentsMode" class="comment-drawer">
                         <header class="comment-drawer__header">
                             <div>
                                 <p class="comment-drawer__eyebrow">评论</p>
                                 <h4>{{ commentsTotal || 0 }} 条</h4>
                             </div>
-                            <button type="button" class="close-btn" @click="commentsOpen = false">×</button>
                         </header>
                         <div class="comment-drawer__body" v-loading="commentsLoading">
                             <p v-if="!isAuthenticated" class="comment-empty">登录后查看评论</p>
@@ -180,6 +182,17 @@
                                         <span class="comment-time">{{ item.createdAt }}</span>
                                     </div>
                                     <p class="comment-content">{{ item.content }}</p>
+                                    <div class="comment-actions" v-if="canDeleteComment(item)">
+                                        <el-button
+                                            size="small"
+                                            text
+                                            type="danger"
+                                            :loading="deletingCommentIds.has(item.id)"
+                                            @click="deleteComment(item)"
+                                        >
+                                            删除
+                                        </el-button>
+                                    </div>
                                 </div>
                             </template>
                         </div>
@@ -203,7 +216,7 @@
                             </el-button>
                         </div>
                     </aside>
-                </transition>
+                </div>
             </div>
         </div>
     </teleport>
@@ -234,7 +247,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import ImageCarousel from './ImageCarousel.vue';
@@ -260,6 +273,8 @@ const emit = defineEmits(['close']);
 const store = useStore();
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
 const currentUser = computed(() => store.state.auth.profile);
+const currentUserId = computed(() => currentUser.value?.id || currentUser.value?.userId || null);
+const currentUserRole = computed(() => currentUser.value?.role || '');
 
 const BODY_LOCK_CLASS = 'vehicle-detail-modal-open';
 const toggleBodyScroll = (shouldLock) => {
@@ -415,16 +430,15 @@ async function loadFavoriteSummary() {
             topUsers: storeFavorite.likes
         };
     }
-    // 优先使用前端缓存，避免重复请求
     if (favoriteCache[vid]) {
         const cached = favoriteCache[vid];
         liked.value = cached.liked || false;
         likeTotal.value = cached.total || 0;
         likes.value = mapUsers(cached.topUsers || []).slice(0, 2);
         syncedLiked.value = liked.value;
-        return;
     }
-    if (favoriteLoadingIds.has(vid)) return;
+    const shouldFetchRemote = isAuthenticated.value || !favoriteCache[vid];
+    if (!shouldFetchRemote || favoriteLoadingIds.has(vid)) return;
     favoriteLoadingIds.add(vid);
     try {
         const resp = await fetchFavoriteSummary(vid);
@@ -528,7 +542,6 @@ const COMMENT_POLL_INTERVAL_MS = 8000;
 let commentPollTimer = null;
 const MOBILE_BREAKPOINT = 768;
 const isMobileCommentsMode = ref(false);
-const mobileCommentsRef = ref(null);
 
 const updateMobileCommentsMode = () => {
     if (typeof window === 'undefined') return;
@@ -566,31 +579,6 @@ const loadComments = async ({ force = false } = {}) => {
     }
 };
 
-const toggleComments = async () => {
-    if (isMobileCommentsMode.value) {
-        if (!isAuthenticated.value) {
-            ElMessage.info('请先登录再查看评论');
-            return;
-        }
-        await loadComments();
-        startCommentPolling();
-        await nextTick();
-        mobileCommentsRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        return;
-    }
-    if (!isAuthenticated.value) {
-        ElMessage.info('请先登录再查看评论');
-        return;
-    }
-    commentsOpen.value = !commentsOpen.value;
-    if (commentsOpen.value) {
-        await loadComments();
-        startCommentPolling();
-    } else {
-        stopCommentPolling();
-    }
-};
-
 const submitComment = async () => {
     if (!isAuthenticated.value) {
         ElMessage.info('请先登录再发表评论');
@@ -615,18 +603,54 @@ const submitComment = async () => {
     }
 };
 
-const commentsOpen = ref(false);
 const comments = ref([]);
 const commentsTotal = ref(0);
 const commentsLoading = ref(false);
 const commentInput = ref('');
 const commentSubmitting = ref(false);
+const deletingCommentIds = ref(new Set());
+
+const canDeleteComment = (comment) => {
+    if (!isAuthenticated.value || !comment) {
+        return false;
+    }
+    if (currentUserRole.value === 'STATION') {
+        return true;
+    }
+    const ownerId = comment?.userId;
+    return ownerId != null && currentUserId.value != null && Number(ownerId) === Number(currentUserId.value);
+};
+
+const deleteComment = async (comment) => {
+    const vehicleId = vehicle.value?.id;
+    const commentId = comment?.id;
+    if (!vehicleId || !commentId || deletingCommentIds.value.has(commentId)) {
+        return;
+    }
+    if (!canDeleteComment(comment)) {
+        ElMessage.warning('没有权限删除该评论');
+        return;
+    }
+    const nextSet = new Set(deletingCommentIds.value);
+    nextSet.add(commentId);
+    deletingCommentIds.value = nextSet;
+    try {
+        await store.dispatch('vehicles/deleteVehicleComment', { vehicleId, commentId });
+        syncCommentsFromCache(vehicleId);
+        ElMessage.success('评论已删除');
+    } catch (error) {
+        ElMessage.error(error?.message || '删除评论失败');
+    } finally {
+        const releaseSet = new Set(deletingCommentIds.value);
+        releaseSet.delete(commentId);
+        deletingCommentIds.value = releaseSet;
+    }
+};
 
 const startCommentPolling = () => {
     if (commentPollTimer) return;
     commentPollTimer = setInterval(() => {
         if (!props.visible || !isAuthenticated.value) return;
-        if (!isMobileCommentsMode.value && !commentsOpen.value) return;
         loadComments({ force: true });
     }, COMMENT_POLL_INTERVAL_MS);
 };
@@ -642,12 +666,14 @@ watch(
     () => props.visible,
     async (val) => {
         toggleBodyScroll(val);
-        if (val && isAuthenticated.value && (commentsOpen.value || isMobileCommentsMode.value)) {
-            await loadComments();
-            startCommentPolling();
+        if (val) {
+            await loadFavoriteSummary();
+            if (isAuthenticated.value) {
+                await loadComments();
+                startCommentPolling();
+            }
         }
         if (!val) {
-            commentsOpen.value = false;
             exifVisible.value = false;
             stopCommentPolling();
         }
@@ -664,7 +690,7 @@ watch(
         if (props.visible) {
             await loadFavoriteSummary();
         }
-        if (props.visible && isAuthenticated.value && (commentsOpen.value || isMobileCommentsMode.value)) {
+        if (props.visible && isAuthenticated.value) {
             await loadComments();
         }
     },
@@ -680,7 +706,7 @@ watch(
         if (props.visible) {
             await loadFavoriteSummary();
         }
-        if (authed && props.visible && (commentsOpen.value || isMobileCommentsMode.value)) {
+        if (authed && props.visible) {
             await loadComments();
             startCommentPolling();
         }
@@ -702,12 +728,8 @@ onMounted(() => {
 
 watch(
     isMobileCommentsMode,
-    async (mobile) => {
+    async () => {
         if (!props.visible) return;
-        if (!mobile && !commentsOpen.value) {
-            stopCommentPolling();
-            return;
-        }
         if (isAuthenticated.value) {
             await loadComments();
             startCommentPolling();
@@ -912,7 +934,6 @@ const getConfigLink = (field) => {
 
 const handleClose = () => {
     exifVisible.value = false;
-    commentsOpen.value = false;
     emit('close');
 };
 </script>
@@ -938,7 +959,7 @@ const handleClose = () => {
 }
 
 .modal {
-    width: min(95%, 900px);
+    width: min(95%, 1240px);
     background: rgba(255, 255, 255, 0.98);
     border-radius: 28px;
     padding: 24px;
@@ -946,7 +967,7 @@ const handleClose = () => {
     display: flex;
     flex-direction: column;
     max-height: min(900px, calc(100vh - 48px));
-    overflow-y: auto;
+    overflow: hidden;
     position: relative;
 }
 
@@ -999,16 +1020,6 @@ const handleClose = () => {
 
 .btn-text {
     white-space: nowrap;
-}
-
-.comment-entry {
-    border: 1px solid #2563eb;
-    background: #eef2ff;
-    color: #1d4ed8;
-    border-radius: 10px;
-    padding: 6px 10px;
-    cursor: pointer;
-    font-weight: 600;
 }
 
 .modal__headline {
@@ -1075,14 +1086,15 @@ const handleClose = () => {
 
 .modal__content {
     flex: 1;
-    overflow-y: auto;
-    padding-right: 4px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
-.modal__content::-webkit-scrollbar {
-    display: none;
+.modal__content--with-comments {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 0;
 }
 
 .modal__body {
@@ -1090,33 +1102,23 @@ const handleClose = () => {
     flex-direction: column;
     gap: 24px;
     padding-bottom: 8px;
+    min-height: 0;
+}
+
+.modal__content--with-comments .modal__body {
+    overflow-y: auto;
+    padding-right: 18px;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
 }
 
 .comment-drawer {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 320px;
-    height: calc(100% - 32px);
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 12px;
-    z-index: 50;
-}
-
-.slide-enter-active,
-.slide-leave-active {
-    transition: all 0.2s ease;
-}
-
-.slide-enter-from,
-.slide-leave-to {
-    opacity: 0;
-    transform: translateX(12px);
+    border-left: 1px solid #d1d5db;
+    padding-left: 16px;
+    margin-left: 2px;
 }
 
 .comment-drawer__header {
@@ -1158,6 +1160,12 @@ const handleClose = () => {
     margin: 4px 0 0;
     color: #1f2937;
     word-break: break-word;
+}
+
+.comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
 }
 
 .comment-empty {
@@ -1399,6 +1407,7 @@ const handleClose = () => {
         max-height: calc(100vh - 20px);
         border-radius: 18px;
         padding: 16px;
+        overflow-y: auto;
     }
 
     .modal__headline {
@@ -1410,8 +1419,7 @@ const handleClose = () => {
         gap: 6px;
     }
 
-    .favorite-btn,
-    .comment-entry {
+    .favorite-btn {
         width: 36px;
         height: 36px;
         padding: 0;
@@ -1421,9 +1429,18 @@ const handleClose = () => {
         justify-content: center;
     }
 
-    .favorite-btn .btn-text,
-    .comment-entry .btn-text {
+    .favorite-btn .btn-text {
         display: none;
+    }
+
+    .modal__content,
+    .modal__content--with-comments {
+        display: flex;
+    }
+
+    .modal__body {
+        overflow: visible;
+        padding-right: 0;
     }
 
     .close-btn--modal {
@@ -1437,12 +1454,6 @@ const handleClose = () => {
 @media (max-width: 430px) {
     .favorite-btn .favorite-count {
         display: none;
-    }
-}
-
-@media (max-width: 366px) {
-    .comment-entry {
-        display: none !important;
     }
 }
 </style>

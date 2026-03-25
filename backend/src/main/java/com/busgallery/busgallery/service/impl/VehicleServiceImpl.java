@@ -9,8 +9,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -79,8 +82,27 @@ public class VehicleServiceImpl implements VehicleService {
         return list;
     }
 
+    @Override
+    public List<Vehicle> listHotByViewCount(int limit) {
+        int size = Math.max(1, Math.min(limit, MAX_PAGE_SIZE));
+        List<Vehicle> list = vehicleMapper.selectHotByViewCount(size);
+        list.forEach(this::populateVehicleRelations);
+        return list;
+    }
+
     public long count(Long regionId, Long companyId, Long brandId, Long modelId, String keyword) {
         return vehicleMapper.count(regionId, companyId, brandId, modelId, keyword);
+    }
+
+    @Override
+    public void recordView(Long vehicleId, String clientFingerprint) {
+        if (vehicleId == null) {
+            return;
+        }
+        if (!isViewCountAllowed(vehicleId, clientFingerprint)) {
+            return;
+        }
+        vehicleMapper.incrementViewCount(vehicleId, 1L);
     }
 
     public VehicleConfig findConfigByVehicleId(Long vehicleId) {
@@ -209,6 +231,18 @@ public class VehicleServiceImpl implements VehicleService {
 
     private String buildSnapshotLockKey(String normalizedPlate) {
         return "bg:snapshot:plate:" + normalizedPlate + ":lock";
+    }
+
+    private boolean isViewCountAllowed(Long vehicleId, String clientFingerprint) {
+        String fingerprint = StringUtils.hasText(clientFingerprint) ? clientFingerprint.trim() : "unknown";
+        String digest = DigestUtils.md5DigestAsHex(fingerprint.getBytes(StandardCharsets.UTF_8));
+        String key = "bg:vehicle:view:dedupe:" + vehicleId + ":" + digest;
+        try {
+            Boolean ok = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", Duration.ofSeconds(20));
+            return Boolean.TRUE.equals(ok);
+        } catch (Exception ignore) {
+            return true;
+        }
     }
 
     private void populateVehicleRelations(Vehicle vehicle) {

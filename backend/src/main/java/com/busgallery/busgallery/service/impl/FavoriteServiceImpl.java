@@ -4,6 +4,8 @@ import com.busgallery.busgallery.controller.VehicleController;
 import com.busgallery.busgallery.entity.User;
 import com.busgallery.busgallery.entity.VehicleFavorite;
 import com.busgallery.busgallery.exception.NotFoundException;
+import com.busgallery.busgallery.messaging.BusEventPublisher;
+import com.busgallery.busgallery.messaging.payload.FavoriteToggledEvent;
 import com.busgallery.busgallery.mapper.VehicleFavoriteMapper;
 import com.busgallery.busgallery.repository.UserRepository;
 import com.busgallery.busgallery.service.FavoriteService;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +33,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     private final UserRepository userRepository;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+    private final BusEventPublisher busEventPublisher;
 
     @Value("${busgallery.cache.favorites.summary-ttl-seconds:30}")
     private long favoriteSummaryTtlSeconds;
@@ -41,7 +45,8 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     @Transactional
     public FavoriteSummary toggle(Long vehicleId, Long userId) {
-        if (vehicleService.findById(vehicleId) == null) {
+        var vehicle = vehicleService.findById(vehicleId);
+        if (vehicle == null) {
             throw new NotFoundException("Vehicle not found");
         }
         VehicleFavorite existing = favoriteMapper.select(vehicleId, userId);
@@ -61,6 +66,14 @@ public class FavoriteServiceImpl implements FavoriteService {
         FavoriteSummary summary = new FavoriteSummary(liked, total, topUsers);
         cacheSummary(vehicleId, summary);
         cacheLiked(vehicleId, userId, liked);
+        busEventPublisher.publishFavoriteToggled(FavoriteToggledEvent.builder()
+                .vehicleId(vehicleId)
+                .plateNumber(vehicle.getPlateNumber())
+                .userId(userId)
+                .liked(liked)
+                .totalFavorites(total)
+                .createdAt(LocalDateTime.now())
+                .build());
         return summary;
     }
 

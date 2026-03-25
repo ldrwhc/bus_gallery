@@ -2,7 +2,9 @@ import {
     fetchVehicleGallery,
     fetchVehicleGalleryDetail,
     fetchVehicleComments,
-    createVehicleComment
+    createVehicleComment,
+    deleteVehicleComment as deleteVehicleCommentApi,
+    trackVehicleView
 } from '@/api/vehicles';
 import { fetchSnapshotByPlate } from '@/api/snapshots';
 
@@ -53,7 +55,8 @@ const state = () => ({
     commentCache: {},
     commentLoadingMap: {},
     commentErrorMap: {},
-    commentLastFetchMap: {}
+    commentLastFetchMap: {},
+    viewTrackMap: {}
 });
 
 const getters = {
@@ -91,10 +94,19 @@ const mutations = {
         const vehicleId = detail?.vehicle?.id;
         if (!vehicleId) return;
         const existingDetail = state.detailMap[vehicleId] || null;
+        const summaryFromDetail = detail?.favoriteSummary ?? existingDetail?.favoriteSummary ?? null;
+        const favoriteFromSummary = summaryFromDetail
+            ? {
+                  liked: summaryFromDetail.liked,
+                  likeTotal: summaryFromDetail.total,
+                  likes: summaryFromDetail.topUsers
+              }
+            : null;
         const mergedDetail = {
             ...existingDetail,
             ...detail,
-            favorite: detail?.favorite ?? existingDetail?.favorite
+            favorite: detail?.favorite ?? existingDetail?.favorite ?? favoriteFromSummary,
+            favoriteSummary: summaryFromDetail
         };
         state.detailMap = {
             ...state.detailMap,
@@ -125,6 +137,11 @@ const mutations = {
                     liked,
                     likeTotal,
                     likes
+                },
+                favoriteSummary: {
+                    liked,
+                    total: likeTotal,
+                    topUsers: likes
                 }
             }
         };
@@ -163,6 +180,12 @@ const mutations = {
     SET_COMMENT_LAST_FETCH(state, { vehicleId, ts }) {
         state.commentLastFetchMap = {
             ...state.commentLastFetchMap,
+            [vehicleId]: ts
+        };
+    },
+    SET_VIEW_TRACKED(state, { vehicleId, ts }) {
+        state.viewTrackMap = {
+            ...state.viewTrackMap,
             [vehicleId]: ts
         };
     }
@@ -213,6 +236,14 @@ const actions = {
         const plateFromPayload =
             typeof payload === 'object' && payload !== null ? (payload.plateNumber || '').trim() : '';
         if (!vehicleId) return null;
+
+        const now = Date.now();
+        const lastTracked = state.viewTrackMap[vehicleId] || 0;
+        if (now - lastTracked > 20_000) {
+            commit('SET_VIEW_TRACKED', { vehicleId, ts: now });
+            trackVehicleView(vehicleId).catch(() => {});
+        }
+
         if (state.detailLoadingMap[vehicleId]) return state.detailMap[vehicleId] || null;
         if (!force && state.detailMap[vehicleId]) return state.detailMap[vehicleId];
         commit('SET_DETAIL_LOADING', { vehicleId, loading: true });
@@ -328,6 +359,31 @@ const actions = {
             fetchedAt: Date.now()
         });
         return comment;
+    },
+    async deleteVehicleComment({ state, commit }, { vehicleId, commentId }) {
+        if (!vehicleId || !commentId) {
+            throw new Error('vehicleId or commentId missing');
+        }
+        const normalizedCommentId = Number(commentId);
+        await deleteVehicleCommentApi(vehicleId, normalizedCommentId);
+        const cached = state.commentCache[vehicleId];
+        if (!cached) {
+            return;
+        }
+        const existing = Array.isArray(cached.records) ? cached.records : [];
+        const nextRecords = existing.filter((item) => Number(item?.id) !== normalizedCommentId);
+        const removedCount = existing.length - nextRecords.length;
+        if (removedCount <= 0) {
+            return;
+        }
+        commit('SET_COMMENT_CACHE', {
+            vehicleId,
+            page: cached.page ?? 1,
+            size: cached.size ?? 50,
+            records: nextRecords,
+            total: Math.max(0, (cached.total ?? existing.length) - removedCount),
+            fetchedAt: Date.now()
+        });
     }
 };
 

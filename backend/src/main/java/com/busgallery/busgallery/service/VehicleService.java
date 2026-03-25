@@ -21,6 +21,8 @@ public interface VehicleService {
 
     List<Vehicle> queryPage(int size, Long regionId, Long companyId, Long brandId, Long modelId, String keyword, java.time.LocalDate lastLaunch, Long lastId);
 
+    List<Vehicle> listHotByViewCount(int limit);
+
     long count(Long regionId, Long companyId, Long brandId, Long modelId, String keyword);
 
     VehicleConfig findConfigByVehicleId(Long vehicleId);
@@ -46,4 +48,6 @@ public interface VehicleService {
                    String regionCity);
 
     void delete(Long id);
+
+    void recordView(Long vehicleId, String clientFingerprint);
 }

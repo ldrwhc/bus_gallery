@@ -1,52 +1,52 @@
-DROP DATABASE IF EXISTS `bus_gallery`;
+﻿DROP DATABASE IF EXISTS `bus_gallery`;
 CREATE DATABASE `bus_gallery`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci;
 
 USE `bus_gallery`;
 
--- 品牌
+-- 鍝佺墝
 CREATE TABLE `brand` (
-  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `name`          VARCHAR(128)    NOT NULL COMMENT '品牌名称',
-  `chn_name`      varchar(200)    DEFAULT NULL COMMENT '品牌中文',
+  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '涓婚敭',
+  `name`          VARCHAR(128)    NOT NULL COMMENT '鍝佺墝鍚嶇О',
+  `chn_name`      varchar(200)    DEFAULT NULL COMMENT '鍝佺墝涓枃',
   `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_brand_name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='车辆品牌';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='杞﹁締鍝佺墝';
 
--- 运营公司
+-- 杩愯惀鍏徃
 CREATE TABLE `company` (
   `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `name`          VARCHAR(128)    NOT NULL,
-  `region_id`     BIGINT UNSIGNED DEFAULT NULL COMMENT '所属地区',
+  `region_id`     BIGINT UNSIGNED DEFAULT NULL COMMENT '鎵€灞炲湴鍖?,
   `description`   TEXT            DEFAULT NULL,
   `logo_url`      VARCHAR(512)    DEFAULT NULL,
   `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_company_name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客运/公交公司';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='瀹㈣繍/鍏氦鍏徃';
 
--- 地区
+-- 鍦板尯
 CREATE TABLE `region` (
   `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `name`        VARCHAR(128)    NOT NULL,
-  `parent_id`   BIGINT UNSIGNED DEFAULT NULL COMMENT '父级地区',
-  `level`       TINYINT         DEFAULT 0 COMMENT '层级（国家/省/市…）',
+  `parent_id`   BIGINT UNSIGNED DEFAULT NULL COMMENT '鐖剁骇鍦板尯',
+  `level`       TINYINT         DEFAULT 0 COMMENT '灞傜骇锛堝浗瀹?鐪?甯傗€︼級',
   `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_region_name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='地区信息';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鍦板尯淇℃伅';
 
--- 车型
+-- 杞﹀瀷
 CREATE TABLE `model` (
   `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `brand_id`      BIGINT UNSIGNED NOT NULL,
   `name`          VARCHAR(128)    NOT NULL,
-  `model_code`    VARCHAR(64)     DEFAULT NULL COMMENT '厂内型号/代码',
+  `model_code`    VARCHAR(64)     DEFAULT NULL COMMENT '鍘傚唴鍨嬪彿/浠ｇ爜',
   `description`   TEXT            DEFAULT NULL,
   `release_year`  SMALLINT        DEFAULT NULL,
   `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -56,20 +56,21 @@ CREATE TABLE `model` (
   CONSTRAINT `fk_model_brand` FOREIGN KEY (`brand_id`) REFERENCES `brand` (`id`)
     ON DELETE RESTRICT
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='车型信息';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='杞﹀瀷淇℃伅';
 
--- 车辆主体
+-- 杞﹁締涓讳綋
 CREATE TABLE `vehicle` (
   `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `model_id`       BIGINT UNSIGNED NOT NULL,
   `company_id`     BIGINT UNSIGNED DEFAULT NULL,
   `region_id`      BIGINT UNSIGNED DEFAULT NULL,
-  `plate_number`   VARCHAR(64)     DEFAULT NULL COMMENT '车牌号',
-  `custom_number`  VARCHAR(64)     DEFAULT NULL COMMENT '公司内部编号',
-  `factory_date`   DATE            DEFAULT NULL COMMENT '出厂日期',
-  `launch_date`    DATE            DEFAULT NULL COMMENT '上牌/投运日期',
-  `air_conditioned` TINYINT(1)     DEFAULT 0 COMMENT '是否空调车',
-  `source`         VARCHAR(256)    DEFAULT NULL COMMENT '信息来源',
+  `plate_number`   VARCHAR(64)     DEFAULT NULL COMMENT '杞︾墝鍙?,
+  `custom_number`  VARCHAR(64)     DEFAULT NULL COMMENT '鍏徃鍐呴儴缂栧彿',
+  `factory_date`   DATE            DEFAULT NULL COMMENT '鍑哄巶鏃ユ湡',
+  `launch_date`    DATE            DEFAULT NULL COMMENT '涓婄墝/鎶曡繍鏃ユ湡',
+  `view_count`     BIGINT          NOT NULL DEFAULT 0 COMMENT 'visit count',
+  `air_conditioned` TINYINT(1)     DEFAULT 0 COMMENT '鏄惁绌鸿皟杞?,
+  `source`         VARCHAR(256)    DEFAULT NULL COMMENT '淇℃伅鏉ユ簮',
   `remark`         TEXT            DEFAULT NULL,
   `created_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -77,6 +78,7 @@ CREATE TABLE `vehicle` (
   KEY `idx_vehicle_model` (`model_id`),
   KEY `idx_vehicle_company` (`company_id`),
   KEY `idx_vehicle_region` (`region_id`),
+  KEY `idx_vehicle_view_count` (`view_count`),
   CONSTRAINT `fk_vehicle_model` FOREIGN KEY (`model_id`) REFERENCES `model` (`id`)
     ON DELETE RESTRICT
     ON UPDATE CASCADE,
@@ -86,9 +88,9 @@ CREATE TABLE `vehicle` (
   CONSTRAINT `fk_vehicle_region` FOREIGN KEY (`region_id`) REFERENCES `region` (`id`)
     ON DELETE SET NULL
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='具体车辆';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鍏蜂綋杞﹁締';
 
--- 车辆配置（动力/底盘等）
+-- 杞﹁締閰嶇疆锛堝姩鍔?搴曠洏绛夛級
 CREATE TABLE `vehicle_config` (
   `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `vehicle_id`    BIGINT UNSIGNED NOT NULL,
@@ -115,35 +117,35 @@ CREATE TABLE `vehicle_config` (
   CONSTRAINT `fk_vehicle_config_model` FOREIGN KEY (`model_id`) REFERENCES `model` (`id`)
     ON DELETE SET NULL
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='车辆配置详情';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='杞﹁締閰嶇疆璇︽儏';
 
--- 图片资源
+-- 鍥剧墖璧勬簮
 CREATE TABLE `image` (
   `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `object_name`    VARCHAR(512)    NOT NULL COMMENT 'MinIO 对象名',
-  `url`            VARCHAR(1024)   NOT NULL COMMENT '原图 URL',
-  `thumbnail_url`  VARCHAR(1024)   DEFAULT NULL COMMENT '缩略图 URL',
-  `size_bytes`     BIGINT          DEFAULT NULL COMMENT '文件大小',
+  `object_name`    VARCHAR(512)    NOT NULL COMMENT 'MinIO 瀵硅薄鍚?,
+  `url`            VARCHAR(1024)   NOT NULL COMMENT '鍘熷浘 URL',
+  `thumbnail_url`  VARCHAR(1024)   DEFAULT NULL COMMENT '缂╃暐鍥?URL',
+  `size_bytes`     BIGINT          DEFAULT NULL COMMENT '鏂囦欢澶у皬',
   `width`          INT             DEFAULT NULL,
   `height`         INT             DEFAULT NULL,
   `content_type`   VARCHAR(128)    DEFAULT NULL,
-  `hash`           VARCHAR(128)    DEFAULT NULL COMMENT '文件哈希',
+  `hash`           VARCHAR(128)    DEFAULT NULL COMMENT '鏂囦欢鍝堝笇',
   `uploader`       VARCHAR(128)    DEFAULT NULL,
   `uploader_id`    BIGINT UNSIGNED DEFAULT NULL,
   `uploader_username` VARCHAR(64)  DEFAULT NULL,
   `uploader_display_name` VARCHAR(128) DEFAULT NULL,
-  `exif_json`      TEXT            DEFAULT NULL COMMENT 'EXIF 元数据',
+  `exif_json`      TEXT            DEFAULT NULL COMMENT 'EXIF 鍏冩暟鎹?,
   `created_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_image_object` (`object_name`),
   KEY `idx_image_uploader` (`uploader_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='图片文件信息';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鍥剧墖鏂囦欢淇℃伅';
 
--- 车辆与图片关联
+-- 杞﹁締涓庡浘鐗囧叧鑱?
 CREATE TABLE `vehicle_image` (
   `vehicle_id`  BIGINT UNSIGNED NOT NULL,
   `image_id`    BIGINT UNSIGNED NOT NULL,
-  `is_cover`    TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '是否封面图',
+  `is_cover`    TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '鏄惁灏侀潰鍥?,
   `sort_order`  INT             NOT NULL DEFAULT 0,
   `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`vehicle_id`, `image_id`),
@@ -154,18 +156,19 @@ CREATE TABLE `vehicle_image` (
   CONSTRAINT `fk_vehicle_image_image` FOREIGN KEY (`image_id`) REFERENCES `image` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='车辆图片关联表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='杞﹁締鍥剧墖鍏宠仈琛?;
 
--- 用户信息
+-- 鐢ㄦ埛淇℃伅
 CREATE TABLE `app_user` (
   `id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `username`        VARCHAR(64)     NOT NULL COMMENT '登录账号',
-  `password_hash`   VARCHAR(255)    NOT NULL COMMENT '加密后的密码',
-  `display_name`    VARCHAR(128)    NOT NULL COMMENT '展示名称',
-  `avatar_url`      VARCHAR(512)    DEFAULT NULL COMMENT '头像',
-  `bio`             VARCHAR(512)    DEFAULT NULL COMMENT '个人简介',
+  `username`        VARCHAR(64)     NOT NULL COMMENT '鐧诲綍璐﹀彿',
+  `password_hash`   VARCHAR(255)    NOT NULL COMMENT '鍔犲瘑鍚庣殑瀵嗙爜',
+  `display_name`    VARCHAR(128)    NOT NULL COMMENT '灞曠ず鍚嶇О',
+  `avatar_url`      VARCHAR(512)    DEFAULT NULL COMMENT '澶村儚',
+  `bio`             VARCHAR(512)    DEFAULT NULL COMMENT '涓汉绠€浠?,
   `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_app_user_username` (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户账户';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鐢ㄦ埛璐︽埛';
+

@@ -35,6 +35,8 @@ public interface VehicleMapper {
                                      @Param("lastLaunch") LocalDate lastLaunch,
                                      @Param("lastId") Long lastId);
 
+    List<Vehicle> selectHotByViewCount(@Param("limit") int limit);
+
     long count(@Param("regionId") Long regionId,
                @Param("companyId") Long companyId,
                @Param("brandId") Long brandId,
@@ -46,4 +48,6 @@ public interface VehicleMapper {
     int update(Vehicle vehicle);
 
     int delete(@Param("id") Long id);
+
+    int incrementViewCount(@Param("vehicleId") Long vehicleId, @Param("delta") long delta);
 }
