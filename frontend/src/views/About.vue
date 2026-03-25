@@ -699,7 +699,7 @@ npm run dev</code></pre></div>
                         v-for="(line, idx) in lane.labelLines"
                         :key="item.id + '-lane-text-' + lane.index + '-' + idx"
                         :x="lane.x"
-                        :dy="idx === 0 ? 0 : 13"
+                        :dy="idx === 0 ? 0 : 20"
                       >
                         {{ line }}
                       </tspan>
@@ -778,7 +778,7 @@ npm run dev</code></pre></div>
                           v-for="(line, idx) in entry.routeLines"
                           :key="item.id + '-route-' + entry.step + '-' + idx"
                           :x="entry.routeX"
-                          :dy="idx === 0 ? 0 : 13"
+                          :dy="idx === 0 ? 0 : 20"
                         >
                           {{ line }}
                         </tspan>
@@ -793,7 +793,7 @@ npm run dev</code></pre></div>
                           v-for="(line, idx) in entry.actionLines"
                           :key="item.id + '-action-' + entry.step + '-' + idx"
                           :x="entry.textX"
-                          :dy="idx === 0 ? 0 : 14"
+                          :dy="idx === 0 ? 0 : 20"
                         >
                           {{ line }}
                         </tspan>
@@ -808,7 +808,7 @@ npm run dev</code></pre></div>
                           v-for="(line, idx) in entry.hintLines"
                           :key="item.id + '-hint-' + entry.step + '-' + idx"
                           :x="entry.textX"
-                          :dy="idx === 0 ? 0 : 12"
+                          :dy="idx === 0 ? 0 : 20"
                         >
                           {{ line }}
                         </tspan>
@@ -874,7 +874,7 @@ npm run dev</code></pre></div>
                           v-for="(line, idx) in entry.titleLines"
                           :key="item.id + '-branch-title-' + entry.step + '-' + idx"
                           :x="entry.titleX"
-                          :dy="idx === 0 ? 0 : 14"
+                          :dy="idx === 0 ? 0 : 20"
                         >
                           {{ line }}
                         </tspan>
@@ -889,7 +889,7 @@ npm run dev</code></pre></div>
                           v-for="(line, idx) in entry.tipLines"
                           :key="item.id + '-branch-tip-' + entry.step + '-' + idx"
                           :x="entry.tipX"
-                          :dy="idx === 0 ? 0 : 12"
+                          :dy="idx === 0 ? 0 : 20"
                         >
                           {{ line }}
                         </tspan>
@@ -932,7 +932,6 @@ npm run dev</code></pre></div>
                   </div>
                   <div class="redis-fc-decision-note">
                     <span>判断条件：{{ redisFlowDialog.chart.decisionText }}</span>
-                    <span>如果 = 满足该条件；否则 = 不满足该条件（额外分支条件写在分支标签中）</span>
                   </div>
 
                   <div class="redis-fc-branches">
@@ -1895,23 +1894,40 @@ function maxRedisSequenceLineWidth(lines, fontSize) {
 }
 
 function buildRedisSequenceDiagram(parsed, viewportWidth = 0) {
+  const textSize = {
+    laneLabel: 15,
+    route: 15,
+    action: 15,
+    hint: 15,
+    branchTitle: 15,
+    branchTip: 15,
+    tag: 15
+  };
+  const lineHeight = {
+    laneLabel: 20,
+    route: 20,
+    action: 20,
+    hint: 20,
+    branchTitle: 20,
+    branchTip: 20
+  };
   const laneLabels = parsed?.lanes?.length ? parsed.lanes : ['Flow'];
   const laneCount = laneLabels.length;
   const minWidth = laneCount <= 2 ? 760 : laneCount === 3 ? 820 : 860;
   const requestedWidth = Number.isFinite(viewportWidth) ? viewportWidth : 0;
   let width = Math.max(minWidth, requestedWidth);
-  const minSidePadding = laneCount <= 2 ? 116 : laneCount === 3 ? 104 : 92;
+  const minSidePadding = laneCount <= 2 ? 124 : laneCount === 3 ? 120 : 112;
   const minLaneGap = laneCount <= 2 ? 252 : laneCount === 3 ? 222 : laneCount === 4 ? 192 : 174;
   let laneGap = laneCount <= 1 ? 0 : Math.max(minLaneGap, Math.floor((width - minSidePadding * 2) / (laneCount - 1)));
   width = Math.max(width, minSidePadding * 2 + (laneCount - 1) * laneGap);
   const sidePadding = laneCount <= 1 ? width / 2 : Math.round((width - (laneCount - 1) * laneGap) / 2);
-  const laneCardWidth = clamp(Math.round((laneGap || 180) * 0.68), 112, 148);
-  const laneLabelLines = laneLabels.map((label) => splitRedisSequenceText(label, 7, 2));
-  const laneCardHeight = laneLabelLines.some((lines) => lines.length > 1) ? 60 : 50;
+  const laneCardWidth = clamp(Math.round((laneGap || 180) * 0.7), 160, 188);
+  const laneLabelLines = laneLabels.map((label) => splitRedisSequenceTextByWidth(label, laneCardWidth - 14, 2, textSize.laneLabel));
+  const laneCardHeight = laneLabelLines.some((lines) => lines.length > 1) ? 94 : 72;
   const laneCardY = 20;
-  const headerHeight = laneCardY + laneCardHeight + 22;
-  const laneBadgeWidth = 24;
-  const laneBadgeHeight = 18;
+  const headerHeight = laneCardY + laneCardHeight + 26;
+  const laneBadgeWidth = 26;
+  const laneBadgeHeight = 20;
 
   const lanes = laneLabels.map((label, index) => {
     const theme = redisSequenceLaneTheme(index);
@@ -1927,11 +1943,11 @@ function buildRedisSequenceDiagram(parsed, viewportWidth = 0) {
       cardWidth: laneCardWidth,
       cardHeight: laneCardHeight,
       badgeX: x - laneBadgeWidth / 2,
-      badgeY: laneCardY + 7,
+      badgeY: laneCardY + 10,
       badgeWidth: laneBadgeWidth,
       badgeHeight: laneBadgeHeight,
-      badgeTextY: laneCardY + 20,
-      labelY: laneCardY + (labelLines.length > 1 ? 40 : 36),
+      badgeTextY: laneCardY + 24,
+      labelY: laneCardY + (labelLines.length > 1 ? 50 : 46),
       ...theme
     };
   });
@@ -1943,11 +1959,11 @@ function buildRedisSequenceDiagram(parsed, viewportWidth = 0) {
     if (entry.type === 'branch') {
       const boxX = 52;
       const boxWidth = width - 104;
-      const titleLines = splitRedisSequenceTextByWidth(entry.text, Math.max(120, boxWidth - 86), 2, 10);
-      const tipLines = splitRedisSequenceTextByWidth(entry.tip, Math.max(180, boxWidth - 38), 2, 9);
-      const boxHeight = 20 + titleLines.length * 14 + 7 + tipLines.length * 12 + 14;
-      const stepBoxWidth = 28;
-      const stepBoxHeight = 18;
+      const titleLines = splitRedisSequenceTextByWidth(entry.text, Math.max(180, boxWidth - 88), 2, textSize.branchTitle);
+      const tipLines = splitRedisSequenceTextByWidth(entry.tip, Math.max(240, boxWidth - 36), 3, textSize.branchTip);
+      const boxHeight = 26 + titleLines.length * lineHeight.branchTitle + 10 + tipLines.length * lineHeight.branchTip + 18;
+      const stepBoxWidth = 30;
+      const stepBoxHeight = 20;
       const branchEntry = {
         type: 'branch',
         step: index + 1,
@@ -1962,12 +1978,12 @@ function buildRedisSequenceDiagram(parsed, viewportWidth = 0) {
         stepBoxWidth,
         stepBoxHeight,
         stepTextX: boxX + 12 + stepBoxWidth / 2,
-        stepTextY: cursorY + 22,
-        titleX: boxX + 54,
-        titleY: cursorY + 23,
+        stepTextY: cursorY + 24,
+        titleX: boxX + 58,
+        titleY: cursorY + 30,
         titleLines,
         tipX: boxX + 18,
-        tipY: cursorY + 23 + titleLines.length * 14 + 9,
+        tipY: cursorY + 30 + titleLines.length * lineHeight.branchTitle + 12,
         tipLines,
         fill: toneToken.fill,
         border: toneToken.border,
@@ -1989,28 +2005,28 @@ function buildRedisSequenceDiagram(parsed, viewportWidth = 0) {
     const spanWidth = Math.abs(toX - fromX);
     const availableSideWidth = Math.max(width - fromX - 28, fromX - 28);
     const maxCardWidth = isSelf
-      ? clamp(Math.floor(Math.max(availableSideWidth - 12, 188)), 188, Math.min(width - 48, 360))
-      : clamp(Math.floor(spanWidth + Math.min(128, laneGap * 0.56)), 196, Math.min(width - 48, 360));
+      ? clamp(Math.floor(Math.max(availableSideWidth - 12, 220)), 220, Math.min(width - 48, 460))
+      : clamp(Math.floor(spanWidth + Math.min(180, laneGap * 0.72)), 220, Math.min(width - 48, 480));
     const baseCardWidth = isSelf
-      ? clamp(Math.floor(Math.max((laneGap || 200) * 0.86, 188)), 188, maxCardWidth)
-      : clamp(Math.floor(Math.max(spanWidth * 0.68, 196)), 196, maxCardWidth);
-    const routeMaxWidth = Math.max(96, maxCardWidth - 64);
-    const bodyMaxWidth = Math.max(124, maxCardWidth - 28);
-    const routeLines = splitRedisSequenceTextByWidth(`${entry.from} ${entry.arrow === '-->>' ? '返回' : '调用'} ${entry.to}`, routeMaxWidth, 2, 9);
-    const hintLines = splitRedisSequenceTextByWidth(redisSequenceHint(entry), bodyMaxWidth, 2, 9);
-    const actionLines = splitRedisSequenceTextByWidth(action, bodyMaxWidth, laneCount <= 3 ? 3 : 4, 10);
+      ? clamp(Math.floor(Math.max((laneGap || 200) * 0.92, 220)), 220, maxCardWidth)
+      : clamp(Math.floor(Math.max(spanWidth * 0.74, 220)), 220, maxCardWidth);
+    const routeMaxWidth = Math.max(132, maxCardWidth - 72);
+    const bodyMaxWidth = Math.max(172, maxCardWidth - 32);
+    const routeLines = splitRedisSequenceTextByWidth(`${entry.from} ${entry.arrow === '-->>' ? '返回' : '调用'} ${entry.to}`, routeMaxWidth, 2, textSize.route);
+    const hintLines = splitRedisSequenceTextByWidth(redisSequenceHint(entry), bodyMaxWidth, 3, textSize.hint);
+    const actionLines = splitRedisSequenceTextByWidth(action, bodyMaxWidth, laneCount <= 3 ? 4 : 5, textSize.action);
     const branchTagText = entry.branchPath || '';
-    const tagHeight = branchTagText ? 16 : 0;
-    const rawTagWidth = branchTagText ? redisSequenceTextWidth(branchTagText, 8) : 0;
+    const tagHeight = branchTagText ? 24 : 0;
+    const rawTagWidth = branchTagText ? redisSequenceTextWidth(branchTagText, textSize.tag) : 0;
     const desiredCardWidth = Math.max(
       baseCardWidth,
-      maxRedisSequenceLineWidth(routeLines, 9) + 64,
-      maxRedisSequenceLineWidth(actionLines, 10) + 28,
-      maxRedisSequenceLineWidth(hintLines, 9) + 28,
+      maxRedisSequenceLineWidth(routeLines, textSize.route) + 72,
+      maxRedisSequenceLineWidth(actionLines, textSize.action) + 32,
+      maxRedisSequenceLineWidth(hintLines, textSize.hint) + 32,
       branchTagText ? rawTagWidth + 24 : 0
     );
-    const boxHeight = 14 + routeLines.length * 13 + 7 + actionLines.length * 14 + 7 + hintLines.length * 12 + (tagHeight ? 20 : 0) + 10;
-    let cardWidth = clamp(Math.ceil(desiredCardWidth), isSelf ? 188 : 196, maxCardWidth);
+    const boxHeight = 18 + routeLines.length * lineHeight.route + 8 + actionLines.length * lineHeight.action + 8 + hintLines.length * lineHeight.hint + (tagHeight ? 30 : 0) + 16;
+    let cardWidth = clamp(Math.ceil(desiredCardWidth), isSelf ? 220 : 220, maxCardWidth);
     let cardX = 24;
     let lineY = 0;
     let selfPath = '';
@@ -2035,27 +2051,27 @@ function buildRedisSequenceDiagram(parsed, viewportWidth = 0) {
       }
       cardX = clamp(cardX, 24, width - cardWidth - 24);
       const loopDirection = cardX >= fromX ? 1 : -1;
-      lineY = cursorY + boxHeight + 16;
+      lineY = cursorY + boxHeight + 20;
       selfPath = `M ${fromX} ${lineY} C ${fromX + loopDirection * loopWidth} ${lineY}, ${fromX + loopDirection * loopWidth} ${lineY + loopDepth}, ${fromX} ${lineY + loopDepth}`;
       arrowHead = buildRedisSequenceArrowHead(fromX, lineY + loopDepth, loopDirection > 0 ? 'left' : 'right');
       connectorX = clamp(fromX, cardX + 28, cardX + cardWidth - 28);
-      rowHeight = boxHeight + loopDepth + 26;
+      rowHeight = boxHeight + loopDepth + 30;
     } else {
       const midpoint = (fromX + toX) / 2;
       cardX = clamp(midpoint - cardWidth / 2, 24, width - cardWidth - 24);
-      lineY = cursorY + boxHeight + 16;
+      lineY = cursorY + boxHeight + 20;
       arrowHead = buildRedisSequenceArrowHead(toX, lineY, toX < fromX ? 'left' : 'right');
       connectorX = clamp(midpoint, cardX + 28, cardX + cardWidth - 28);
-      rowHeight = boxHeight + 30;
+      rowHeight = boxHeight + 36;
     }
 
-    const stepBoxWidth = 28;
-    const stepBoxHeight = 18;
-    const textX = cardX + 14;
-    const routeX = cardX + 50;
-    const routeY = cursorY + 23;
-    const actionY = routeY + routeLines.length * 13 + 7;
-    const hintY = actionY + actionLines.length * 14 + 7;
+    const stepBoxWidth = 30;
+    const stepBoxHeight = 20;
+    const textX = cardX + 16;
+    const routeX = cardX + 58;
+    const routeY = cursorY + 30;
+    const actionY = routeY + routeLines.length * lineHeight.route + 8;
+    const hintY = actionY + actionLines.length * lineHeight.action + 8;
     const tagWidth = branchTagText ? clamp(rawTagWidth, 60, cardWidth - 24) : 0;
     const messageEntry = {
       type: 'message',
@@ -2083,14 +2099,14 @@ function buildRedisSequenceDiagram(parsed, viewportWidth = 0) {
       stepBoxWidth,
       stepBoxHeight,
       stepTextX: cardX + 12 + stepBoxWidth / 2,
-      stepTextY: cursorY + 22,
+      stepTextY: cursorY + 24,
       branchTagText,
       tagX: cardX + 12,
-      tagY: cursorY + boxHeight - 18,
+      tagY: cursorY + boxHeight - 30,
       tagWidth,
       tagHeight,
       tagTextX: cardX + 20,
-      tagTextY: cursorY + boxHeight - 7,
+      tagTextY: cursorY + boxHeight - 13,
       stroke: toneToken.stroke,
       fill: toneToken.fill,
       border: toneToken.border,
@@ -2127,6 +2143,7 @@ function buildBranchMeta(keyword, desc) {
   if (keyword === 'alt') {
     return {
       branchType: 'alt',
+      condition: normalized,
       text: '如果',
       pathLabel: normalized ? `如果：${normalized}` : '如果',
       tip: normalized || '满足当前判断条件',
@@ -2136,6 +2153,7 @@ function buildBranchMeta(keyword, desc) {
   if (keyword === 'else') {
     return {
       branchType: 'else',
+      condition: normalized,
       text: '否则',
       pathLabel: normalized ? `否则：${normalized}` : '否则',
       tip: normalized || '不满足主判断条件',
@@ -2174,6 +2192,42 @@ function normalizeAction(action) {
 
 function stripBranchPrefix(text, prefix) {
   return normalizeAction(text).replace(new RegExp(`^${prefix}[：:]?`), '').trim();
+}
+
+function redisActionTitle(action) {
+  const text = normalizeAction(action);
+  if (!text) return '执行步骤';
+  if (text === 'user') return '返回用户记录';
+  if (text.includes('校验用户名密码')) return '校验账号密码';
+  if (text.includes('返回 token')) return '返回 token';
+  if (text.includes('返回 captchaId + 图片')) return '返回验证码图片';
+  if (text.includes('携带 token 请求业务接口')) return '携带 token 请求业务接口';
+  if (text.includes('通过/拒绝')) return '返回鉴权结果';
+  if (text.includes('发送邮箱验证码')) return '发送邮箱验证码';
+  if (text.includes('提交 OTP')) return '提交 OTP';
+  if (text.includes('请求上传/登录接口')) return '进入限流入口';
+  if (text.includes('发布评论 / 切换收藏')) return '提交评论或收藏';
+  if (text.includes('query page')) return '查询车辆分页';
+  if (text.includes('cached page')) return '命中分页缓存';
+  if (text.includes('return cache')) return '返回缓存数据';
+  if (text.includes('return db result')) return '返回数据库结果';
+  if (text.includes('回源聚合快照')) return '回源构建快照';
+  if (text.includes('返回 stale')) return '返回 stale 快照';
+  if (text.includes('直接返回缓存快照')) return '返回缓存快照';
+  if (text.includes('返回最新 detail')) return '返回最新详情';
+  if (text.includes('同步 detailMap / gallery')) return '同步前端详情缓存';
+  if (/^GET\s+\/api\//i.test(text)) return `请求接口 ${text.replace(/^GET\s+/i, '')}`;
+  if (/^POST\s+\/api\//i.test(text)) return `提交接口 ${text.replace(/^POST\s+/i, '')}`;
+  if (/^PUT\s+\/api\//i.test(text)) return `更新接口 ${text.replace(/^PUT\s+/i, '')}`;
+  if (/^DELETE\s+\/api\//i.test(text)) return `删除接口 ${text.replace(/^DELETE\s+/i, '')}`;
+  if (/^GET\s+/i.test(text)) return '读取 Redis 键';
+  if (/^SETNX\s+/i.test(text)) return '原子占位 Redis 键';
+  if (/^SET\s+/i.test(text)) return '写入 Redis 键';
+  if (/^INCR\s+/i.test(text)) return '递增 Redis 计数';
+  if (/^DEL\s+/i.test(text)) return '删除 Redis 键';
+  if (/^SADD\s+/i.test(text)) return '写入 Redis 集合';
+  if (/^EXPIRE\s+/i.test(text)) return '设置键过期时间';
+  return text;
 }
 
 function buildRedisFlowDetail(evt) {
@@ -2508,7 +2562,7 @@ const redisFlowDialog = reactive({
 function buildRedisFlowStep(evt, index) {
   const action = normalizeAction(evt.action);
   return {
-    title: `${index + 1}. ${action}`,
+    title: `${index + 1}. ${redisActionTitle(action)}`,
     detail: buildRedisFlowDetail(evt)
   };
 }
@@ -2532,24 +2586,22 @@ function buildRedisFlowChart(item) {
     if (evt.type === 'branch') {
       if (evt.branchType === 'alt') {
         chart.hasBranch = true;
-        const altCond = stripBranchPrefix(evt.text || '', '如果') || '判断条件成立';
+        const altCond = evt.condition || stripBranchPrefix(evt.pathLabel || '', '如果') || '满足当前判断条件';
         chart.decisionText = altCond;
-        chart.yesLabel = `如果（满足：${altCond}）`;
-        chart.noLabel = `否则（不满足：${altCond}）`;
+        chart.yesLabel = `如果：${altCond}`;
+        chart.noLabel = `否则：未满足「${altCond}」`;
         zone = 'yes';
         return;
       }
       if (evt.branchType === 'else') {
         chart.hasBranch = true;
-        const elseCond = stripBranchPrefix(evt.text || '', '否则');
+        const elseCond = evt.condition || stripBranchPrefix(evt.pathLabel || '', '否则');
         if (elseCond) {
-          chart.noLabel = chart.decisionText && chart.decisionText !== '满足判断条件吗？'
-            ? `否则（不满足：${chart.decisionText}，分支条件：${elseCond}）`
-            : `否则（分支条件：${elseCond}）`;
+          chart.noLabel = `否则：${elseCond}`;
         } else if (chart.decisionText && chart.decisionText !== '满足判断条件吗？') {
-          chart.noLabel = `否则（不满足：${chart.decisionText}）`;
+          chart.noLabel = `否则：未满足「${chart.decisionText}」`;
         } else {
-          chart.noLabel = '否则（不满足判断条件）';
+          chart.noLabel = '否则';
         }
         zone = 'no';
         return;
@@ -4791,6 +4843,8 @@ th {
   border-radius: 12px;
   background: #fff;
   padding: 10px 12px;
+  font-size: 15px;
+  line-height: 1.7;
 }
 
 .redis-fc-node.start,
@@ -4815,16 +4869,16 @@ th {
 }
 
 .redis-fc-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: #0f172a;
 }
 
 .redis-fc-detail {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: 15px;
   color: #334155;
-  line-height: 1.45;
+  line-height: 1.7;
 }
 
 .redis-fc-arrow {
@@ -4841,8 +4895,8 @@ th {
   display: grid;
   gap: 2px;
   margin: -4px 0 8px;
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 15px;
+  line-height: 1.7;
   color: #334155;
 }
 
@@ -4859,8 +4913,8 @@ th {
 }
 
 .redis-fc-node.decision {
-  width: 108px;
-  height: 108px;
+  width: 136px;
+  height: 136px;
   padding: 0;
   border-color: #f59e0b;
   background: #fffbeb;
@@ -4874,10 +4928,10 @@ th {
   transform: rotate(-45deg);
   text-align: center;
   width: 84%;
-  font-size: 11px;
+  font-size: 15px;
   color: #92400e;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.45;
 }
 
 .redis-fc-branches {
@@ -4956,7 +5010,7 @@ th {
   align-self: flex-start;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -5138,7 +5192,7 @@ th {
 }
 
 .redis-sequence-lane-label {
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -5170,18 +5224,18 @@ th {
 }
 
 .redis-sequence-route-text {
-  font-size: 9px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .redis-sequence-action-text {
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .redis-sequence-hint-text,
 .redis-sequence-branch-tip-text {
-  font-size: 9px;
+  font-size: 15px;
 }
 
 .redis-sequence-tag-pill {
@@ -5190,12 +5244,12 @@ th {
 }
 
 .redis-sequence-tag-text {
-  font-size: 8px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .redis-sequence-branch-title-text {
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -5345,8 +5399,8 @@ th {
   }
 
   .redis-fc-node.decision {
-    width: 92px;
-    height: 92px;
+    width: 116px;
+    height: 116px;
   }
 
   .redis-fc-branches {
