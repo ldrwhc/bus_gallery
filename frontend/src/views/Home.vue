@@ -36,7 +36,7 @@
                     >
                         <div class="waterfall-media">
                             <img
-                                :src="card.image?.thumbnailUrl || card.image?.url || fallback"
+                                :src="card.image?.thumbnailUrl || fallback"
                                 :alt="card.plateNumber || '公交图片'"
                                 :loading="index < eagerImageCount ? 'eager' : 'lazy'"
                                 :fetchpriority="index < eagerImageCount ? 'high' : 'auto'"

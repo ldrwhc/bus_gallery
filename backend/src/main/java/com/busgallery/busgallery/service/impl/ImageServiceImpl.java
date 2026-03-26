@@ -46,6 +46,7 @@ public class ImageServiceImpl implements ImageService {
 
     private static final DateTimeFormatter DATE_FOLDER_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int MAX_PAGE_SIZE = 12;
+    private static final int PUBLIC_PREVIEW_MAX_SIDE = 1280;
 
     private final ImageMapper imageMapper;
     private final VehicleImageMapper vehicleImageMapper;
@@ -113,11 +114,21 @@ public class ImageServiceImpl implements ImageService {
             byte[] data = processed.data();
 
             StorageObject storageObject;
+            StorageObject displayObject = null;
             StorageObject thumbObject = null;
             try (ByteArrayInputStream inputStream = new ByteArrayInputStream(data)) {
                 storageObject = storageService.upload(
                         objectName, inputStream, data.length, processed.mimeType()
                 );
+            }
+            byte[] displayBytes = createPublicDisplayImage(data);
+            if (displayBytes != null && displayBytes.length > 0) {
+                String displayObjectName = buildDisplayObjectName(objectName);
+                try (ByteArrayInputStream displayStream = new ByteArrayInputStream(displayBytes)) {
+                    displayObject = storageService.upload(
+                            displayObjectName, displayStream, displayBytes.length, "image/jpeg"
+                    );
+                }
             }
             byte[] thumbBytes = createThumbnail(data);
             if (thumbBytes != null && thumbBytes.length > 0) {
@@ -131,7 +142,10 @@ public class ImageServiceImpl implements ImageService {
 
             Image image = new Image();
             image.setObjectName(storageObject.getObjectName());
-            image.setUrl(storageObject.getObjectName());
+            String publicDisplayObjectName = displayObject != null
+                    ? displayObject.getObjectName()
+                    : (thumbObject != null ? thumbObject.getObjectName() : storageObject.getObjectName());
+            image.setUrl(publicDisplayObjectName);
             image.setThumbnailUrl(thumbObject != null ? thumbObject.getObjectName() : storageObject.getObjectName());
             image.setSizeBytes((long) data.length);
             image.setMimeType(processed.mimeType());
@@ -167,12 +181,26 @@ public class ImageServiceImpl implements ImageService {
             return;
         }
         vehicleImageMapper.deleteByImageId(id);
-        storageService.remove(image.getObjectName());
-        if (StringUtils.hasText(image.getThumbnailUrl()) && !image.getThumbnailUrl().equals(image.getObjectName())) {
+        String originalObject = imageAccessService.resolveObjectNameRef(image.getObjectName());
+        if (StringUtils.hasText(originalObject)) {
+            storageService.remove(originalObject);
+        }
+        String thumbnailObject = imageAccessService.resolveObjectNameRef(image.getThumbnailUrl());
+        if (StringUtils.hasText(thumbnailObject) && !thumbnailObject.equals(originalObject)) {
             try {
-                storageService.remove(image.getThumbnailUrl());
+                storageService.remove(thumbnailObject);
             } catch (Exception ex) {
                 log.warn("Delete thumbnail failed for image {}", id, ex);
+            }
+        }
+        String displayObject = imageAccessService.resolveObjectNameRef(image.getUrl());
+        if (StringUtils.hasText(displayObject)
+                && !displayObject.equals(originalObject)
+                && !displayObject.equals(thumbnailObject)) {
+            try {
+                storageService.remove(displayObject);
+            } catch (Exception ex) {
+                log.warn("Delete display image failed for image {}", id, ex);
             }
         }
         imageMapper.delete(id);
@@ -193,6 +221,14 @@ public class ImageServiceImpl implements ImageService {
             return originalObjectName.substring(0, dot) + "_thumb" + originalObjectName.substring(dot);
         }
         return originalObjectName + "_thumb.jpg";
+    }
+
+    private String buildDisplayObjectName(String originalObjectName) {
+        int dot = originalObjectName.lastIndexOf('.');
+        if (dot > 0) {
+            return originalObjectName.substring(0, dot) + "_display.jpg";
+        }
+        return originalObjectName + "_display.jpg";
     }
 
     private byte[] createThumbnail(byte[] data) {
@@ -224,6 +260,48 @@ public class ImageServiceImpl implements ImageService {
             log.warn("Create thumbnail failed, fallback to original", e);
             return null;
         }
+    }
+
+    private byte[] createPublicDisplayImage(byte[] data) {
+        try {
+            BufferedImage source = ImageIO.read(new ByteArrayInputStream(data));
+            if (source == null) {
+                return null;
+            }
+            int w = source.getWidth();
+            int h = source.getHeight();
+            double scale = (double) PUBLIC_PREVIEW_MAX_SIDE / Math.max(w, h);
+            scale = Math.min(1.0, scale);
+            int targetW = Math.max(1, (int) Math.round(w * scale));
+            int targetH = Math.max(1, (int) Math.round(h * scale));
+
+            BufferedImage preview = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2d = preview.createGraphics();
+            try {
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setColor(Color.WHITE);
+                g2d.fillRect(0, 0, targetW, targetH);
+                g2d.drawImage(source, 0, 0, targetW, targetH, null);
+            } finally {
+                g2d.dispose();
+            }
+            applyWatermark(preview, resolveDisplayWatermarkText(), 0.35f);
+            return writeJpegWithQuality(preview, 0.8f);
+        } catch (IOException e) {
+            log.warn("Create public display image failed, fallback to thumbnail", e);
+            return null;
+        }
+    }
+
+    private String resolveDisplayWatermarkText() {
+        if (StringUtils.hasText(imageAccessProperties.getUploadWatermarkText())) {
+            return imageAccessProperties.getUploadWatermarkText();
+        }
+        if (StringUtils.hasText(imageAccessProperties.getThumbnailWatermarkText())) {
+            return imageAccessProperties.getThumbnailWatermarkText();
+        }
+        return "BUS GALLERY";
     }
 
     private ProcessedUpload processUploadedImage(byte[] originalData, String mimeType, int width, int height) {

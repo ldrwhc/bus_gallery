@@ -10,6 +10,7 @@ import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.entity.VehicleSubmission;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.service.ChunkUploadService;
 import com.busgallery.busgallery.service.IdempotencyService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.SubmissionService;
@@ -44,6 +45,7 @@ public class UploadController {
     private final SubmissionService submissionService;
     private final IdempotencyService idempotencyService;
     private final UploadSecurityService uploadSecurityService;
+    private final ChunkUploadService chunkUploadService;
     private final ObjectMapper objectMapper;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -68,6 +70,70 @@ public class UploadController {
                 Duration.ofMinutes(10),
                 () -> handleUpload(file, payload, session)
         );
+    }
+
+    @PostMapping("/chunk/init")
+    @RequireLogin
+    public ChunkUploadService.ChunkProgress initChunkUpload(@RequestBody ChunkInitRequest request,
+                                                            HttpServletRequest httpRequest) {
+        if (request == null) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "request body is required");
+        }
+        UserSession session = AuthContextHolder.requireUser();
+        String clientIp = RequestIpUtil.resolveClientIp(httpRequest);
+        uploadSecurityService.checkUploadQuotaAndRate(session, clientIp);
+        return chunkUploadService.init(
+                session.getUserId(),
+                request.getFileName(),
+                request.getContentType(),
+                request.getTotalSize(),
+                request.getChunkSize(),
+                request.getTotalChunks()
+        );
+    }
+
+    @PostMapping(value = "/chunk/{uploadId}/part", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequireLogin
+    public ChunkUploadService.ChunkProgress uploadChunkPart(@PathVariable String uploadId,
+                                                            @RequestParam("index") int index,
+                                                            @RequestPart("file") MultipartFile file) {
+        UserSession session = AuthContextHolder.requireUser();
+        return chunkUploadService.uploadPart(uploadId, session.getUserId(), index, file);
+    }
+
+    @GetMapping("/chunk/{uploadId}/progress")
+    @RequireLogin
+    public ChunkUploadService.ChunkProgress chunkProgress(@PathVariable String uploadId) {
+        UserSession session = AuthContextHolder.requireUser();
+        return chunkUploadService.progress(uploadId, session.getUserId());
+    }
+
+    @PostMapping("/chunk/{uploadId}/complete")
+    @RequireLogin
+    @Transactional(timeout = 30)
+    public UploadResultResponse completeChunkUpload(@PathVariable String uploadId,
+                                                    @RequestBody ChunkCompleteRequest request,
+                                                    @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        UserSession session = AuthContextHolder.requireUser();
+        VehicleUpsertPayload payload = requireChunkPayload(request);
+        String effectiveIdempotencyKey = StringUtils.hasText(idempotencyKey)
+                ? idempotencyKey.trim()
+                : "chunk-complete:" + uploadId;
+        return idempotencyService.runOnce(effectiveIdempotencyKey, Duration.ofMinutes(10), () -> {
+            ChunkUploadService.CompletedChunkFile merged = chunkUploadService.complete(uploadId, session.getUserId());
+            try {
+                return handleUpload(merged.getMultipartFile(), payload, session);
+            } finally {
+                chunkUploadService.cleanup(uploadId);
+            }
+        });
+    }
+
+    @DeleteMapping("/chunk/{uploadId}")
+    @RequireLogin
+    public void cancelChunkUpload(@PathVariable String uploadId) {
+        UserSession session = AuthContextHolder.requireUser();
+        chunkUploadService.cancel(uploadId, session.getUserId());
     }
 
     private UploadResultResponse handleUpload(MultipartFile file, VehicleUpsertPayload payload, UserSession session) {
@@ -118,6 +184,13 @@ public class UploadController {
         }
     }
 
+    private VehicleUpsertPayload requireChunkPayload(ChunkCompleteRequest request) {
+        if (request == null || request.getPayload() == null) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "payload is required");
+        }
+        return request.getPayload();
+    }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -133,6 +206,24 @@ public class UploadController {
         public static UploadResultResponse approved(VehicleController.VehicleDetailResponse detail) {
             return new UploadResultResponse("APPROVED", null, detail);
         }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ChunkInitRequest {
+        private String fileName;
+        private String contentType;
+        private long totalSize;
+        private Long chunkSize;
+        private Integer totalChunks;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ChunkCompleteRequest {
+        private VehicleUpsertPayload payload;
     }
 }
 

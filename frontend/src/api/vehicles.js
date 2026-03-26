@@ -73,6 +73,46 @@ export const uploadVehicleWithImage = (vehiclePayload, file, idempotencyKey) => 
     return http.post('/upload', formData, config);
 };
 
+export const initVehicleChunkUpload = ({ fileName, contentType, totalSize, chunkSize, totalChunks }) =>
+    http.post('/upload/chunk/init', {
+        fileName,
+        contentType,
+        totalSize,
+        chunkSize,
+        totalChunks
+    });
+
+export const uploadVehicleChunkPart = (uploadId, index, chunk, onUploadProgress) => {
+    const formData = new FormData();
+    formData.append('file', chunk, `chunk-${index}.bin`);
+    return http.post(`/upload/chunk/${uploadId}/part`, formData, {
+        params: { index },
+        timeout: 120000,
+        onUploadProgress
+    });
+};
+
+export const fetchVehicleChunkProgress = (uploadId) =>
+    http.get(`/upload/chunk/${uploadId}/progress`);
+
+export const completeVehicleChunkUpload = (uploadId, vehiclePayload, idempotencyKey) => {
+    const config = {
+        timeout: 120000
+    };
+    const normalizedIdempotencyKey = String(idempotencyKey || '').trim();
+    if (normalizedIdempotencyKey) {
+        config.headers = { 'Idempotency-Key': normalizedIdempotencyKey };
+    }
+    return http.post(
+        `/upload/chunk/${uploadId}/complete`,
+        { payload: vehiclePayload },
+        config
+    );
+};
+
+export const cancelVehicleChunkUpload = (uploadId) =>
+    http.delete(`/upload/chunk/${uploadId}`);
+
 export const fetchVehicleComments = (vehicleId, params = {}) =>
     http.get(`/vehicles/${vehicleId}/comments`, { params });
 

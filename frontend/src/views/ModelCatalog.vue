@@ -332,7 +332,7 @@ const formatYear = (date) => {
 const resolveImage = (images = []) => {
     const image = images?.[0];
     if (!image) return null;
-    return image.thumbnailUrl || image.url || null;
+    return image.thumbnailUrl || null;
 };
 
 const brandNameMap = computed(() => {

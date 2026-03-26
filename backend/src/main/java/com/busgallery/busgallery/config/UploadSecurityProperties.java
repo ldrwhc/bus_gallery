@@ -21,5 +21,9 @@ public class UploadSecurityProperties {
     private int uploadUserPerDay = 120;
     private int pendingPerUserMax = 30;
     private int pendingGlobalMax = 5000;
+    private long chunkSizeBytes = 2 * 1024 * 1024;
+    private int chunkMaxParts = 64;
+    private int chunkSessionTtlSeconds = 7200;
+    private String chunkTempDir = "";
     private List<String> allowedMimeTypes = List.of("image/jpeg", "image/png");
 }

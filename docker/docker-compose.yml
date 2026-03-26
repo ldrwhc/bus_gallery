@@ -22,6 +22,7 @@ services:
     image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/quay.io/opstree/redis:v7.0.5
     container_name: bus-gallery-redis
     restart: always
+    user: "0:0"
     command:
       [
         "redis-server",
@@ -50,7 +51,6 @@ services:
     container_name: minio
     restart: always
     ports:
-      - "9000:9000"
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
@@ -105,7 +105,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-12345678}
       MINIO_BUCKET: ${MINIO_BUCKET:-bus-gallery}
-      MINIO_CDN_HOST: ${MINIO_CDN_HOST:-http://localhost/bus-gallery}
+      MINIO_CDN_HOST: ${MINIO_CDN_HOST:-}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-12345678}

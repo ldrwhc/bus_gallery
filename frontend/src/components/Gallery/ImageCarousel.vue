@@ -47,7 +47,7 @@
                 @click="go(index)"
             >
                 <img
-                    :src="image.thumbnailUrl || image.url"
+                    :src="image.thumbnailUrl || FALLBACK_IMAGE"
                     :alt="'预览' + (index + 1)"
                     loading="lazy"
                     decoding="async"
@@ -114,17 +114,11 @@ watch(
 const images = computed(() => props.images || []);
 
 const activeImage = computed(() => images.value[currentIndex.value] || null);
-const loadedOriginal = ref(new Set());
 
 const activeImageUrl = computed(() => {
     const img = activeImage.value;
     if (!img) return FALLBACK_IMAGE;
-    const key = img.id ?? currentIndex.value;
-    const thumb = img.thumbnailUrl || img.url || FALLBACK_IMAGE;
-    if (loadedOriginal.value.has(key)) {
-        return img.url || thumb;
-    }
-    return thumb;
+    return img.url || img.thumbnailUrl || FALLBACK_IMAGE;
 });
 const activeImageAlt = computed(() => activeImage.value?.description || '车辆图片');
 const uploaderLabel = computed(() => {
@@ -167,28 +161,6 @@ const go = (index) => {
     emit('change', currentIndex.value);
 };
 
-const markLoaded = (key) => {
-    const next = new Set(loadedOriginal.value);
-    next.add(key);
-    loadedOriginal.value = next;
-};
-
-const preloadOriginal = () => {
-    const img = activeImage.value;
-    if (!img?.url) return;
-    const key = img.id ?? currentIndex.value;
-    if (loadedOriginal.value.has(key)) return;
-    if (img.url === (img.thumbnailUrl || img.url)) {
-        markLoaded(key);
-        return;
-    }
-    const loader = new Image();
-    loader.onload = () => markLoaded(key);
-    loader.onerror = () => markLoaded(key);
-    loader.src = img.url;
-};
-
-watch(activeImage, preloadOriginal, { immediate: true });
 </script>
 
 <style scoped lang="scss">

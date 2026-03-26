@@ -98,7 +98,7 @@
             <div v-else-if="!images.length" class="state">暂未上传图片</div>
             <div v-else class="grid">
                 <article v-for="image in images" :key="image.id" class="item" @click="openImage(image)">
-                    <img :src="image.thumbnailUrl || image.url" :alt="image.objectName || 'upload'" />
+                    <img :src="image.thumbnailUrl" :alt="image.objectName || 'upload'" />
                     <p class="muted">{{ formatDate(image.createTime) }}</p>
                     <button
                         v-if="isSelf"
@@ -123,7 +123,7 @@
             <div v-else class="grid">
                 <article v-for="fav in favorites" :key="fav.vehicle?.id" class="item" @click="openFavorite(fav)">
                     <img
-                        :src="fav.images?.[0]?.thumbnailUrl || fav.images?.[0]?.url || ''"
+                        :src="fav.images?.[0]?.thumbnailUrl || ''"
                         :alt="fav.vehicle?.plateNumber || fav.vehicle?.modelName || 'favorite vehicle'"
                     />
                     <p class="muted">{{ fav.vehicle?.plateNumber || '未命名车辆' }}</p>

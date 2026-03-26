@@ -202,18 +202,25 @@ public class VehicleController {
         if (image == null) {
             return;
         }
-        String primaryRef = image.getObjectName();
-        if (primaryRef == null || primaryRef.isBlank()) {
-            primaryRef = image.getUrl();
+        String originalObjectName = imageAccessService.resolveObjectNameRef(image.getObjectName());
+        String primaryObjectName = imageAccessService.resolveObjectNameRef(image.getUrl());
+        String thumbObjectName = imageAccessService.resolveObjectNameRef(image.getThumbnailUrl());
+
+        if ((primaryObjectName == null || primaryObjectName.isBlank()
+                || (originalObjectName != null && !originalObjectName.isBlank() && originalObjectName.equals(primaryObjectName)))
+                && thumbObjectName != null
+                && !thumbObjectName.isBlank()
+                && (originalObjectName == null || originalObjectName.isBlank() || !originalObjectName.equals(thumbObjectName))) {
+            primaryObjectName = thumbObjectName;
         }
-        String primaryObjectName = imageAccessService.resolveObjectNameRef(primaryRef);
+        if ((primaryObjectName == null || primaryObjectName.isBlank()) && originalObjectName != null && !originalObjectName.isBlank()) {
+            primaryObjectName = originalObjectName;
+        }
         if (primaryObjectName == null || primaryObjectName.isBlank()) {
             return;
         }
         image.setUrl(imageAccessService.signPrimaryObject(primaryObjectName));
 
-        String thumbRef = image.getThumbnailUrl();
-        String thumbObjectName = imageAccessService.resolveObjectNameRef(thumbRef);
         if (thumbObjectName == null || thumbObjectName.isBlank()) {
             thumbObjectName = primaryObjectName;
         }

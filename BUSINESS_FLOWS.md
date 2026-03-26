@@ -76,16 +76,19 @@ flowchart LR
     B --> C[IdempotencyService]
     C --> D[ImageService 上传]
     D --> E[(MinIO)]
-    D --> F[缩略图生成]
+    D --> F[受控高清图生成(强水印)]
+    D --> G[缩略图生成]
     F --> E
-    B --> G[VehicleService.create]
-    G --> H[(MySQL)]
+    G --> E
+    B --> V[VehicleService.create]
+    V --> H[(MySQL)]
     H --> I[返回车辆详情]
 ```
 
 要点：
 - 支持 `Idempotency-Key`，避免重复提交。
-- 上传时自动生成缩略图并写回图片表。
+- 上传时会生成三层对象：原始对象、受控高清图、缩略图，并写回图片表。
+- 前端场景分发：普通浏览页用缩略图；详情页和审核页用受控高清图。
 
 ---
 
@@ -164,20 +167,20 @@ Spring / Redis / RabbitMQ 交互时机（收藏切换）：
 
 ---
 
-## 6. 缩略图重建任务
+## 6. 历史高清图回填任务
 
 ```mermaid
 flowchart LR
-    A[启动任务: rebuild.thumbnails=true] --> B[读取所有图片记录]
-    B --> C[下载原图]
-    C --> D[生成缩略图]
+    A[启动任务: IMAGE_DISPLAY_BACKFILL_ENABLED=true] --> B[读取所有图片记录]
+    B --> C[读取原始对象]
+    C --> D[生成受控高清图 _display.jpg]
     D --> E[(MinIO)]
-    E --> F[更新 thumbnail_url]
+    E --> F[更新 image.url]
     F --> G[(MySQL)]
 ```
 
 要点：
-- 用于历史数据补齐缩略图。
+- 用于历史数据补齐受控高清图，消除旧数据在详情页误回退到缩略图/原图的风险。
 
 ---
 

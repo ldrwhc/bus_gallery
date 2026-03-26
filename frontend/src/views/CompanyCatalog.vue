@@ -366,7 +366,7 @@ const groupedVehicleRows = computed(() => {
 const resolveImage = (images = []) => {
     const first = images?.[0];
     if (!first) return null;
-    return first.thumbnailUrl || first.url || null;
+    return first.thumbnailUrl || null;
 };
 
 const formatYearValue = (date) => {

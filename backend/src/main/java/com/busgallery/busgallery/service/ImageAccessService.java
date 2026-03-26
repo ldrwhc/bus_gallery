@@ -136,12 +136,9 @@ public class ImageAccessService {
         if (image == null) {
             return null;
         }
-        String thumbnailRef = image.getThumbnailUrl();
-        if (StringUtils.hasText(thumbnailRef)) {
-            String fromThumb = tryResolveObjectName(thumbnailRef);
-            if (StringUtils.hasText(fromThumb)) {
-                return fromThumb;
-            }
+        String explicitThumbnail = resolveExplicitThumbnailObjectName(image);
+        if (StringUtils.hasText(explicitThumbnail)) {
+            return explicitThumbnail;
         }
         String objectName = normalizeObjectName(image.getObjectName());
         if (!StringUtils.hasText(objectName)) {
@@ -177,11 +174,35 @@ public class ImageAccessService {
         if (image == null) {
             return "";
         }
-        String fromObjectName = normalizeObjectName(image.getObjectName());
-        if (StringUtils.hasText(fromObjectName)) {
-            return fromObjectName;
+        String originalObjectName = normalizeObjectName(image.getObjectName());
+        String displayObjectName = normalizeObjectName(image.getUrl());
+        if (StringUtils.hasText(displayObjectName) && !displayObjectName.equals(originalObjectName)) {
+            return displayObjectName;
         }
-        return normalizeObjectName(image.getUrl());
+        String thumbnailObjectName = resolveExplicitThumbnailObjectName(image);
+        // Detail/review should prefer the higher-quality primary image chain.
+        if (StringUtils.hasText(originalObjectName)) {
+            return originalObjectName;
+        }
+        if (StringUtils.hasText(displayObjectName)) {
+            return displayObjectName;
+        }
+        if (StringUtils.hasText(thumbnailObjectName)) {
+            return thumbnailObjectName;
+        }
+        return originalObjectName;
+    }
+
+    private String resolveExplicitThumbnailObjectName(Image image) {
+        if (image == null) {
+            return "";
+        }
+        String thumbnailRef = image.getThumbnailUrl();
+        if (!StringUtils.hasText(thumbnailRef)) {
+            return "";
+        }
+        String fromThumb = tryResolveObjectName(thumbnailRef);
+        return StringUtils.hasText(fromThumb) ? fromThumb : "";
     }
 
     private String buildSignedAccessUrl(String objectName, int ttlSeconds) {

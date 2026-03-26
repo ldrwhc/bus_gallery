@@ -1215,9 +1215,9 @@ const flowRows = [
     frontend: 'Upload 页把 file 与 payload 组装成 multipart 请求并可附加 Idempotency-Key，提交到 /api/upload 或 /api/images/upload。',
     nginx: 'Nginx 对上传入口启用 upload 限流、50M 请求体上限和 300s 超时后把请求转发到 UploadController/ImageController。',
     redis: 'RateLimitService 用 Redis 记录 userId/IP 频率，IdempotencyService 用 setIfAbsent 锁住 Idempotency-Key，从而决定放行还是直接拒绝重复请求。',
-    spring: 'Spring 在接收 multipart 后由 UploadSecurityService 校验 MIME、魔数、尺寸和像素；随后 ImageService 按 busgallery.image-access.upload-* 配置执行原图压缩（质量/最大边）与水印写入，再调用 VehicleService、SubmissionService 落业务数据并返回 APPROVED/PENDING。',
+    spring: 'Spring 在接收 multipart 后由 UploadSecurityService 校验 MIME、魔数、尺寸和像素；随后 ImageService 生成三类对象：原始对象（归档）、缩略图（列表/普通页）、受控高清图（详情/审核页，1280 边长 + 强水印），再调用 VehicleService、SubmissionService 落业务数据并返回 APPROVED/PENDING。',
     db: '上传通过后 MySQL 会写入 image、vehicle、vehicle_image、vehicle_submission 关系数据并把主键回传给服务层。',
-    other: '处理后的图片二进制（含上传水印与压缩结果）会写入 MinIO 并返回 objectName/url，随后该元数据会入库供后续访问链路使用。'
+    other: '处理后的图片二进制会写入 MinIO：objectName=原始对象，url=受控高清图对象，thumbnailUrl=缩略图对象；后续接口返回前会统一签名。'
   },
   {
     id: 'WF-06',
@@ -1242,7 +1242,7 @@ const flowRows = [
   {
     id: 'WF-08',
     title: '图片签名访问链路',
-    frontend: '列表和详情页拿到签名 token 后请求 /api/images/access/{token}，再把返回的字节流作为图片资源展示。',
+    frontend: '普通浏览页默认只消费 thumbnailUrl；车辆详情页与审核页消费 url（受控高清图）。前端最终都通过 /api/images/access/{token} 拉取字节流。',
     nginx: 'Nginx 先把签名访问请求转到后端验签接口，而不是直接暴露 MinIO 内网地址。',
     redis: '若请求附带会话 token，拦截器会读取 Redis 会话键补充用户上下文，但签名 token 本身不落 Redis。',
     spring: 'ImageAccessService 会解析 token 并校验 HMAC、过期时间和对象名合法性，校验通过后调用 MinIO 客户端拉取对象流。',
@@ -1257,7 +1257,7 @@ const flowRows = [
     redis: 'SnapshotService 先查 latest/version 键，未命中再查 stale 并使用 lock 防击穿；当车辆在审核页或后台被修改/删除后，对应车牌快照键会被主动清掉，下一次快照请求必定回源重建。',
     spring: 'SnapshotController 调用 SnapshotServiceImpl 聚合车辆、评论、收藏和推荐结果，序列化后写回 Redis 并响应 SnapshotPayload。',
     db: '回源时 MySQL 会按车牌查询 vehicle、image、comment、favorite 等表并把聚合结果交给 Service。',
-    other: '快照中的图片字段会结合 MinIO 对象元数据补齐访问地址后再返回前端。'
+    other: '快照中的图片字段会优先保持详情可用的受控高清 url，同时返回缩略图字段用于列表场景，避免详情误降级为缩略图。'
   },
   {
     id: 'WF-10',
@@ -1278,7 +1278,8 @@ const deployConfigs = [
   { key: 'MINIO_ENDPOINT / MINIO_CDN_HOST / MINIO_BUCKET', file: 'docker/.env + application.yml', how: 'MINIO_ENDPOINT 固定 http://minio:9000，MINIO_CDN_HOST 改公网域名或反向代理地址', recommend: 'MINIO_CDN_HOST=https://img.example.com/bus-gallery; MINIO_BUCKET=bus-gallery', effect: '图片生成 URL 可被前端直接访问' },
   { key: 'AUTH_SECURITY_* / AUTH_RATE_*', file: 'docker/.env + application.yml', how: '按用户规模调验证码阈值和发送频率，防止误伤正常用户', recommend: 'CAPTCHA_TTL=180; LOGIN_CAPTCHA_FAILURE_THRESHOLD=5; SEND_CODE_IP_PER_DAY=200', effect: '认证安全与体验平衡' },
   { key: 'UPLOAD_SECURITY_*', file: 'docker/.env + application.yml', how: '按业务图片规格调整大小、像素和频率阈值', recommend: 'MAX_FILE_BYTES=15728640; USER_PER_MINUTE=20; GLOBAL_PER_MINUTE=300', effect: '上传链路稳定并降低恶意请求' },
-  { key: 'IMAGE_ACCESS_UPLOAD_* / IMAGE_ACCESS_THUMBNAIL_WATERMARK_*', file: 'docker/.env + application.yml', how: '按展示需求开启原图水印、控制压缩质量与最大边长，缩略图水印可独立配置', recommend: 'UPLOAD_WATERMARK_ENABLED=true; UPLOAD_JPEG_QUALITY=0.82~0.9; UPLOAD_MAX_SIDE=2560', effect: '上传后自动水印与画质压缩，平衡可读性与带宽成本' },
+  { key: 'IMAGE_ACCESS_UPLOAD_* / IMAGE_ACCESS_THUMBNAIL_WATERMARK_*', file: 'docker/.env + application.yml', how: '上传阶段同时产出缩略图和受控高清图；缩略图用于普通浏览，受控高清图用于详情/审核', recommend: 'UPLOAD_WATERMARK_ENABLED=true; UPLOAD_JPEG_QUALITY=0.8; UPLOAD_MAX_SIDE=2560; THUMBNAIL_WATERMARK_ENABLED=true', effect: '既控制带宽又避免详情展示原图泄露' },
+  { key: 'IMAGE_DISPLAY_BACKFILL_*', file: 'docker/.env + application.yml', how: '历史数据补齐受控高清图：按开关和 limit 分批回填，必要时可 force-regenerate 重算', recommend: 'IMAGE_DISPLAY_BACKFILL_ENABLED=true; LIMIT=200 先试跑，再 LIMIT=0 全量', effect: '清理旧数据“详情回退缩略图/原图”的风险' },
   { key: 'limit_req / client_max_body_size / timeout', file: 'docker/nginx/default.conf', how: '根据并发和图片体积调整限流 burst、body 大小和超时', recommend: 'client_max_body_size 50M; proxy_read_timeout 300s', effect: '网关限流更稳，上传超时/413 更少' }
 ];
 
@@ -1306,8 +1307,12 @@ UPLOAD_SECURITY_GLOBAL_PER_MINUTE=300
 
 IMAGE_ACCESS_UPLOAD_WATERMARK_ENABLED=true
 IMAGE_ACCESS_UPLOAD_WATERMARK_TEXT=BUS GALLERY
-IMAGE_ACCESS_UPLOAD_JPEG_QUALITY=0.86
-IMAGE_ACCESS_UPLOAD_MAX_SIDE=2560`;
+IMAGE_ACCESS_UPLOAD_JPEG_QUALITY=0.8
+IMAGE_ACCESS_UPLOAD_MAX_SIDE=2560
+
+IMAGE_DISPLAY_BACKFILL_ENABLED=false
+IMAGE_DISPLAY_BACKFILL_LIMIT=0
+IMAGE_DISPLAY_BACKFILL_FORCE_REGENERATE=false`;
 
 const appConfigExample = `# backend/src/main/resources/application.yml
 spring:
@@ -1348,10 +1353,14 @@ busgallery:
     full-ttl-seconds: \${IMAGE_ACCESS_FULL_TTL_SECONDS:300}
     thumbnail-watermark-enabled: \${IMAGE_ACCESS_THUMBNAIL_WATERMARK_ENABLED:true}
     thumbnail-watermark-text: \${IMAGE_ACCESS_THUMBNAIL_WATERMARK_TEXT:BUS GALLERY}
-    upload-watermark-enabled: \${IMAGE_ACCESS_UPLOAD_WATERMARK_ENABLED:false}
+    upload-watermark-enabled: \${IMAGE_ACCESS_UPLOAD_WATERMARK_ENABLED:true}
     upload-watermark-text: \${IMAGE_ACCESS_UPLOAD_WATERMARK_TEXT:BUS GALLERY}
-    upload-jpeg-quality: \${IMAGE_ACCESS_UPLOAD_JPEG_QUALITY:0.86}
-    upload-max-side: \${IMAGE_ACCESS_UPLOAD_MAX_SIDE:2560}`;
+    upload-jpeg-quality: \${IMAGE_ACCESS_UPLOAD_JPEG_QUALITY:0.8}
+    upload-max-side: \${IMAGE_ACCESS_UPLOAD_MAX_SIDE:2560}
+  image-display-backfill:
+    enabled: \${IMAGE_DISPLAY_BACKFILL_ENABLED:false}
+    limit: \${IMAGE_DISPLAY_BACKFILL_LIMIT:0}
+    force-regenerate: \${IMAGE_DISPLAY_BACKFILL_FORCE_REGENERATE:false}`;
 
 const nginxConfigExample = `# docker/nginx/default.conf
 limit_req_zone $binary_remote_addr zone=auth_ip:10m rate=12r/s;
@@ -1432,14 +1441,14 @@ const middlewarePages = [
   { pageId: 'm3-mysql', name: 'MySQL', intro: '承载用户、车辆、图片、评论、收藏、审核等核心持久化数据。', role: '通过 MyBatis/JPA 执行查询和事务写入。', io: [{ input: '业务请求参数', process: 'SQL 查询/更新', output: '实体与结果集' }, { input: '审核与后台写操作', process: '事务更新多表', output: '一致落库' }], configs: [{ key: 'spring.datasource.*', file: 'application.yml', effect: '连接地址和凭证' }, { key: 'spring.datasource.hikari.*', file: 'application.yml', effect: '连接池并发能力' }, { key: 'docker/init/init.sql', file: 'docker/init/init.sql', effect: '初始化表结构' }], workflows: [{ flow: 'WF-01', input: '车辆筛选条件', process: 'vehicle 相关表查询', output: '列表与详情' }, { flow: 'WF-06', input: '审核动作', process: 'submission 状态更新', output: '审核结果' }, { flow: 'WF-07', input: '后台 CRUD', process: '主数据维护', output: '最新主数据' }] },
   { pageId: 'm3-spring', name: 'Spring', intro: '鉴权拦截、控制器路由、服务层事务、异常处理均在 Spring 层。', role: 'WebMvcConfig 注入 AuthTokenInterceptor 到 /api/**，RoleGuard 做权限裁剪。', io: [{ input: 'HTTP 请求', process: 'Interceptor -> Controller -> Service -> Mapper', output: '统一响应' }, { input: 'Authorization/token', process: '会话解析并写入上下文', output: '用户上下文或 401' }], configs: [{ key: 'WebMvcConfig.addInterceptors', file: 'backend/config/WebMvcConfig.java', effect: '统一鉴权入口' }, { key: '@RequireLogin + RoleGuard', file: 'controller/auth', effect: '角色权限控制' }, { key: '@Transactional', file: 'service/controller', effect: '关键写链路事务一致性' }], workflows: [{ flow: 'WF-03', input: '认证请求', process: '认证/风控/会话签发', output: 'token' }, { flow: 'WF-05', input: '上传请求', process: '安全校验 + 幂等 + 水印压缩 + 业务写入', output: '上传结果' }, { flow: 'WF-10', input: '/api/metrics/db', process: '聚合慢 SQL 指标', output: '监控数据' }] },
   { pageId: 'm3-rabbitmq', name: 'RabbitMQ', intro: '异步事件总线，承接评论发布与收藏切换后的副作用处理。', role: '主事务提交后发布 domain event，消费者异步执行通知、推荐、热度、快照预热等副作用。', io: [{ input: 'comment.created / favorite.toggled 事件', process: 'Topic Exchange 路由到业务队列，失败消息按 DLX 进入死信队列', output: '副作用任务异步执行结果与日志' }, { input: '消费异常', process: 'Listener 捕获异常并记录，副作用服务内部 best-effort 跳过失败动作', output: '主链路可用性不受影响' }], configs: [{ key: 'spring.rabbitmq.*', file: 'backend/src/main/resources/application.yml', effect: '连接、监听、重试策略' }, { key: 'busgallery.events.exchange / dlx-exchange', file: 'application.yml', effect: '业务交换机与死信交换机' }, { key: 'busgallery.events.comment-created-routing-key / favorite-toggled-routing-key', file: 'application.yml', effect: '事件路由键配置' }, { key: 'RabbitEventConfig.*QUEUE/*DLQ', file: 'backend/src/main/java/com/busgallery/busgallery/messaging/RabbitEventConfig.java', effect: '队列、死信队列与绑定关系' }], workflows: [{ flow: 'WF-04', input: '评论发布或收藏切换成功后的事件', process: 'afterCommit 发布 -> queue 消费 -> side-effect best-effort', output: '通知/敏感词/热度/推荐/快照预热异步完成' }] },
-  { pageId: 'm3-minio', name: 'MinIO', intro: '对象存储服务，负责图片数据落地与读取。', role: '上传写对象，访问通过后端签名校验后读取对象流。', io: [{ input: '上传文件', process: 'putObject 写入对象桶', output: 'objectName + url' }, { input: '签名 token', process: '验签后 getObject', output: '图片字节流' }], configs: [{ key: 'minio.endpoint/access-key/secret-key/bucket', file: 'application.yml + docker/.env', effect: '连接对象存储' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', effect: '外网访问域名' }, { key: 'location /bus-gallery/', file: 'docker/nginx/default.conf', effect: '统一对象访问入口' }], workflows: [{ flow: 'WF-05', input: '上传请求', process: '写对象并回写元数据', output: '可访问对象路径' }, { flow: 'WF-08', input: '图片访问请求', process: '验签后读取对象', output: '图片流' }] }
+  { pageId: 'm3-minio', name: 'MinIO', intro: '对象存储服务，负责图片三层对象（原始、受控高清、缩略）落地与读取。', role: '上传时写入三层对象；访问时由后端验签后读取目标对象流。', io: [{ input: '上传文件', process: 'putObject 写入 original/display/thumbnail', output: 'objectName + url(display) + thumbnailUrl' }, { input: '签名 token', process: '验签后 getObject', output: '图片字节流' }, { input: '历史回填任务', process: '按 image-display-backfill 生成/覆盖 _display.jpg', output: '旧数据与新链路一致' }], configs: [{ key: 'minio.endpoint/access-key/secret-key/bucket', file: 'application.yml + docker/.env', effect: '连接对象存储' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', effect: '外网访问域名' }, { key: 'IMAGE_DISPLAY_BACKFILL_*', file: 'application.yml + env', effect: '历史图片受控高清回填策略' }, { key: 'location /bus-gallery/', file: 'docker/nginx/default.conf', effect: '统一对象访问入口' }], workflows: [{ flow: 'WF-05', input: '上传请求', process: '写 original/display/thumbnail 并回写元数据', output: '多场景可控访问' }, { flow: 'WF-08', input: '图片访问请求', process: '验签后读取对应对象', output: '图片流' }] }
 ];
 const middlewareMap = Object.fromEntries(middlewarePages.map((m) => [m.pageId, m]));
 const middlewareEvents = [
   { trigger: '用户登录/注册', exec: 'Nginx -> Spring -> Redis -> MySQL', action: '限流、校验、写 session、返回 token', flow: 'WF-03', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-mysql'] },
   { trigger: '请求车辆列表/详情', exec: 'Nginx -> Spring -> Redis -> MySQL -> MinIO', action: '缓存命中优先，未命中回源组装', flow: 'WF-01', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-mysql', 'm3-minio'] },
   { trigger: '评论发布/删除/收藏切换', exec: 'Nginx -> Spring -> MySQL -> Redis -> RabbitMQ(异步副作用)', action: '主事务先落库并更新缓存；comment.created / favorite.toggled 通过 afterCommit 发布到业务队列，副作用 best-effort 执行。', flow: 'WF-04', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-mysql', 'm3-redis', 'm3-rabbitmq'] },
-  { trigger: '提交上传', exec: 'Nginx -> Spring -> Redis -> MinIO -> MySQL', action: '上传安全检查、幂等、防刷、图片压缩与水印处理后落库', flow: 'WF-05', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-minio', 'm3-mysql'] },
+  { trigger: '提交上传', exec: 'Nginx -> Spring -> Redis -> MinIO -> MySQL', action: '上传安全检查、幂等、防刷后，生成缩略图 + 受控高清图（强水印）并与原始对象一起落库', flow: 'WF-05', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-minio', 'm3-mysql'] },
   { trigger: '审核操作', exec: 'Nginx -> Spring -> MySQL -> Redis', action: '角色校验、状态更新、缓存失效', flow: 'WF-06', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-mysql', 'm3-redis'] },
   { trigger: '访问签名图片', exec: 'Nginx -> Spring -> MinIO', action: '验签与过期校验后返回对象流', flow: 'WF-08', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-minio'] }
 ];
@@ -2995,8 +3004,8 @@ function errorExample(api) { if (api.headers.includes('Authorization')) return J
 const configByGroup = {
   Auth: [{ key: 'auth.session.ttl-seconds', file: 'application.yml', how: '调整会话 TTL', effect: '影响登录有效期' }, { key: 'auth.security.*', file: 'application.yml', how: '调整验证码/风控阈值', effect: '影响认证安全策略' }],
   Vehicle: [{ key: 'busgallery.cache.vehicles.page-ttl-seconds', file: 'application.yml', how: '调整列表缓存 TTL', effect: '影响查询性能与实时性' }],
-  Upload: [{ key: 'busgallery.upload-security.*', file: 'application.yml', how: '调整上传阈值', effect: '影响上传安全与体验' }, { key: 'busgallery.image-access.upload-*', file: 'application.yml', how: '配置上传自动水印与压缩参数', effect: '影响原图可读性、文件体积和带宽' }, { key: 'client_max_body_size', file: 'docker/nginx/default.conf', how: '调整体积上限', effect: '避免 413' }],
-  Image: [{ key: 'busgallery.image-access.token-secret', file: 'application.yml', how: '生产环境替换默认密钥', effect: '影响签名安全性' }, { key: 'busgallery.image-access.thumbnail-watermark-*', file: 'application.yml', how: '配置缩略图水印开关与文案', effect: '影响列表图防盗链与品牌露出' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', how: '改公网域名', effect: '影响图片访问地址' }],
+  Upload: [{ key: 'busgallery.upload-security.*', file: 'application.yml', how: '调整上传阈值', effect: '影响上传安全与体验' }, { key: 'busgallery.image-access.upload-*', file: 'application.yml', how: '配置上传阶段的受控高清图压缩与水印参数', effect: '影响详情/审核图清晰度、文件体积和带宽' }, { key: 'client_max_body_size', file: 'docker/nginx/default.conf', how: '调整体积上限', effect: '避免 413' }],
+  Image: [{ key: 'busgallery.image-access.token-secret', file: 'application.yml', how: '生产环境替换默认密钥', effect: '影响签名安全性' }, { key: 'busgallery.image-access.thumbnail-watermark-*', file: 'application.yml', how: '配置缩略图水印开关与文案', effect: '影响列表图防盗链与品牌露出' }, { key: 'busgallery.image-display-backfill.*', file: 'application.yml', how: '批量回填旧图片的受控高清图', effect: '影响历史数据是否符合新展示策略' }, { key: 'MINIO_CDN_HOST', file: 'docker/.env', how: '改公网域名', effect: '影响图片访问地址' }],
   Review: [{ key: 'RoleGuard', file: 'ReviewController + RoleGuard.java', how: '按权限模型调整', effect: '影响审核越权控制' }],
   Admin: [{ key: 'RoleGuard.requireStation()', file: 'AdminController.java', how: '控制后台权限入口', effect: '影响后台接口访问' }],
   Metrics: [{ key: 'busgallery.metrics.slow-query-ms', file: 'application.yml', how: '调整慢 SQL 阈值', effect: '影响监控采样灵敏度' }]

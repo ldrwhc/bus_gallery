@@ -107,8 +107,8 @@
     {
       "id": 10,
       "vehicleId": 3,
-      "url": "http://localhost/bus-gallery/images/xxx.jpg",
-      "thumbnailUrl": "http://localhost/bus-gallery/images/xxx_thumb.jpg"
+      "url": "/api/images/access/<display-token>",
+      "thumbnailUrl": "/api/images/access/<thumb-token>"
     }
   ],
   "total": 12,
@@ -149,8 +149,8 @@
       "images": [
         {
           "id": 101,
-          "url": "http://localhost/bus-gallery/images/xxx.jpg",
-          "thumbnailUrl": "http://localhost/bus-gallery/images/xxx_thumb.jpg"
+          "url": "/api/images/access/<display-token>",
+          "thumbnailUrl": "/api/images/access/<thumb-token>"
         }
       ]
     }
@@ -348,14 +348,19 @@
 
 ## 8. 图片 Images
 
+字段语义（当前版本）：
+- `url`：受控高清图（压缩 + 强水印），用于车辆详情页与审核页。
+- `thumbnailUrl`：缩略图，用于普通浏览页和列表卡片。
+- 两者都必须通过签名访问接口读取，不是长期公开直链。
+
 ### GET `/api/images/{id}`
 
 响应：
 ```json
 {
   "id": 101,
-  "url": "http://localhost/bus-gallery/images/xxx.jpg",
-  "thumbnailUrl": "http://localhost/bus-gallery/images/xxx_thumb.jpg"
+  "url": "/api/images/access/<display-token>",
+  "thumbnailUrl": "/api/images/access/<thumb-token>"
 }
 ```
 

@@ -237,14 +237,30 @@ public class SnapshotServiceImpl implements SnapshotService {
         if (image == null) {
             return;
         }
-        String primaryRef = StringUtils.hasText(image.getObjectName()) ? image.getObjectName() : image.getUrl();
-        String primaryObjectName = imageAccessService.resolveObjectNameRef(primaryRef);
+        String originalObjectName = imageAccessService.resolveObjectNameRef(image.getObjectName());
+        String primaryObjectName = imageAccessService.resolveObjectNameRef(image.getUrl());
+        String thumbObjectName = imageAccessService.resolveObjectNameRef(image.getThumbnailUrl());
+
+        if (StringUtils.hasText(originalObjectName)
+                && StringUtils.hasText(primaryObjectName)
+                && StringUtils.hasText(thumbObjectName)
+                && primaryObjectName.equals(thumbObjectName)
+                && !primaryObjectName.equals(originalObjectName)) {
+            // Fix legacy snapshot payloads where url had been downgraded to thumbnail.
+            primaryObjectName = originalObjectName;
+        }
+        // Snapshot is used by detail pages. Keep high-quality path, do not downgrade to thumbnail.
+        if (!StringUtils.hasText(primaryObjectName) && StringUtils.hasText(originalObjectName)) {
+            primaryObjectName = originalObjectName;
+        }
+        if (!StringUtils.hasText(primaryObjectName) && StringUtils.hasText(thumbObjectName)) {
+            primaryObjectName = thumbObjectName;
+        }
         if (!StringUtils.hasText(primaryObjectName)) {
             return;
         }
         image.setUrl(imageAccessService.signPrimaryObject(primaryObjectName));
 
-        String thumbObjectName = imageAccessService.resolveObjectNameRef(image.getThumbnailUrl());
         if (!StringUtils.hasText(thumbObjectName)) {
             thumbObjectName = primaryObjectName;
         }

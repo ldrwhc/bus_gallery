@@ -188,3 +188,13 @@ RabbitMQ 异步副作用（收藏切换）：
 - `comment.created` / `favorite.toggled` 事件名、队列名、消费副作用
 - 后台评论管理能力（分页、排序、删除行为）
 - 详情页评论布局规则（PC/移动端）
+
+---
+
+## 2026-03 Image Policy Update
+
+- Upload now writes three image objects to MinIO: `original`, `display` (watermarked HD), and `thumbnail`.
+- `image.url` is used as the controlled HD image for vehicle detail and review pages.
+- `image.thumbnailUrl` is used by non-detail browsing pages and list cards.
+- All image URLs are short-lived signed URLs via `/api/images/access/{token}`.
+- Historical data can be repaired with `ImageDisplayBackfillRunner` using `busgallery.image-display-backfill.*` configs.

@@ -145,6 +145,10 @@ busgallery:
     upload-user-per-day: ${UPLOAD_SECURITY_USER_PER_DAY:120}
     pending-per-user-max: ${UPLOAD_SECURITY_PENDING_PER_USER_MAX:30}
     pending-global-max: ${UPLOAD_SECURITY_PENDING_GLOBAL_MAX:5000}
+    chunk-size-bytes: ${UPLOAD_SECURITY_CHUNK_SIZE_BYTES:2097152}
+    chunk-max-parts: ${UPLOAD_SECURITY_CHUNK_MAX_PARTS:64}
+    chunk-session-ttl-seconds: ${UPLOAD_SECURITY_CHUNK_SESSION_TTL_SECONDS:7200}
+    chunk-temp-dir: ${UPLOAD_SECURITY_CHUNK_TEMP_DIR:}
     allowed-mime-types:
       - image/jpeg
       - image/png
@@ -158,3 +162,11 @@ busgallery:
     upload-watermark-text: ${IMAGE_ACCESS_UPLOAD_WATERMARK_TEXT:BUS GALLERY}
     upload-jpeg-quality: ${IMAGE_ACCESS_UPLOAD_JPEG_QUALITY:0.8}
     upload-max-side: ${IMAGE_ACCESS_UPLOAD_MAX_SIDE:2560}
+  image-display-backfill:
+    enabled: ${IMAGE_DISPLAY_BACKFILL_ENABLED:false}
+    limit: ${IMAGE_DISPLAY_BACKFILL_LIMIT:0}
+    force-regenerate: ${IMAGE_DISPLAY_BACKFILL_FORCE_REGENERATE:false}
+    max-side: ${IMAGE_DISPLAY_BACKFILL_MAX_SIDE:1280}
+    jpeg-quality: ${IMAGE_DISPLAY_BACKFILL_JPEG_QUALITY:0.8}
+    watermark-alpha: ${IMAGE_DISPLAY_BACKFILL_WATERMARK_ALPHA:0.35}
+    watermark-text: ${IMAGE_DISPLAY_BACKFILL_WATERMARK_TEXT:}

@@ -73,7 +73,7 @@ const variantImages = computed(() => currentVariant.value.images || props.images
 
 const coverUrl = computed(() => {
     const img = variantImages.value?.[0];
-    return img?.thumbnailUrl || img?.url || placeholderBus;
+    return img?.thumbnailUrl || placeholderBus;
 });
 
 const hasPrev = computed(() => props.variants && props.variants.length > 1 && currentIndex.value > 0);

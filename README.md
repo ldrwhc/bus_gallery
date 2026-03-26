@@ -1,180 +1,50 @@
 ﻿# Bus Gallery
 
-Bus Gallery 是面向公交车辆资料的全栈系统，覆盖车辆档案、图片管理、评论与收藏、车辆快照（Redis big key）与缩略图生成，支持按地区 / 公司 / 品牌 / 车型多维筛选与变体合并展示。
+Bus Gallery 是一个围绕公交车辆资料管理和内容协作建设的全栈系统。项目不是单纯的“图片展示站”，而是把车辆建档、图片上传、内容审核、评论互动、收藏行为、快照缓存和后台治理连成了一条完整链路，目标是在真实的互联网高并发场景下，既保证用户体验，也保证数据一致性和系统可维护性。
 
----
+在当前版本中，系统已经形成了比较清晰的产品闭环：普通用户可以上传车辆信息并进入审核流；审核员与站长可以按权限完成审核与治理；前台用户可以稳定地进行浏览、评论、收藏；热点数据通过 Redis 和快照机制支撑高频读；副作用任务通过 RabbitMQ 异步化，避免把通知、推荐、热度统计等“慢动作”压在主请求上。整个链路强调“主流程可用优先，副作用尽力而为”，这是系统在并发压力下保持稳定的关键策略。
 
-## 功能总览
+## 架构与技术选型
 
-- 车辆图库：筛选、分页、按车牌合并变体
-- 车辆详情：图片轮播、配置展示、评论、收藏
-- 评论删除：评论作者可删本人评论，站长可在后台删除任意评论
-- 详情布局：移动端评论在详情下方，电脑端评论默认显示在详情右侧
-- 上传与存储：图片 + 车辆信息一次性上传，自动生成缩略图
-- 快照：Redis big key 保存“车牌级详情快照”
-- 缓存：列表请求 Redis 缓存 + 版本号一致性
-- 异步副作用：评论发布、收藏切换通过 RabbitMQ 异步处理通知/推荐/热度等副作用
-- 部署：Docker Compose 一键启动
+后端基于 Spring Boot 3.2.5，核心持久化由 MySQL 提供，Redis 承担会话、分页缓存、快照缓存与部分统计信号，MinIO 作为对象存储承载三层图片对象（原始对象、受控高清图、缩略图），RabbitMQ 负责评论与收藏事件的异步分发，前端使用 Vue 3 + Element Plus。Nginx 位于最外层，负责静态资源分发、API 反向代理和分层限流。
 
----
+这个技术组合的优势在于职责边界清晰：MySQL 负责最终一致的数据落地，Redis 负责“快”和“抗压”，RabbitMQ 负责“解耦”和“削峰”，MinIO 负责“大对象存储”。因此当某个子系统短时波动（例如 Redis 写入异常）时，系统可以通过降级策略优先保障核心交易链路不崩溃。
 
-## 组件级细节（互动链路）
+## 当前版本的业务主线
 
-前端组件与职责：
-- `frontend/src/views/VehicleDetail.vue`：独立详情页。电脑端评论区固定在右侧，移动端评论在下方；支持发布/删除评论、收藏切换。
-- `frontend/src/components/Gallery/VehicleDetailModal.vue`：图库弹窗详情。与详情页保持同一交互语义（桌面右侧评论、移动端下方评论）。
-- `frontend/src/views/UserProfile.vue`：收藏夹入口。点击收藏卡片会强制刷新详情，避免旧缓存造成“已收藏但显示未收藏”。
-- `frontend/src/views/AdminDashboard.vue`：站长后台评论管理区块，支持分页查看和删除评论。
+车辆上传已经从“单次大表单直传”演进为“分片上传 + 合并提交 + 审核入库”的主路径。前端会先初始化分片会话，再逐片上传文件并展示实时进度，最后提交车辆元数据完成审核申请。后端 `ChunkUploadService` 在 Redis 正常时会记录会话元数据，在 Redis 出现 `MISCONF` 等写失败场景时会自动降级到本地会话存储，并通过临时熔断（短时间静默 Redis 写）减少连锁报错；`IdempotencyService` 也支持 Redis 锁不可用时回退本地锁，保障“重复提交防重”能力不丢失。
 
-后端组件与职责：
-- `CommentController` + `VehicleCommentServiceImpl`：评论增删查、权限校验、评论缓存版本推进。
-- `FavoriteServiceImpl`：收藏切换与摘要聚合，写后覆盖收藏缓存键。
-- `AdminController`：站长评论分页与删除接口。
-- `CommentCreatedEventConsumer` / `FavoriteToggledEventConsumer`：消费 RabbitMQ 事件并执行副作用（best-effort）。
+图片访问默认走签名访问链路。系统不会直接暴露 MinIO 公共下载链接，而是通过 `ImageAccessService` 生成带过期时间和 HMAC 签名的临时访问地址，再由 `GET /api/images/access/{token}` 回源读取对象流。这意味着即使用户拿到了历史 URL，也会因为过期而失效，从而把“对象可见性”控制在后端策略中。当前图片展示策略已经明确分层：非详情/非审核页面默认只使用 `thumbnailUrl`，车辆详情与审核页面使用带水印压缩后的受控高清 `url`，避免前端直接消费原始对象。
 
-组件内触发点（更细）：
-- 评论发布：`submitComment -> store.addVehicleComment -> POST /api/vehicles/{vehicleId}/comments`。
-- 评论删除：`canDeleteComment -> DELETE /api/vehicles/{vehicleId}/comments/{commentId}`，后端再做二次权限校验。
-- 收藏切换：`toggleLike/toggleFavoriteAction -> POST /api/favorites/{vehicleId}/toggle`，随后主动拉 `summary` 做最终态校准。
-- 后台删评：`AdminDashboard.handleDeleteComment -> DELETE /api/admin/comments/{commentId}`，内部复用评论服务删除逻辑。
+车辆浏览链路采用“列表缓存 + 详情快照”双层策略。列表页使用参数化缓存键和版本号机制，减少筛选和翻页时的数据库压力；详情快照按车牌聚合多变体车辆信息、评论、收藏摘要和推荐结果，减少前端瀑布请求。首页热门排序已经切换为访问量（view count）驱动，`POST /api/vehicles/{id}/view` 在写入端做防抖去重，避免短时刷新刷爆计数。
 
-同步/异步边界（关键）：
-1. 评论/收藏主链路先落 MySQL，再写 Redis（版本键或覆盖写），这一段是同步返回路径。
-2. 事件发布通过 `BusEventPublisher` 在事务 `afterCommit` 后执行，避免数据库回滚但消息已发。
-3. RabbitMQ 消费侧对副作用使用 best-effort，失败仅记录日志，不反抛阻塞主业务。
+评论与收藏链路已经具备“同步主链路 + 异步副作用”的完整形态。评论发布和收藏切换先在事务内落 MySQL 并更新 Redis 缓存，再由 `BusEventPublisher` 在事务提交后投递 `comment.created` 与 `favorite.toggled` 事件。消费者侧执行通知、敏感词复审、榜单聚合、推荐打分、快照预热等副作用，采用 best-effort 策略：副作用失败只记录日志，不反向拖垮主业务。
 
-高并发风险与当前缓解：
-- 热门车辆评论高并发读：`bg:comments:ver` + 分页缓存键隔离，旧缓存自然过期。
-- 收藏连点写放大：前端去抖 + 请求中保护，后端 toggle 原子化。
-- 浏览量刷量风险：`bg:vehicle:view:dedupe:{vehicleId}:{fingerprintMd5}` 20s 去重。
-- Redis 短时不可写：服务层大量 catch 降级，主链路以 MySQL 结果为准。
+审核与后台治理方面，系统支持普通用户提交创建/修改申请，审核员按省级权限域处理待审数据，站长拥有全局治理能力。后台模块不仅覆盖用户角色管理、地区/公司/品牌/车型字典维护，还增加了评论管理和可疑图片巡检清理能力，适合长期运营。
 
----
+## 稳定性与高并发设计思路
 
-## 架构概览
+系统在“能跑”之外，已经开始具备“抗压可恢复”能力。首先，所有关键写路径都尽量以数据库事务结果为准，缓存和事件属于可重建的派生状态；其次，Redis 相关能力都增加了降级防线，例如分片上传会话与幂等锁的本地回退，避免基础设施抖动直接演化为业务不可用；再次，RabbitMQ 把高延迟副作用剥离出用户请求线程，主链路响应时间更加可控。
 
-```mermaid
-flowchart LR
-    A[前端 Vue3/Vite] --> B[/API 网关 /api/]
-    B --> C[Spring Boot 服务]
-    C --> D[(MySQL)]
-    C --> E[(Redis)]
-    C --> F[(MinIO)]
-```
+在性能层面，当前最值得关注的热点主要有三类：热点车辆评论页导致的高频分页读取、热门车辆收藏切换导致的聚合键高写入竞争、以及移动网络下的大图上传重试。项目已经用版本键缓存、事务后异步、分片上传与进度回传覆盖了第一轮优化，后续可以继续推进消息消费幂等、热点分桶、批量聚合和快照预热策略。
 
----
+## 部署与运行
 
-## 关键设计点（面试高频）
-
-1. 车辆详情快照（big key）
-- 车牌维度快照：`/api/snapshots/plate/{plate}`
-- Redis key：`bg:snapshot:plate:{plate}:latest` + `...:v{version}`
-- 快照内容：变体、图片元数据、评论、收藏摘要、推荐
-- 优势：详情页一次请求完成渲染，减少多接口拼装与瀑布请求
-
-2. 列表缓存 + 一致性
-- `/api/vehicles` 缓存进 Redis（TTL 60s）
-- key 由筛选参数 + 游标 + `bg:vehicle:page:version` 组合
-- 车辆增删改触发版本号自增 → 旧缓存自然失效
-
-3. 上传幂等与缩略图
-- 上传支持 `Idempotency-Key`
-- 上传时自动生成缩略图并回写 `thumbnail_url`
-- 历史图片可通过 `rebuild.thumbnails=true` 重建
-
-4. 收藏/评论的高频交互优化
-- 收藏按钮做去抖与最终态同步，避免“多次点击”造成 DB 压力
-- 评论/收藏均受 `@RequireLogin` 保护
-
-5. 分页策略
-- 车辆列表采用游标分页（`lastLaunch` + `lastId`），避免偏移分页在大量数据下的性能退化
-
-6. MQ 副作用降级（高可用）
-- 评论发布后发 `comment.created` 事件；收藏切换后发 `favorite.toggled` 事件
-- 副作用消费者采用 best-effort（通知、敏感词、推荐、榜单等失败只告警，不阻塞主业务）
-- 即使 Redis 短时写失败（如 `MISCONF stop-writes-on-bgsave-error`），主链路仍以 MySQL 事务结果为准
-
-7. 站长后台评论管理
-- 后台新增评论管理区块，支持评论分页查看与删除
-- 删除入口与前台共用评论删除服务，统一权限与缓存版本失效逻辑
-
----
-
-## 面试追问点（可直接回答）
-
-- 一致性：列表缓存依赖版本号失效，快照缓存依赖 TTL + 最新版本指针
-- 性能：缩略图优先、详情快照合并请求、收藏去抖、游标分页、评论区按需轮询
-- 事务边界：上传接口事务覆盖车辆/配置/图片关系写入
-- 幂等：`Idempotency-Key` 防重提交，避免重复入库
-- 安全：`@RequireLogin` + Redis Session，Authorization Bearer 校验
-- 可扩展：快照机制可扩展为热门预热、写路径异步刷新、副作用消费者拆分独立服务
-
----
-
-## 最近迭代（2026-03-25）
-
-- 评论模块新增 `DELETE /api/vehicles/{vehicleId}/comments/{commentId}`，并补充作者/站长权限控制。
-- 详情页与详情弹窗统一评论体验：电脑端右侧常显评论，删除无效评论按钮入口。
-- 收藏状态一致性修复：从收藏夹打开详情时强制刷新详情与收藏摘要，避免旧缓存误显“未收藏”。
-- 站长后台新增评论管理：`GET /api/admin/comments`、`DELETE /api/admin/comments/{commentId}`。
-- RabbitMQ 消费容错增强：消费者记录错误但不反抛，避免重试耗尽影响可用性。
-
----
-
-## 快速启动（Docker）
+项目默认提供 Docker Compose 一键部署，包含 MySQL、Redis、MinIO、RabbitMQ、后端与前端服务。你可以在 `docker/` 目录直接启动整套环境：
 
 ```bash
 cd docker
 docker compose up -d
 ```
 
-服务地址：
+服务启动后，前端默认在 `http://localhost/`，后端 API 在 `http://localhost:8080/api`，MySQL 映射到 `localhost:13306`，MinIO 控制台在 `http://localhost:9001`，RabbitMQ 管理台在 `http://localhost:15672`。如果需要本地开发模式，可以分别在 `backend/` 运行 Spring Boot，在 `frontend/` 运行 Vite。
 
-- 前端：`http://localhost/`
-- 后端 API：`http://localhost:8080/api`
-- MySQL：`localhost:13306`（root / 123456）
-- MinIO 控制台：`http://localhost:9001`（admin / 12345678）
+## 文档导航
 
----
+为了让流程文档和代码演进保持同步，项目文档已经按“模块化流程”方式拆分。上传链路请优先阅读 `UPLOAD_MODULE_FLOWS.md`。其余模块请阅读中文流程文档：`认证与会话流程.md`、`车辆浏览与快照流程.md`、`评论收藏与互动流程.md`、`审核与后台治理流程.md`、`消息队列副作用流程.md` 与 `图片访问与MinIO安全流程.md`。如果你需要接口级字段说明，再配合 `API_DOCS.md` 使用会更高效。
 
-## 本地开发
+如果你升级了图片展示策略（例如把详情图切换为受控高清图）后发现老数据仍然沿用旧链路，可启用历史回填任务 `ImageDisplayBackfillRunner`。该任务由 `busgallery.image-display-backfill.*` 配置控制，支持先按 `limit` 小批量试跑，再全量补齐 `_display.jpg`，最终把历史记录统一到“列表缩略图、详情高清图、签名访问”的模型。
 
-后端：
+## 目录结构
 
-```bash
-cd backend
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
-```
-
-前端：
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
----
-
-## 文档入口
-
-- 业务流程：`BUSINESS_FLOWS.md`
-- 上传流程：`UPLOAD_MODULE_FLOWS.md`
-- 接口文档：`API_DOCS.md`
-- About 对照文档：`ABOUT.md`
-- Swagger 静态文档：`docs/swagger/`
-
----
-
-## 目录结构（摘要）
-
-```
-bus-gallery/
-├─ backend/     # Spring Boot 后端
-├─ frontend/    # Vue 3 前端
-├─ docker/      # Docker Compose 与部署文件
-├─ docs/swagger/ # Swagger 静态文档输出
-├─ BUSINESS_FLOWS.md
-├─ UPLOAD_MODULE_FLOWS.md
-├─ API_DOCS.md
-```
+代码仓库维持前后端分层与部署分层。`backend/` 是 Spring Boot 业务核心，`frontend/` 是 Vue 前端，`docker/` 提供容器化部署，`docs/` 提供补充文档与规则说明。这样的结构适合持续迭代，也方便把后续服务拆分成独立微服务或独立前端站点。

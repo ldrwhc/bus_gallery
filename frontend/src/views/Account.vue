@@ -33,7 +33,7 @@
             <div v-else class="image-grid">
                 <article v-for="image in images" :key="image.id" class="image-card" @click="openImage(image)">
                     <img
-                        :src="image.thumbnailUrl || image.url"
+                        :src="image.thumbnailUrl"
                         :alt="image.objectName || 'upload'"
                         loading="lazy"
                         decoding="async"

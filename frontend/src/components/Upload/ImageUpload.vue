@@ -28,7 +28,7 @@
                         <div class="el-upload__text">
                             将图片拖拽到这里，或 <em>点击选择</em>
                         </div>
-                        <div class="el-upload__tip">仅支持 JPG / PNG / WebP，文件不超过 20 MB</div>
+                        <div class="el-upload__tip">仅支持 JPG / PNG，文件不超过 15 MB</div>
                     </el-upload>
                     <div v-if="previewUrl" class="preview-card" @click="previewVisible = true">
                         <img :src="previewUrl" alt="preview" decoding="async" />
@@ -229,6 +229,15 @@
                 </el-col>
             </el-row>
 
+            <div v-if="submitStage !== 'idle'" class="submit-progress">
+                <div class="submit-progress__meta">
+                    <span>{{ progressLabel }}</span>
+                    <span>{{ uploadPercent }}%</span>
+                </div>
+                <el-progress :percentage="uploadPercent" :status="progressStatus" :stroke-width="14" />
+                <p v-if="progressHint" class="submit-progress__hint">{{ progressHint }}</p>
+            </div>
+
             <div class="actions">
                 <el-button type="primary" :loading="loading" :disabled="loading || !isAuthenticated" @click="submit">
                     提交审核
@@ -247,7 +256,13 @@
 import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
-import { uploadVehicleWithImage } from '@/api/vehicles';
+import {
+    cancelVehicleChunkUpload,
+    completeVehicleChunkUpload,
+    fetchVehicleChunkProgress,
+    initVehicleChunkUpload,
+    uploadVehicleChunkPart
+} from '@/api/vehicles';
 import { PROVINCE_CITY_DATA } from '@/utils/regionData';
 import { FUEL_OPTIONS, isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
 
@@ -447,13 +462,32 @@ const companyHint = computed(() => {
 const showMotorField = computed(() => isElectricFuel(form.config.fuelType));
 const showEngineField = computed(() => isCombustionFuel(form.config.fuelType));
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+const DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
 const fileList = ref([]);
 const selectedFile = ref(null);
 const previewUrl = ref('');
 const previewVisible = ref(false);
 let previewObjectUrl = '';
 const loading = ref(false);
+const submitStage = ref('idle');
+const uploadPercent = ref(0);
+const progressHint = ref('');
+const activeUploadId = ref('');
+
+const progressLabel = computed(() => {
+    if (submitStage.value === 'uploading') return '图片上传中';
+    if (submitStage.value === 'submitting') return '提交审核中';
+    if (submitStage.value === 'success') return '提交完成';
+    if (submitStage.value === 'error') return '提交失败';
+    return '准备中';
+});
+
+const progressStatus = computed(() => {
+    if (submitStage.value === 'success') return 'success';
+    if (submitStage.value === 'error') return 'exception';
+    return undefined;
+});
 
 const revokePreview = () => {
     if (previewObjectUrl) {
@@ -475,7 +509,7 @@ const updatePreview = (file) => {
 const handleFileChange = (file, files) => {
     const latestFile = file.raw;
     if (latestFile?.size > MAX_FILE_SIZE) {
-        ElMessage.warning('文件大小超过 20MB， 请压缩后再上传');
+        ElMessage.warning('文件大小超过 15MB，请压缩后再上传');
         fileList.value = [];
         selectedFile.value = null;
         updatePreview(null);
@@ -513,6 +547,10 @@ const reset = () => {
     selectedFile.value = null;
     updatePreview(null);
     previewVisible.value = false;
+    submitStage.value = 'idle';
+    uploadPercent.value = 0;
+    progressHint.value = '';
+    activeUploadId.value = '';
 };
 
 const buildConfigPayload = () => {
@@ -588,11 +626,50 @@ const validate = () => {
     return true;
 };
 
+const buildIdempotencyKey = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const detectContentType = (file) => {
+    const type = String(file?.type || '').toLowerCase();
+    if (type === 'image/png') return 'image/png';
+    if (type === 'image/jpeg' || type === 'image/jpg') return 'image/jpeg';
+    const fileName = String(file?.name || '').toLowerCase();
+    if (fileName.endsWith('.png')) return 'image/png';
+    return 'image/jpeg';
+};
+
+const uploadFileChunks = async (file, uploadId, chunkSize, totalChunks) => {
+    let uploadedBytes = 0;
+    for (let index = 0; index < totalChunks; index += 1) {
+        const start = index * chunkSize;
+        const end = Math.min(file.size, start + chunkSize);
+        const chunk = file.slice(start, end);
+        progressHint.value = `正在上传分片 ${index + 1}/${totalChunks}`;
+        await uploadVehicleChunkPart(uploadId, index, chunk, (event) => {
+            const loaded = Math.min(event?.loaded || 0, chunk.size);
+            const totalUploaded = uploadedBytes + loaded;
+            uploadPercent.value = Math.min(90, Math.round((totalUploaded / file.size) * 90));
+        });
+        uploadedBytes += chunk.size;
+        uploadPercent.value = Math.min(90, Math.round((uploadedBytes / file.size) * 90));
+    }
+};
+
 const submit = async () => {
     if (!validate()) return;
     const { provinceName, cityName } = resolveRegionNames();
+    const file = selectedFile.value;
+    if (!file) return;
     try {
         loading.value = true;
+        submitStage.value = 'uploading';
+        uploadPercent.value = 0;
+        progressHint.value = '初始化上传会话...';
+
         const payload = {
             plateNumber: form.plateNumber.trim(),
             customNumber: form.customNumber?.trim() || null,
@@ -612,7 +689,36 @@ const submit = async () => {
             remark: null,
             config: buildConfigPayload()
         };
-        const result = await uploadVehicleWithImage(payload, selectedFile.value);
+
+        const initResp = await initVehicleChunkUpload({
+            fileName: file.name,
+            contentType: detectContentType(file),
+            totalSize: file.size,
+            chunkSize: DEFAULT_CHUNK_SIZE,
+            totalChunks: Math.ceil(file.size / DEFAULT_CHUNK_SIZE)
+        });
+        const uploadId = initResp?.uploadId;
+        const chunkSize = Number(initResp?.chunkSize || DEFAULT_CHUNK_SIZE);
+        const totalChunks = Number(initResp?.totalChunks || Math.ceil(file.size / chunkSize));
+        if (!uploadId) {
+            throw new Error('上传会话创建失败');
+        }
+        activeUploadId.value = uploadId;
+
+        await uploadFileChunks(file, uploadId, chunkSize, totalChunks);
+
+        const serverProgress = await fetchVehicleChunkProgress(uploadId);
+        if (!serverProgress?.completed) {
+            throw new Error('服务端尚未完成分片接收，请稍后重试');
+        }
+
+        submitStage.value = 'submitting';
+        progressHint.value = '正在提交审核资料...';
+        uploadPercent.value = 95;
+        const result = await completeVehicleChunkUpload(uploadId, payload, buildIdempotencyKey());
+        uploadPercent.value = 100;
+        submitStage.value = 'success';
+        progressHint.value = '资料已提交审核';
         if (result?.status === 'PENDING') {
             ElMessage.success('上传已提交，等待审核');
         } else {
@@ -621,9 +727,15 @@ const submit = async () => {
         emit('uploaded');
         reset();
     } catch (error) {
+        submitStage.value = 'error';
+        progressHint.value = error?.message || '上传失败，请稍后重试';
+        if (activeUploadId.value) {
+            await cancelVehicleChunkUpload(activeUploadId.value).catch(() => {});
+        }
         ElMessage.error(error?.message || '上传失败，请稍后重试');
     } finally {
         loading.value = false;
+        activeUploadId.value = '';
     }
 };
 
@@ -841,6 +953,29 @@ onBeforeUnmount(() => {
 .preview-image {
     width: 100%;
     border-radius: 12px;
+}
+
+.submit-progress {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.submit-progress__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #334155;
+    margin-bottom: 8px;
+}
+
+.submit-progress__hint {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: #64748b;
 }
 
 .actions {
