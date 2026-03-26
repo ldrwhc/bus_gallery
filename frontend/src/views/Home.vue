@@ -4,28 +4,28 @@
             <section class="hero">
                 <p class="eyebrow">Bus Gallery</p>
                 <h1>图库收集</h1>
-                <p class="hero__desc">快速检索，探索图库。</p>
+                <p class="hero__desc">首页按变体逐条展示，向下滚动自动加载更多。</p>
                 <form class="hero-search" @submit.prevent="handleSearch">
                     <input v-model.trim="searchKeyword" type="text" placeholder="搜索车牌 / 车型 / 公司 / 地区" />
                     <button class="search-submit" type="submit">搜索图库</button>
                 </form>
                 <div class="hero__actions">
                     <router-link class="primary-btn" to="/gallery">进入图库</router-link>
-                    <button class="ghost-btn" type="button" @click="refreshHot">刷新热门</button>
+                    <button class="ghost-btn" type="button" @click="reloadList">刷新首页</button>
                 </div>
             </section>
 
             <section class="hot-section">
                 <header class="section-header">
                     <div class="section-title">
-                        <h2>热门图片</h2>
-                        <router-link class="ghost-btn ghost-btn--inline" to="/gallery">查看全部</router-link>
+                        <h2>最新车辆变体</h2>
+                        <p class="subtitle">每次下拉加载 {{ PAGE_SIZE }} 条，当前 {{ waterfallCards.length }} 条</p>
                     </div>
                 </header>
 
-                <div v-if="hotLoading" class="state state--loading">正在拉取热门快照...</div>
-                <div v-else-if="hotError" class="state state--error">{{ hotError }}</div>
-                <div v-else-if="!waterfallCards.length" class="state state--empty">暂无热门图片，稍后再试</div>
+                <div v-if="initialLoading" class="state state--loading">正在加载首页内容...</div>
+                <div v-else-if="loadError" class="state state--error">{{ loadError }}</div>
+                <div v-else-if="!waterfallCards.length" class="state state--empty">暂无车辆数据</div>
 
                 <div v-else class="waterfall">
                     <article
@@ -37,7 +37,7 @@
                         <div class="waterfall-media">
                             <img
                                 :src="card.image?.thumbnailUrl || fallback"
-                                :alt="card.plateNumber || '公交图片'"
+                                :alt="card.plateNumber || '车辆图片'"
                                 :loading="index < eagerImageCount ? 'eager' : 'lazy'"
                                 :fetchpriority="index < eagerImageCount ? 'high' : 'auto'"
                                 decoding="async"
@@ -52,6 +52,10 @@
                         </div>
                     </article>
                 </div>
+
+                <div ref="loadMoreTrigger" class="load-trigger" />
+                <div v-if="loadingMore" class="load-more">正在加载更多...</div>
+                <div v-else-if="noMore && waterfallCards.length" class="load-more load-more--end">已加载全部内容</div>
             </section>
         </main>
 
@@ -67,72 +71,63 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
-import { fetchHotSnapshots } from '@/api/snapshots';
+import { fetchVehicleGallery } from '@/api/vehicles';
 import { FALLBACK_IMAGE } from '@/utils/constants';
 
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
+const PAGE_SIZE = 10;
 
 const store = useStore();
 const router = useRouter();
-const hotSnapshots = ref([]);
-const hotLoading = ref(false);
-const hotError = ref('');
+
 const fallback = FALLBACK_IMAGE;
 const searchKeyword = ref('');
-const activeImageId = ref(null);
 const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
 const activeVehicleId = ref(null);
+const activeImageId = ref(null);
 const activeVehicleDetail = computed(() =>
     activeVehicleId.value ? store.state.vehicles.detailMap[activeVehicleId.value] || null : null
 );
 const activeVehicleLoading = computed(
-    () =>
-        (activeVehicleId.value && store.state.vehicles.detailLoadingMap[activeVehicleId.value]) ||
-        false
+    () => (activeVehicleId.value && store.state.vehicles.detailLoadingMap[activeVehicleId.value]) || false
 );
 const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
+
+const rawRecords = ref([]);
+const initialLoading = ref(false);
+const loadingMore = ref(false);
+const noMore = ref(false);
+const loadError = ref('');
+const nextLaunch = ref(null);
+const nextId = ref(null);
+const loadMoreTrigger = ref(null);
+const loadObserver = ref(null);
+
 const isMobileViewport = computed(() => viewportWidth.value <= 768);
 const eagerImageCount = computed(() => (isMobileViewport.value ? 3 : 9));
-const hotSnapshotSize = computed(() => (isMobileViewport.value ? 8 : 12));
-const maxCardCount = computed(() => {
-    if (viewportWidth.value <= 420) return 16;
-    if (viewportWidth.value <= 768) return 24;
-    return 72;
-});
 
-const firstVariant = (snapshot) => snapshot?.variants?.[0] || null;
-const firstVehicleId = (snapshot) => firstVariant(snapshot)?.vehicle?.id || null;
-
-const waterfallCards = computed(() => {
-    const cards = [];
-    hotSnapshots.value.forEach((snapshot, sIdx) => {
-        const variants = Array.isArray(snapshot?.variants) && snapshot.variants.length ? snapshot.variants : [null];
-        variants.forEach((variant, vIdx) => {
-            const vehicle = variant?.vehicle || null;
-            const images = Array.isArray(variant?.images) && variant.images.length ? variant.images : [null];
-            const displayImages = isMobileViewport.value ? images.slice(0, 1) : images;
-            displayImages.forEach((image, iIdx) => {
-                cards.push({
-                    key: `${snapshot?.plateNumber || 'unknown'}-${sIdx}-${vehicle?.id || 'v'}-${vIdx}-${image?.id || iIdx}`,
-                    plateNumber: snapshot?.plateNumber || vehicle?.plateNumber || '',
-                    vehicleId: vehicle?.id || firstVehicleId(snapshot),
-                    image,
-                    author: image?.uploaderDisplayName || image?.uploaderUsername || '匿名上传',
-                    region:
-                        vehicle?.region?.name ||
-                        vehicle?.company?.regionName ||
-                        vehicle?.company?.name ||
-                        '地区待补充'
-                });
-            });
-        });
-    });
-    return cards.slice(0, maxCardCount.value);
-});
+const waterfallCards = computed(() =>
+    rawRecords.value.map((record, index) => {
+        const vehicle = record?.vehicle || {};
+        const image = Array.isArray(record?.images) && record.images.length ? record.images[0] : null;
+        return {
+            key: `${vehicle?.id || 'vehicle'}-${index}`,
+            plateNumber: vehicle?.plateNumber || '',
+            vehicleId: vehicle?.id || null,
+            image,
+            author: image?.uploaderDisplayName || image?.uploaderUsername || '匿名上传',
+            region:
+                vehicle?.region?.name ||
+                vehicle?.company?.regionName ||
+                vehicle?.company?.name ||
+                '地区待补充'
+        };
+    })
+);
 
 const formatPlate = (plate = '') => {
     const value = String(plate || '').trim();
@@ -143,32 +138,97 @@ const formatPlate = (plate = '') => {
     return value;
 };
 
-const loadHot = async () => {
-    hotLoading.value = true;
-    hotError.value = '';
+const buildLoadParams = () => {
+    const params = { size: PAGE_SIZE };
+    if (nextLaunch.value) {
+        params.lastLaunch = nextLaunch.value;
+    }
+    if (nextId.value) {
+        params.lastId = nextId.value;
+    }
+    return params;
+};
+
+const loadMore = async () => {
+    if (loadingMore.value || initialLoading.value || noMore.value) {
+        return;
+    }
+    loadingMore.value = true;
+    loadError.value = '';
     try {
-        const res = await fetchHotSnapshots(hotSnapshotSize.value);
-        hotSnapshots.value = Array.isArray(res) ? res : res?.data || [];
-    } catch (error) {
-        const message = String(error?.message || '');
-        if (message.toLowerCase().includes('timeout')) {
-            try {
-                const retry = await fetchHotSnapshots(4);
-                hotSnapshots.value = Array.isArray(retry) ? retry : retry?.data || [];
-                hotError.value = '';
-                return;
-            } catch (retryError) {
-                hotError.value = '热门数据加载超时，请稍后再试';
-            }
-        } else {
-            hotError.value = '获取热门快照失败，请稍后再试';
+        const response = await fetchVehicleGallery(buildLoadParams());
+        const incoming = Array.isArray(response?.records) ? response.records : [];
+        if (!incoming.length) {
+            noMore.value = true;
+            return;
         }
+        const knownIds = new Set(rawRecords.value.map((item) => item?.vehicle?.id).filter(Boolean));
+        const uniqueIncoming = incoming.filter((item) => {
+            const id = item?.vehicle?.id;
+            if (!id) return true;
+            if (knownIds.has(id)) return false;
+            knownIds.add(id);
+            return true;
+        });
+        rawRecords.value = [...rawRecords.value, ...uniqueIncoming];
+        nextLaunch.value = response?.nextLaunch ?? null;
+        nextId.value = response?.nextId ?? null;
+        if (!nextLaunch.value && !nextId.value) {
+            noMore.value = true;
+        }
+    } catch (error) {
+        loadError.value = error?.message || '加载首页失败，请稍后重试';
     } finally {
-        hotLoading.value = false;
+        loadingMore.value = false;
     }
 };
 
-const refreshHot = () => loadHot();
+const loadInitial = async () => {
+    initialLoading.value = true;
+    loadError.value = '';
+    rawRecords.value = [];
+    noMore.value = false;
+    nextLaunch.value = null;
+    nextId.value = null;
+    try {
+        await loadMore();
+    } finally {
+        initialLoading.value = false;
+    }
+};
+
+const setupInfiniteObserver = async () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    await nextTick();
+    if (!loadMoreTrigger.value) {
+        return;
+    }
+    if (loadObserver.value) {
+        loadObserver.value.disconnect();
+    }
+    loadObserver.value = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    loadMore();
+                }
+            });
+        },
+        {
+            root: null,
+            rootMargin: '320px',
+            threshold: 0.01
+        }
+    );
+    loadObserver.value.observe(loadMoreTrigger.value);
+};
+
+const reloadList = async () => {
+    await loadInitial();
+    await setupInfiniteObserver();
+};
 
 const handleSearch = () => {
     const keyword = searchKeyword.value.trim();
@@ -199,17 +259,21 @@ const handleResize = () => {
     viewportWidth.value = window.innerWidth;
 };
 
-onMounted(() => {
+onMounted(async () => {
     handleResize();
     if (typeof window !== 'undefined') {
         window.addEventListener('resize', handleResize, { passive: true });
     }
-    loadHot();
+    await loadInitial();
+    await setupInfiniteObserver();
 });
 
 onBeforeUnmount(() => {
     if (typeof window !== 'undefined') {
         window.removeEventListener('resize', handleResize);
+    }
+    if (loadObserver.value) {
+        loadObserver.value.disconnect();
     }
 });
 </script>
@@ -242,24 +306,6 @@ onBeforeUnmount(() => {
     color: #fff;
     background: linear-gradient(130deg, #0b4aa5 0%, #1d4ed8 45%, #0ea5e9 100%);
     box-shadow: 0 18px 36px rgba(30, 64, 175, 0.28);
-
-    &::after {
-        content: '';
-        position: absolute;
-        inset: -35% -5% auto auto;
-        width: 360px;
-        height: 360px;
-        border-radius: 999px;
-        background: radial-gradient(circle, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
-        pointer-events: none;
-    }
-
-    h1 {
-        margin: 4px 0 12px;
-        font-size: clamp(1.9rem, 4vw, 2.9rem);
-        line-height: 1.08;
-        letter-spacing: 0.01em;
-    }
 }
 
 .eyebrow {
@@ -269,6 +315,12 @@ onBeforeUnmount(() => {
     text-transform: uppercase;
     font-weight: 700;
     opacity: 0.88;
+}
+
+.hero h1 {
+    margin: 4px 0 12px;
+    font-size: clamp(1.9rem, 4vw, 2.9rem);
+    line-height: 1.08;
 }
 
 .hero__desc {
@@ -285,16 +337,16 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 8px;
     align-items: center;
+}
 
-    input {
-        flex: 1;
-        border: none;
-        background: transparent;
-        padding: 12px 16px;
-        font-size: 1rem;
-        color: #0f172a;
-        outline: none;
-    }
+.hero-search input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 12px 16px;
+    font-size: 1rem;
+    color: #0f172a;
+    outline: none;
 }
 
 .search-submit {
@@ -314,47 +366,92 @@ onBeforeUnmount(() => {
     flex-wrap: wrap;
 }
 
+.primary-btn,
+.ghost-btn {
+    border: none;
+    border-radius: 999px;
+    padding: 9px 16px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.primary-btn {
+    color: #fff;
+    background: #0f172a;
+}
+
+.ghost-btn {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.82);
+}
+
 .hot-section {
-    background: transparent;
-    padding: 0;
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 .section-header {
     display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    margin-bottom: 18px;
-}
-
-.section-title {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 12px;
 }
 
 .section-title h2 {
     margin: 0;
+    font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+    color: #0f172a;
+}
+
+.subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+}
+
+.state {
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+    background: #fff;
+    color: #475569;
+}
+
+.state--loading {
+    color: #2563eb;
+}
+
+.state--error {
+    color: #b91c1c;
+    background: #fee2e2;
 }
 
 .waterfall {
-    column-count: 3;
-    column-gap: 14px;
+    width: 100%;
+    column-count: 4;
+    column-gap: clamp(12px, 1.8vw, 18px);
 }
 
 .waterfall-card {
-    margin: 0 0 14px;
+    display: inline-block;
+    width: 100%;
+    margin: 0 0 clamp(12px, 1.8vw, 18px);
     break-inside: avoid;
-    border-radius: 10px;
+    background: #fff;
+    border-radius: 16px;
     overflow: hidden;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
     cursor: pointer;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
-    content-visibility: auto;
-    contain-intrinsic-size: 360px;
+    transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.waterfall-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 26px rgba(15, 23, 42, 0.15);
 }
 
 .waterfall-media {
     position: relative;
+    background: #e2e8f0;
 }
 
 .waterfall-media img {
@@ -363,131 +460,73 @@ onBeforeUnmount(() => {
     display: block;
 }
 
-.waterfall-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: flex-end;
-    background: linear-gradient(180deg, rgba(15, 23, 42, 0) 45%, rgba(15, 23, 42, 0.82) 100%);
-    opacity: 0;
-    transform: translateY(6px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
+.waterfall-tag,
 .watermark-tag {
     position: absolute;
     right: 10px;
     bottom: 10px;
-    z-index: 1;
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: 0.62rem;
     letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.62);
-    text-shadow: 0 1px 6px rgba(15, 23, 42, 0.58);
-    pointer-events: none;
-    user-select: none;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 0 1px 4px rgba(15, 23, 42, 0.6);
 }
 
-.waterfall-card:hover .waterfall-overlay {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.waterfall-meta {
-    width: 100%;
-    padding: 10px;
-    color: #fff;
+.waterfall-overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 10px 10px 12px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.82));
 }
 
 .plate-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
     border-radius: 999px;
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    background: rgba(15, 23, 42, 0.55);
+    padding: 3px 9px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
 }
 
 .meta-line {
     margin: 8px 0 0;
-    font-size: 0.84rem;
+    font-size: 0.8rem;
     color: rgba(255, 255, 255, 0.92);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
-.state {
-    border-radius: 12px;
-    padding: 22px;
+.load-trigger {
+    width: 100%;
+    height: 1px;
+}
+
+.load-more {
+    margin-top: 14px;
     text-align: center;
-    background: #f8fafc;
-    color: #475569;
-
-    &--loading {
-        color: #2563eb;
-    }
-
-    &--error {
-        background: #fee2e2;
-        color: #b91c1c;
-    }
+    color: #64748b;
 }
 
-.primary-btn,
-.ghost-btn {
-    border: none;
-    border-radius: 999px;
-    padding: 8px 15px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.2s;
-    text-decoration: none;
+.load-more--end {
+    color: #94a3b8;
 }
 
-.primary-btn {
-    background: #ffffff;
-    color: #0f172a;
-
-    &:hover {
-        background: rgba(255, 255, 255, 0.9);
+@media (max-width: 1200px) {
+    .waterfall {
+        column-count: 3;
     }
 }
 
-.ghost-btn {
-    background: rgba(255, 255, 255, 0.18);
-    color: #fff;
-
-    &:hover {
-        background: rgba(255, 255, 255, 0.28);
-    }
-}
-
-.ghost-btn--inline {
-    padding: 6px 12px;
-    background: rgba(37, 99, 235, 0.12);
-    color: #1d4ed8;
-}
-
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
     .waterfall {
         column-count: 2;
     }
 }
 
-@media (max-width: 768px) {
-    .home-main {
-        padding: 24px 16px 34px;
-    }
-
-    .hero {
-        margin-bottom: 26px;
-        padding: 18px 14px;
-        border-radius: 12px;
-    }
-
+@media (max-width: 560px) {
     .hero-search {
         border-radius: 14px;
+        padding: 8px;
         flex-direction: column;
         align-items: stretch;
     }
@@ -498,11 +537,6 @@ onBeforeUnmount(() => {
 
     .waterfall {
         column-count: 1;
-    }
-
-    .waterfall-overlay {
-        opacity: 1;
-        transform: translateY(0);
     }
 }
 </style>

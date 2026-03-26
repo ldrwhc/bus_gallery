@@ -51,7 +51,7 @@
                 <div v-else class="gallery-grid">
                     <VehicleCard v-for="item in gallery" :key="item?.vehicle?.id || item.vehicleId"
                         :vehicle="item.vehicle" :config="item.config" :images="item.images" :variants="item.variants"
-                        :badge="item.variants?.length > 1 ? `变体 ${item.variants.length}` : null"
+                        :variant-count="item.variantCount"
                         @view-detail="openVehicleDetail" />
                 </div>
             </section>
@@ -92,20 +92,32 @@ const gallery = computed(() => {
         if (!plate) {
             return;
         }
+        const variantKey = item?.vehicle?.id != null
+            ? `vid:${item.vehicle.id}`
+            : `fallback:${plate}:${item?.vehicle?.launchDate || ''}:${item?.vehicle?.company?.id || ''}`;
         if (!map.has(plate)) {
             map.set(plate, {
                 ...item,
                 variants: [item],
-                images: [...(item.images || [])]
+                images: [...(item.images || [])],
+                variantCount: 1,
+                variantKeys: new Set([variantKey])
             });
         } else {
             const acc = map.get(plate);
-            acc.variants.push(item);
+            if (!acc.variantKeys.has(variantKey)) {
+                acc.variantKeys.add(variantKey);
+                acc.variants.push(item);
+                acc.variantCount = acc.variants.length;
+            }
             // 保留最早 vehicle 作为主显示
             acc.images = acc.images.length ? acc.images : [...(item.images || [])];
         }
     });
-    return Array.from(map.values());
+    return Array.from(map.values()).map((item) => {
+        const { variantKeys, ...rest } = item;
+        return rest;
+    });
 });
 const galleryLoading = computed(() => store.state.vehicles.galleryLoading);
 const galleryError = computed(() => store.state.vehicles.galleryError);

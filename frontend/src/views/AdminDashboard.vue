@@ -86,9 +86,21 @@
                     <el-tab-pane label="地区表" name="regions">
                         <div class="row-between">
                             <p class="muted">地区基础表（建议省级 level=1，地级市 level=2）。</p>
-                            <el-button type="primary" @click="openRegionEditor()">新增地区</el-button>
+                            <div class="toolbar-actions">
+                                <el-button type="primary" @click="openRegionEditor()">新增地区</el-button>
+                                <el-button
+                                    type="danger"
+                                    plain
+                                    :loading="batchDeleting.regions"
+                                    :disabled="!selectedRegionIds.length"
+                                    @click="removeSelectedRegions"
+                                >
+                                    批量删除
+                                </el-button>
+                            </div>
                         </div>
-                        <el-table :data="regionRows" stripe>
+                        <el-table :data="regionRows" stripe @selection-change="handleRegionSelectionChange">
+                            <el-table-column type="selection" width="48" />
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="名称" min-width="160" />
                             <el-table-column prop="parentName" label="父级" min-width="160" />
@@ -105,9 +117,21 @@
                     <el-tab-pane label="公司表" name="companies">
                         <div class="row-between">
                             <p class="muted">运营公司基础表。</p>
-                            <el-button type="primary" @click="openCompanyEditor()">新增公司</el-button>
+                            <div class="toolbar-actions">
+                                <el-button type="primary" @click="openCompanyEditor()">新增公司</el-button>
+                                <el-button
+                                    type="danger"
+                                    plain
+                                    :loading="batchDeleting.companies"
+                                    :disabled="!selectedCompanyIds.length"
+                                    @click="removeSelectedCompanies"
+                                >
+                                    批量删除
+                                </el-button>
+                            </div>
                         </div>
-                        <el-table :data="companyRows" stripe>
+                        <el-table :data="companyRows" stripe @selection-change="handleCompanySelectionChange">
+                            <el-table-column type="selection" width="48" />
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="名称" min-width="180" />
                             <el-table-column prop="regionName" label="地区" min-width="140" />
@@ -123,9 +147,21 @@
                     <el-tab-pane label="品牌表" name="brands">
                         <div class="row-between">
                             <p class="muted">品牌基础表。</p>
-                            <el-button type="primary" @click="openBrandEditor()">新增品牌</el-button>
+                            <div class="toolbar-actions">
+                                <el-button type="primary" @click="openBrandEditor()">新增品牌</el-button>
+                                <el-button
+                                    type="danger"
+                                    plain
+                                    :loading="batchDeleting.brands"
+                                    :disabled="!selectedBrandIds.length"
+                                    @click="removeSelectedBrands"
+                                >
+                                    批量删除
+                                </el-button>
+                            </div>
                         </div>
-                        <el-table :data="brandRows" stripe>
+                        <el-table :data="brandRows" stripe @selection-change="handleBrandSelectionChange">
+                            <el-table-column type="selection" width="48" />
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="英文名" min-width="140" />
                             <el-table-column prop="chnName" label="中文名" min-width="140" />
@@ -141,9 +177,21 @@
                     <el-tab-pane label="车型表" name="models">
                         <div class="row-between">
                             <p class="muted">车型基础表。</p>
-                            <el-button type="primary" @click="openModelEditor()">新增车型</el-button>
+                            <div class="toolbar-actions">
+                                <el-button type="primary" @click="openModelEditor()">新增车型</el-button>
+                                <el-button
+                                    type="danger"
+                                    plain
+                                    :loading="batchDeleting.models"
+                                    :disabled="!selectedModelIds.length"
+                                    @click="removeSelectedModels"
+                                >
+                                    批量删除
+                                </el-button>
+                            </div>
                         </div>
-                        <el-table :data="modelRows" stripe>
+                        <el-table :data="modelRows" stripe @selection-change="handleModelSelectionChange">
+                            <el-table-column type="selection" width="48" />
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="车型名" min-width="180" />
                             <el-table-column prop="brandName" label="品牌" min-width="140" />
@@ -170,11 +218,20 @@
                                 >
                                     清理全部异常图片
                                 </el-button>
+                                <el-button
+                                    type="danger"
+                                    :loading="batchDeleting.suspects"
+                                    :disabled="!selectedSuspectImageIds.length"
+                                    @click="cleanupSelectedSuspects"
+                                >
+                                    清理选中
+                                </el-button>
                             </div>
                         </div>
                         <div v-if="suspectImagesLoading" class="state">正在检查异常图片...</div>
                         <div v-else-if="!suspectImageRows.length" class="state">未发现异常图片记录</div>
-                        <el-table v-else :data="suspectImageRows" stripe>
+                        <el-table v-else :data="suspectImageRows" stripe @selection-change="handleSuspectSelectionChange">
+                            <el-table-column type="selection" width="48" />
                             <el-table-column prop="id" label="ID" width="90" />
                             <el-table-column prop="issueSummary" label="异常原因" min-width="220" />
                             <el-table-column label="上传者" min-width="180">
@@ -215,11 +272,23 @@
                         <h2>评论管理</h2>
                         <p class="muted">站长可删除任意评论；评论作者也可在前台详情页删除自己的评论。</p>
                     </div>
-                    <el-button :loading="commentAdmin.loading" @click="loadAdminComments(commentAdmin.page)">刷新评论</el-button>
+                    <div class="toolbar-actions">
+                        <el-button :loading="commentAdmin.loading" @click="loadAdminComments(commentAdmin.page)">刷新评论</el-button>
+                        <el-button
+                            type="danger"
+                            plain
+                            :loading="batchDeleting.comments"
+                            :disabled="!selectedCommentIds.length"
+                            @click="removeSelectedComments"
+                        >
+                            批量删除
+                        </el-button>
+                    </div>
                 </header>
                 <div v-if="commentAdmin.loading && !commentAdmin.records.length" class="state">正在加载评论...</div>
                 <div v-else-if="!commentAdmin.records.length" class="state">暂无评论数据</div>
-                <el-table v-else :data="commentAdmin.records" stripe>
+                <el-table v-else :data="commentAdmin.records" stripe @selection-change="handleCommentSelectionChange">
+                    <el-table-column type="selection" width="48" />
                     <el-table-column prop="id" label="ID" width="90" />
                     <el-table-column prop="vehicleId" label="车辆ID" width="110" />
                     <el-table-column label="用户" min-width="160">
@@ -323,6 +392,11 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
+    batchDeleteAdminBrands,
+    batchDeleteAdminComments,
+    batchDeleteAdminCompanies,
+    batchDeleteAdminModels,
+    batchDeleteAdminRegions,
     createAdminBrand,
     createAdminCompany,
     createAdminModel,
@@ -388,6 +462,20 @@ const regionRows = ref([]);
 const companyRows = ref([]);
 const brandRows = ref([]);
 const modelRows = ref([]);
+const selectedRegionIds = ref([]);
+const selectedCompanyIds = ref([]);
+const selectedBrandIds = ref([]);
+const selectedModelIds = ref([]);
+const selectedSuspectImageIds = ref([]);
+const selectedCommentIds = ref([]);
+const batchDeleting = reactive({
+    regions: false,
+    companies: false,
+    brands: false,
+    models: false,
+    comments: false,
+    suspects: false
+});
 const PROVINCE_NAMES = [
     '北京市', '天津市', '上海市', '重庆市',
     '河北省', '山西省', '辽宁省', '吉林省', '黑龙江省',
@@ -511,18 +599,22 @@ const loadUsers = async () => {
 const loadRegionTable = async () => {
     const list = await fetchAdminRegions();
     regionRows.value = Array.isArray(list) ? list : [];
+    selectedRegionIds.value = [];
 };
 const loadCompanyTable = async () => {
     const list = await fetchAdminCompanies();
     companyRows.value = Array.isArray(list) ? list : [];
+    selectedCompanyIds.value = [];
 };
 const loadBrandTable = async () => {
     const list = await fetchAdminBrands();
     brandRows.value = Array.isArray(list) ? list : [];
+    selectedBrandIds.value = [];
 };
 const loadModelTable = async () => {
     const list = await fetchAdminModels();
     modelRows.value = Array.isArray(list) ? list : [];
+    selectedModelIds.value = [];
 };
 const loadAdminComments = async (page = commentAdmin.page) => {
     commentAdmin.loading = true;
@@ -536,6 +628,7 @@ const loadAdminComments = async (page = commentAdmin.page) => {
         commentAdmin.page = resp?.page ?? normalizedPage;
         commentAdmin.size = resp?.size ?? commentAdmin.size;
         commentAdmin.total = resp?.total ?? commentAdmin.records.length;
+        selectedCommentIds.value = [];
     } finally {
         commentAdmin.loading = false;
     }
@@ -545,6 +638,7 @@ const loadSuspectImages = async () => {
     try {
         const list = await fetchAdminSuspectImages();
         suspectImageRows.value = Array.isArray(list) ? list : [];
+        selectedSuspectImageIds.value = [];
     } finally {
         suspectImagesLoading.value = false;
     }
@@ -603,6 +697,30 @@ const openModelEditor = (row = null) => {
     modelEditor.name = row?.name || '';
     modelEditor.brandId = row?.brandId || null;
     modelEditor.description = row?.description || '';
+};
+
+const pickIds = (rows) =>
+    (Array.isArray(rows) ? rows : [])
+        .map((row) => Number(row?.id || 0))
+        .filter((id) => id > 0);
+
+const handleRegionSelectionChange = (rows) => {
+    selectedRegionIds.value = pickIds(rows);
+};
+const handleCompanySelectionChange = (rows) => {
+    selectedCompanyIds.value = pickIds(rows);
+};
+const handleBrandSelectionChange = (rows) => {
+    selectedBrandIds.value = pickIds(rows);
+};
+const handleModelSelectionChange = (rows) => {
+    selectedModelIds.value = pickIds(rows);
+};
+const handleSuspectSelectionChange = (rows) => {
+    selectedSuspectImageIds.value = pickIds(rows);
+};
+const handleCommentSelectionChange = (rows) => {
+    selectedCommentIds.value = pickIds(rows);
 };
 
 const saveRegion = async () => {
@@ -707,6 +825,104 @@ const confirmDelete = async (message, action) => {
     });
     await action();
 };
+
+const normalizeBatchIds = (ids) =>
+    [...new Set((Array.isArray(ids) ? ids : []).map((id) => Number(id || 0)).filter((id) => id > 0))];
+
+const showBatchDeleteResult = (result, label) => {
+    const deletedCount = Array.isArray(result?.deletedIds) ? result.deletedIds.length : 0;
+    const failedCount = Array.isArray(result?.failedIds) ? result.failedIds.length : 0;
+    if (failedCount > 0) {
+        ElMessage.warning(`${label}：成功 ${deletedCount}，失败 ${failedCount}`);
+        return;
+    }
+    ElMessage.success(`${label}：已删除 ${deletedCount}`);
+};
+
+const runBatchDelete = async ({ ids, loadingKey, request, reload, label, confirmMessage }) => {
+    const normalizedIds = normalizeBatchIds(ids);
+    if (!normalizedIds.length) {
+        ElMessage.warning('请先选择要删除的数据');
+        return;
+    }
+    try {
+        await confirmDelete(confirmMessage || `确认删除选中的 ${normalizedIds.length} 条记录吗？`, async () => {
+            batchDeleting[loadingKey] = true;
+            const result = await request(normalizedIds);
+            await reload();
+            showBatchDeleteResult(result, label);
+        });
+    } catch (error) {
+        if (!isDialogCancel(error) && error?.message) {
+            ElMessage.error(error.message);
+        }
+    } finally {
+        batchDeleting[loadingKey] = false;
+    }
+};
+
+const removeSelectedRegions = () =>
+    runBatchDelete({
+        ids: selectedRegionIds.value,
+        loadingKey: 'regions',
+        request: batchDeleteAdminRegions,
+        reload: loadRegionTable,
+        label: '地区批量删除',
+        confirmMessage: `确认删除选中的 ${selectedRegionIds.value.length} 个地区吗？`
+    });
+
+const removeSelectedCompanies = () =>
+    runBatchDelete({
+        ids: selectedCompanyIds.value,
+        loadingKey: 'companies',
+        request: batchDeleteAdminCompanies,
+        reload: loadCompanyTable,
+        label: '公司批量删除',
+        confirmMessage: `确认删除选中的 ${selectedCompanyIds.value.length} 个公司吗？`
+    });
+
+const removeSelectedBrands = () =>
+    runBatchDelete({
+        ids: selectedBrandIds.value,
+        loadingKey: 'brands',
+        request: batchDeleteAdminBrands,
+        reload: loadBrandTable,
+        label: '品牌批量删除',
+        confirmMessage: `确认删除选中的 ${selectedBrandIds.value.length} 个品牌吗？`
+    });
+
+const removeSelectedModels = () =>
+    runBatchDelete({
+        ids: selectedModelIds.value,
+        loadingKey: 'models',
+        request: batchDeleteAdminModels,
+        reload: loadModelTable,
+        label: '车型批量删除',
+        confirmMessage: `确认删除选中的 ${selectedModelIds.value.length} 个车型吗？`
+    });
+
+const removeSelectedComments = () =>
+    runBatchDelete({
+        ids: selectedCommentIds.value,
+        loadingKey: 'comments',
+        request: batchDeleteAdminComments,
+        reload: async () => {
+            const maxPage = Math.max(1, Math.ceil(Math.max(commentAdmin.total - selectedCommentIds.value.length, 0) / commentAdmin.size));
+            await loadAdminComments(Math.min(commentAdmin.page, maxPage));
+        },
+        label: '评论批量删除',
+        confirmMessage: `确认删除选中的 ${selectedCommentIds.value.length} 条评论吗？`
+    });
+
+const cleanupSelectedSuspects = () =>
+    runBatchDelete({
+        ids: selectedSuspectImageIds.value,
+        loadingKey: 'suspects',
+        request: cleanupAdminSuspectImages,
+        reload: loadSuspectImages,
+        label: '异常图片清理',
+        confirmMessage: `确认清理选中的 ${selectedSuspectImageIds.value.length} 张异常图片吗？`
+    });
 
 const removeRegion = (row) =>
     confirmDelete(`确认删除地区「${row.name}」吗？`, async () => {

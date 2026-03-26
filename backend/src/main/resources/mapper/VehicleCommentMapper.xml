@@ -7,6 +7,7 @@
     <resultMap id="CommentResultMap" type="com.busgallery.busgallery.entity.VehicleComment">
         <id property="id" column="id"/>
         <result property="vehicleId" column="vehicle_id"/>
+        <result property="plateNumber" column="plate_number"/>
         <result property="userId" column="user_id"/>
         <result property="username" column="username"/>
         <result property="displayName" column="display_name"/>
@@ -15,7 +16,7 @@
     </resultMap>
 
     <sql id="BaseColumnList">
-        id, vehicle_id, user_id, username, display_name, content, created_at
+        id, vehicle_id, plate_number, user_id, username, display_name, content, created_at
     </sql>
 
     <select id="selectById" resultMap="CommentResultMap">
@@ -50,11 +51,26 @@
         WHERE vehicle_id = #{vehicleId}
     </select>
 
+    <select id="selectByPlateNumber" resultMap="CommentResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM vehicle_comment
+        WHERE plate_number = #{plateNumber}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByPlateNumber" resultType="long">
+        SELECT COUNT(1)
+        FROM vehicle_comment
+        WHERE plate_number = #{plateNumber}
+    </select>
+
     <insert id="insert" parameterType="com.busgallery.busgallery.entity.VehicleComment" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO vehicle_comment (
-            vehicle_id, user_id, username, display_name, content, created_at
+            vehicle_id, plate_number, user_id, username, display_name, content, created_at
         ) VALUES (
             #{vehicleId},
+            #{plateNumber},
             #{userId},
             #{username},
             #{displayName},

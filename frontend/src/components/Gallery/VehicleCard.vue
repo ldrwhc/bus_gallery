@@ -5,7 +5,7 @@
             <img :src="coverUrl" :alt="vehicle?.plateNumber || '车辆图片'" loading="lazy" decoding="async" />
             <button v-if="hasNext" class="nav-btn nav-btn--next" type="button" @click.stop="next">›</button>
             <span class="watermark-tag">BUS GALLERY</span>
-            <span v-if="variants?.length > 1" class="badge">{{ variants.length }}</span>
+            <span v-if="variantTotal > 1" class="badge">{{ variantTotal }}</span>
         </div>
 
         <div class="card-body">
@@ -53,6 +53,10 @@ const props = defineProps({
     variants: {
         type: Array,
         default: () => []
+    },
+    variantCount: {
+        type: Number,
+        default: null
     }
 });
 
@@ -61,13 +65,41 @@ const emit = defineEmits(['view-detail']);
 const currentIndex = ref(0);
 
 watch(
-    () => props.variants,
+    () => [props.variants, props.variantCount, props.vehicle?.id],
     () => {
         currentIndex.value = 0;
     }
 );
 
-const currentVariant = computed(() => props.variants?.[currentIndex.value] || { vehicle: props.vehicle, images: props.images });
+const normalizedVariants = computed(() => {
+    const source = Array.isArray(props.variants) && props.variants.length
+        ? props.variants
+        : [{ vehicle: props.vehicle, images: props.images }];
+    const result = [];
+    const seen = new Set();
+    source.forEach((variant, index) => {
+        const vehicleId = variant?.vehicle?.id;
+        const key = vehicleId != null
+            ? `vid:${vehicleId}`
+            : `fallback:${variant?.vehicle?.plateNumber || ''}:${index}`;
+        if (seen.has(key)) {
+            return;
+        }
+        seen.add(key);
+        result.push(variant);
+    });
+    return result;
+});
+
+const variantTotal = computed(() => {
+    const count = Number(props.variantCount);
+    if (Number.isFinite(count) && count > 0) {
+        return count;
+    }
+    return normalizedVariants.value.length;
+});
+
+const currentVariant = computed(() => normalizedVariants.value?.[currentIndex.value] || { vehicle: props.vehicle, images: props.images });
 const vehicle = computed(() => currentVariant.value.vehicle || props.vehicle);
 const variantImages = computed(() => currentVariant.value.images || props.images || []);
 
@@ -76,8 +108,8 @@ const coverUrl = computed(() => {
     return img?.thumbnailUrl || placeholderBus;
 });
 
-const hasPrev = computed(() => props.variants && props.variants.length > 1 && currentIndex.value > 0);
-const hasNext = computed(() => props.variants && props.variants.length > 1 && currentIndex.value < props.variants.length - 1);
+const hasPrev = computed(() => normalizedVariants.value.length > 1 && currentIndex.value > 0);
+const hasNext = computed(() => normalizedVariants.value.length > 1 && currentIndex.value < normalizedVariants.value.length - 1);
 
 const prev = () => {
     if (hasPrev.value) currentIndex.value -= 1;

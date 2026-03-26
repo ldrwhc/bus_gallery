@@ -4,8 +4,6 @@ limit_req_zone $binary_remote_addr zone=upload_ip:10m rate=6r/s;
 limit_req_zone $server_name zone=upload_global:10m rate=40r/s;
 limit_req_zone $binary_remote_addr zone=api_ip:10m rate=25r/s;
 limit_req_zone $server_name zone=api_global:10m rate=180r/s;
-limit_req_zone $binary_remote_addr zone=image_access_ip:10m rate=80r/s;
-limit_req_zone $server_name zone=image_access_global:10m rate=800r/s;
 
 server {
     listen 80;
@@ -39,21 +37,6 @@ server {
     location /api/auth/ {
         limit_req zone=auth_ip burst=30 nodelay;
         limit_req zone=auth_global burst=220 nodelay;
-        limit_req_status 429;
-        proxy_pass http://backend:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_set_header Host              $host;
-        proxy_set_header X-Real-IP         $remote_addr;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
-    }
-
-    location /api/images/access/ {
-        limit_req zone=image_access_ip burst=240;
-        limit_req zone=image_access_global burst=1200;
         limit_req_status 429;
         proxy_pass http://backend:8080;
         proxy_http_version 1.1;

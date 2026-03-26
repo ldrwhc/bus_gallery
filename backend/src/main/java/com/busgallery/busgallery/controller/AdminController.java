@@ -22,8 +22,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @RestController
@@ -159,6 +162,13 @@ public class AdminController {
         regionService.delete(id);
     }
 
+    @PostMapping("/tables/regions/batch-delete")
+    @RequireLogin
+    public BatchDeleteResult batchDeleteRegions(@RequestBody IdBatchDeleteRequest request) {
+        RoleGuard.requireStation();
+        return executeBatchDelete(request, regionService::delete);
+    }
+
     @GetMapping("/tables/companies")
     @RequireLogin
     public List<AdminCompanyRow> listCompanies() {
@@ -210,6 +220,13 @@ public class AdminController {
         companyService.delete(id);
     }
 
+    @PostMapping("/tables/companies/batch-delete")
+    @RequireLogin
+    public BatchDeleteResult batchDeleteCompanies(@RequestBody IdBatchDeleteRequest request) {
+        RoleGuard.requireStation();
+        return executeBatchDelete(request, companyService::delete);
+    }
+
     @GetMapping("/tables/brands")
     @RequireLogin
     public List<AdminBrandRow> listBrands() {
@@ -251,6 +268,13 @@ public class AdminController {
         brandService.delete(id);
     }
 
+    @PostMapping("/tables/brands/batch-delete")
+    @RequireLogin
+    public BatchDeleteResult batchDeleteBrands(@RequestBody IdBatchDeleteRequest request) {
+        RoleGuard.requireStation();
+        return executeBatchDelete(request, brandService::delete);
+    }
+
     @GetMapping("/tables/models")
     @RequireLogin
     public List<AdminModelRow> listModels() {
@@ -277,11 +301,14 @@ public class AdminController {
     @RequireLogin
     public void deleteComment(@PathVariable Long commentId) {
         RoleGuard.requireStation();
-        VehicleComment comment = vehicleCommentMapper.selectById(commentId);
-        if (comment == null) {
-            throw new BizException(ErrorCode.NOT_FOUND, "Comment not found");
-        }
-        vehicleCommentService.deleteComment(comment.getVehicleId(), commentId, null, true);
+        deleteCommentById(commentId);
+    }
+
+    @PostMapping("/comments/batch-delete")
+    @RequireLogin
+    public BatchDeleteResult batchDeleteComments(@RequestBody IdBatchDeleteRequest request) {
+        RoleGuard.requireStation();
+        return executeBatchDelete(request, this::deleteCommentById);
     }
 
     @PostMapping("/tables/models")
@@ -320,6 +347,13 @@ public class AdminController {
     public void deleteModel(@PathVariable Long id) {
         RoleGuard.requireStation();
         modelService.delete(id);
+    }
+
+    @PostMapping("/tables/models/batch-delete")
+    @RequireLogin
+    public BatchDeleteResult batchDeleteModels(@RequestBody IdBatchDeleteRequest request) {
+        RoleGuard.requireStation();
+        return executeBatchDelete(request, modelService::delete);
     }
 
     @GetMapping("/images/suspects")
@@ -426,6 +460,45 @@ public class AdminController {
             labels.add("缩略图对象缺失");
         }
         return String.join(" / ", labels);
+    }
+
+    private void deleteCommentById(Long commentId) {
+        VehicleComment comment = vehicleCommentMapper.selectById(commentId);
+        if (comment == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "Comment not found");
+        }
+        vehicleCommentService.deleteComment(comment.getVehicleId(), commentId, null, true);
+    }
+
+    private BatchDeleteResult executeBatchDelete(IdBatchDeleteRequest request, Consumer<Long> deleteAction) {
+        List<Long> ids = normalizeBatchIds(request);
+        List<Long> deletedIds = new ArrayList<>();
+        List<Long> failedIds = new ArrayList<>();
+        for (Long id : ids) {
+            try {
+                deleteAction.accept(id);
+                deletedIds.add(id);
+            } catch (Exception ex) {
+                failedIds.add(id);
+            }
+        }
+        return new BatchDeleteResult(ids.size(), deletedIds, failedIds);
+    }
+
+    private List<Long> normalizeBatchIds(IdBatchDeleteRequest request) {
+        if (request == null || request.getIds() == null) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "ids are required");
+        }
+        Set<Long> dedupe = new LinkedHashSet<>();
+        for (Long id : request.getIds()) {
+            if (id != null) {
+                dedupe.add(id);
+            }
+        }
+        if (dedupe.isEmpty()) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "ids are required");
+        }
+        return new ArrayList<>(dedupe);
     }
 
     private void validateRegionRequest(RegionUpsertRequest request) {
@@ -545,6 +618,11 @@ public class AdminController {
     }
 
     @Data
+    public static class IdBatchDeleteRequest {
+        private List<Long> ids;
+    }
+
+    @Data
     public static class AdminRegionRow {
         private Long id;
         private String name;
@@ -617,6 +695,13 @@ public class AdminController {
 
     @Data
     public static class AdminImageCleanupResult {
+        private final int requestedCount;
+        private final List<Long> deletedIds;
+        private final List<Long> failedIds;
+    }
+
+    @Data
+    public static class BatchDeleteResult {
         private final int requestedCount;
         private final List<Long> deletedIds;
         private final List<Long> failedIds;

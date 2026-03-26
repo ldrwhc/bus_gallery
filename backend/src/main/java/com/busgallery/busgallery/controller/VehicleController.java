@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
@@ -38,7 +39,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class VehicleController {
 
-    private static final int FIXED_PAGE_SIZE = 12;
+    private static final int DEFAULT_PAGE_SIZE = 12;
+    private static final int MAX_PAGE_SIZE = 30;
 
     private final VehicleService vehicleService;
     private final ImageService imageService;
@@ -106,8 +108,8 @@ public class VehicleController {
                                              String keyword,
                                              LocalDate lastLaunch,
                                              Long lastId) {
-        int fixedSize = FIXED_PAGE_SIZE;
-        String cacheKey = buildPageCacheKey(fixedSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
+        int pageSize = Math.max(1, Math.min(size > 0 ? size : DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE));
+        String cacheKey = buildPageCacheKey(pageSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         try {
             String cached = stringRedisTemplate.opsForValue().get(cacheKey);
             if (cached != null && !cached.isEmpty()) {
@@ -115,14 +117,14 @@ public class VehicleController {
             }
         } catch (Exception ignore) {
         }
-        List<Vehicle> vehicles = vehicleService.queryPage(fixedSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
+        List<Vehicle> vehicles = vehicleService.queryPage(pageSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         long total = vehicleService.count(regionId, companyId, brandId, modelId, keyword);
         List<VehicleSummary> summaries = vehicles.stream()
                 .map(vehicle -> new VehicleSummary(mapVehicle(vehicle), mapImages(imageService.listByVehicle(vehicle.getId()))))
                 .collect(Collectors.toList());
         java.time.LocalDate nextLaunch = vehicles.isEmpty() ? null : vehicles.get(vehicles.size() - 1).getLaunchDate();
         Long nextCursorId = vehicles.isEmpty() ? null : vehicles.get(vehicles.size() - 1).getId();
-        VehiclePageResponse response = new VehiclePageResponse(summaries, total, 1, fixedSize, nextLaunch, nextCursorId);
+        VehiclePageResponse response = new VehiclePageResponse(summaries, total, 1, pageSize, nextLaunch, nextCursorId);
         try {
             String payload = objectMapper.writeValueAsString(response);
             stringRedisTemplate.opsForValue().set(cacheKey, payload, Duration.ofSeconds(vehiclePageCacheTtlSeconds));
@@ -284,6 +286,39 @@ public class VehicleController {
         }
         assertRegionWriteAllowed(session, existing.getRegion() != null ? existing.getRegion().getId() : null);
         vehicleService.delete(id);
+    }
+
+    @PostMapping("/batch-delete")
+    @RequireLogin
+    public VehicleBatchDeleteResponse batchDelete(@RequestBody VehicleBatchDeleteRequest request) {
+        UserSession session = RoleGuard.requireReviewerOrStation();
+        List<Long> ids = request == null ? Collections.emptyList() : request.getIds();
+        List<Long> normalizedIds = ids.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (normalizedIds.isEmpty()) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "Vehicle ids are required");
+        }
+
+        List<Long> deletedIds = new ArrayList<>();
+        List<Long> failedIds = new ArrayList<>();
+        for (Long id : normalizedIds) {
+            try {
+                Vehicle existing = vehicleService.findById(id);
+                if (existing == null) {
+                    failedIds.add(id);
+                    continue;
+                }
+                assertRegionWriteAllowed(session, existing.getRegion() != null ? existing.getRegion().getId() : null);
+                vehicleService.delete(id);
+                deletedIds.add(id);
+            } catch (Exception ex) {
+                failedIds.add(id);
+            }
+        }
+
+        return new VehicleBatchDeleteResponse(normalizedIds.size(), deletedIds, failedIds);
     }
 
     private void assertVehicleUpdateAllowed(UserSession session, Vehicle existing, VehicleRequest request) {
@@ -587,6 +622,20 @@ public class VehicleController {
             cfg.setOtherConfigs(config.getOtherConfigs());
             return cfg;
         }
+    }
+
+    @Data
+    public static class VehicleBatchDeleteRequest {
+        private List<Long> ids;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class VehicleBatchDeleteResponse {
+        private int requestedCount;
+        private List<Long> deletedIds;
+        private List<Long> failedIds;
     }
 
     @Data

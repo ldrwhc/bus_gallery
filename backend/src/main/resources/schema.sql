@@ -426,6 +426,7 @@ DEALLOCATE PREPARE stmt;
 CREATE TABLE IF NOT EXISTS `vehicle_comment` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `vehicle_id` BIGINT UNSIGNED NOT NULL,
+    `plate_number` VARCHAR(64) NULL,
     `user_id` BIGINT UNSIGNED NOT NULL,
     `username` VARCHAR(64) NOT NULL,
     `display_name` VARCHAR(128) NULL,
@@ -433,11 +434,66 @@ CREATE TABLE IF NOT EXISTS `vehicle_comment` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_vehicle_comment_vehicle` (`vehicle_id`),
+    KEY `idx_vehicle_comment_plate` (`plate_number`),
     CONSTRAINT `fk_vehicle_comment_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicle`(`id`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci
   COMMENT = 'comments on vehicles';
+
+SET @vehicle_comment_plate_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'vehicle_comment'
+      AND COLUMN_NAME = 'plate_number'
+);
+
+SET @ddl_vehicle_comment_plate := IF(
+        @vehicle_comment_plate_exists = 0,
+        'ALTER TABLE `vehicle_comment` ADD COLUMN `plate_number` VARCHAR(64) NULL AFTER `vehicle_id`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_vehicle_comment_plate;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_vehicle_comment_plate_backfill := IF(
+        @vehicle_comment_plate_exists = 0,
+        'UPDATE `vehicle_comment` vc
+         INNER JOIN `vehicle` v ON vc.vehicle_id = v.id
+         SET vc.plate_number = REPLACE(v.plate_number, '' '', '''')
+         WHERE vc.plate_number IS NULL OR vc.plate_number = ''''',
+        'UPDATE `vehicle_comment` vc
+         INNER JOIN `vehicle` v ON vc.vehicle_id = v.id
+         SET vc.plate_number = REPLACE(v.plate_number, '' '', '''')
+         WHERE (vc.plate_number IS NULL OR vc.plate_number = '''')
+           AND v.plate_number IS NOT NULL
+           AND v.plate_number <> '''''
+    );
+
+PREPARE stmt FROM @ddl_vehicle_comment_plate_backfill;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_vehicle_comment_plate_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'vehicle_comment'
+      AND INDEX_NAME = 'idx_vehicle_comment_plate'
+);
+
+SET @ddl_idx_vehicle_comment_plate := IF(
+        @idx_vehicle_comment_plate_exists = 0,
+        'ALTER TABLE `vehicle_comment` ADD KEY `idx_vehicle_comment_plate` (`plate_number`)',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_idx_vehicle_comment_plate;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS `vehicle_favorite` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

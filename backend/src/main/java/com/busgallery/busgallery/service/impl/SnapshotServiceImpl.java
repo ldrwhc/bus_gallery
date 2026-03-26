@@ -44,6 +44,8 @@ public class SnapshotServiceImpl implements SnapshotService {
     private final ObjectMapper objectMapper;
 
     private static final Duration SNAPSHOT_TTL = Duration.ofMinutes(10);
+    private static final int HOT_FEED_VARIANT_LIMIT = 3;
+    private static final int HOT_FEED_IMAGE_LIMIT_PER_VARIANT = 1;
 
     /**
      * getSnapshotByPlate 鏂规硶銆?
@@ -96,8 +98,43 @@ public class SnapshotServiceImpl implements SnapshotService {
                 .toList();
         return plateNumbers.stream()
                 .map(this::getSnapshotByPlate)
+                .map(this::trimForHotFeed)
                 .filter(p -> p != null && !CollectionUtils.isEmpty(p.getVariants()))
                 .collect(Collectors.toList());
+    }
+
+    private SnapshotPayload trimForHotFeed(SnapshotPayload source) {
+        if (source == null) {
+            return null;
+        }
+        SnapshotPayload trimmed = new SnapshotPayload();
+        trimmed.setPlateNumber(source.getPlateNumber());
+        trimmed.setVersion(source.getVersion());
+        if (CollectionUtils.isEmpty(source.getVariants())) {
+            trimmed.setVariants(List.of());
+            return trimmed;
+        }
+        List<VehicleController.VehicleDetailResponse> variants = source.getVariants().stream()
+                .filter(variant -> variant != null && variant.getVehicle() != null)
+                .limit(HOT_FEED_VARIANT_LIMIT)
+                .map(this::trimVariantForHotFeed)
+                .collect(Collectors.toList());
+        trimmed.setVariants(variants);
+        return trimmed;
+    }
+
+    private VehicleController.VehicleDetailResponse trimVariantForHotFeed(VehicleController.VehicleDetailResponse source) {
+        if (source == null) {
+            return null;
+        }
+        List<VehicleController.ImageDTO> images = CollectionUtils.isEmpty(source.getImages())
+                ? List.of()
+                : source.getImages().stream().limit(HOT_FEED_IMAGE_LIMIT_PER_VARIANT).collect(Collectors.toList());
+        return new VehicleController.VehicleDetailResponse(
+                source.getVehicle(),
+                source.getVehicleConfig(),
+                images
+        );
     }
 
     private SnapshotPayload buildSnapshot(String normalizedPlate) {

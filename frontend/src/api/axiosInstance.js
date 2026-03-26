@@ -84,8 +84,19 @@ http.interceptors.response.use(
         }
         return payload;
     },
-    (error) => {
+    async (error) => {
         const status = error?.response?.status;
+        const requestConfig = error?.config;
+        const method = (requestConfig?.method || 'get').toLowerCase();
+        if (status === 429 && requestConfig && method === 'get' && !requestConfig.__retried429) {
+            requestConfig.__retried429 = true;
+            const retryAfterHeader = Number(error?.response?.headers?.['retry-after']);
+            const delayMs = Number.isFinite(retryAfterHeader)
+                ? Math.max(200, Math.min(2000, retryAfterHeader * 1000))
+                : 350;
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+            return http.request(requestConfig);
+        }
         if (status === 401) {
             resetAuthState();
             const redirect = router.currentRoute.value.fullPath;

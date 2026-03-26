@@ -24,7 +24,6 @@ import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -50,7 +49,6 @@ public class UploadController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequireLogin
-    @Transactional(timeout = 30)
     public UploadResultResponse uploadVehicle(
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "payload", required = false) String payloadJson,
@@ -110,7 +108,6 @@ public class UploadController {
 
     @PostMapping("/chunk/{uploadId}/complete")
     @RequireLogin
-    @Transactional(timeout = 30)
     public UploadResultResponse completeChunkUpload(@PathVariable String uploadId,
                                                     @RequestBody ChunkCompleteRequest request,
                                                     @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {

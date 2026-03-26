@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class VehicleComment {
     private Long id;
     private Long vehicleId;
+    private String plateNumber;
     private Long userId;
     private String username;
     private String displayName;

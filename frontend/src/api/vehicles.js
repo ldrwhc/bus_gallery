@@ -27,7 +27,9 @@ export const fetchVehicleGallery = (params = {}) =>
         records: normalizeRecords(response),
         total: response?.total ?? response?.pagination?.total ?? response?.meta?.total ?? 0,
         page: response?.page ?? params.page ?? 1,
-        size: response?.size ?? params.size ?? 12
+        size: response?.size ?? params.size ?? 12,
+        nextLaunch: response?.nextLaunch ?? null,
+        nextId: response?.nextId ?? null
     }));
 
 export const fetchManageVehiclePage = (params = {}) =>
@@ -52,6 +54,9 @@ export const updateVehicle = (vehicleId, payload) =>
 
 export const deleteVehicle = (vehicleId) =>
     http.delete(`/vehicles/${vehicleId}`);
+
+export const batchDeleteVehicles = (ids) =>
+    http.post('/vehicles/batch-delete', { ids });
 
 /**
  * 统一的 “上传图片 + 建档” 接口

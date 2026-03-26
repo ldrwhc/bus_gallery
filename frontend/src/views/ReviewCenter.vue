@@ -197,6 +197,15 @@
                         <RegionSelector v-model="manageFilters.regionId" :regions="regions" />
                     </div>
                     <el-button type="primary" :loading="manageLoading" @click="loadManageList(true)">查询</el-button>
+                    <el-button
+                        type="danger"
+                        plain
+                        :loading="manageBatchDeleting"
+                        :disabled="!selectedManageVehicleIds.length"
+                        @click="confirmBatchDeleteVehicles"
+                    >
+                        批量删除
+                    </el-button>
                 </div>
 
                 <el-table
@@ -204,8 +213,11 @@
                     v-loading="manageLoading"
                     stripe
                     border
+                    :row-key="manageRowKey"
+                    @selection-change="handleManageSelectionChange"
                     empty-text="暂无可管理车辆"
                 >
+                    <el-table-column type="selection" width="52" reserve-selection />
                     <el-table-column label="ID" width="90">
                         <template #default="{ row }">{{ row.vehicle?.id || '-' }}</template>
                     </el-table-column>
@@ -340,7 +352,7 @@ import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { approveSubmission, fetchPendingSubmissions, rejectSubmission } from '@/api/reviews';
-import { deleteVehicle, fetchManageVehiclePage, fetchVehicleGalleryDetail, updateVehicle } from '@/api/vehicles';
+import { batchDeleteVehicles, deleteVehicle, fetchManageVehiclePage, fetchVehicleGalleryDetail, updateVehicle } from '@/api/vehicles';
 import { FUEL_OPTIONS, isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
 import RegionSelector from '@/components/Region/RegionSelector.vue';
 import {
@@ -374,6 +386,8 @@ const manageDialogVisible = ref(false);
 const manageEditLoading = ref(false);
 const manageSaving = ref(false);
 const manageEditingVehicleId = ref(null);
+const manageBatchDeleting = ref(false);
+const selectedManageVehicleIds = ref([]);
 
 const switchPanel = (panel) => {
     if (activePanel.value === panel) {
@@ -662,6 +676,14 @@ const resolveManageRegionId = () => {
     return null;
 };
 
+const manageRowKey = (row) => Number(row?.vehicle?.id || row?.id || 0);
+
+const handleManageSelectionChange = (rows) => {
+    selectedManageVehicleIds.value = (Array.isArray(rows) ? rows : [])
+        .map((row) => manageRowKey(row))
+        .filter((id) => id > 0);
+};
+
 const mergeManageRecords = (list, reset) => {
     const target = reset ? [] : [...manageRecords.value];
     const seen = new Set(target.map((item) => Number(item?.vehicle?.id || item?.id || 0)));
@@ -690,6 +712,9 @@ const loadManageList = async (reset = true) => {
         const data = await fetchManageVehiclePage(params);
         const list = Array.isArray(data?.records) ? data.records : [];
         mergeManageRecords(list, reset);
+        if (reset) {
+            selectedManageVehicleIds.value = [];
+        }
         manageTotal.value = Number(data?.total || 0);
         manageCursor.nextLaunch = data?.nextLaunch || null;
         manageCursor.nextId = data?.nextId || null;
@@ -785,6 +810,53 @@ const submitManageUpdate = async () => {
     }
 };
 
+const confirmBatchDeleteVehicles = async () => {
+    const ids = [...new Set(selectedManageVehicleIds.value)]
+        .map((id) => Number(id || 0))
+        .filter((id) => id > 0);
+    if (!ids.length) {
+        ElMessage.warning('请先勾选要删除的车辆');
+        return;
+    }
+    try {
+        await ElMessageBox.confirm(
+            `将永久删除 ${ids.length} 辆车辆，是否继续？`,
+            '二次确认',
+            {
+                type: 'warning',
+                confirmButtonText: '确认删除',
+                cancelButtonText: '取消',
+                closeOnClickModal: true,
+                closeOnPressEscape: true
+            }
+        );
+    } catch (error) {
+        return;
+    }
+    manageBatchDeleting.value = true;
+    try {
+        const result = await batchDeleteVehicles(ids);
+        const deletedIds = Array.isArray(result?.deletedIds)
+            ? result.deletedIds.map((id) => Number(id || 0))
+            : [];
+        const failedCount = Array.isArray(result?.failedIds) ? result.failedIds.length : 0;
+        if (manageEditingVehicleId.value && deletedIds.includes(Number(manageEditingVehicleId.value))) {
+            manageDialogVisible.value = false;
+            manageEditingVehicleId.value = null;
+        }
+        await loadManageList(true);
+        if (failedCount > 0) {
+            ElMessage.warning(`批量删除完成：成功 ${deletedIds.length}，失败 ${failedCount}`);
+            return;
+        }
+        ElMessage.success(`批量删除成功：共删除 ${deletedIds.length} 辆`);
+    } catch (error) {
+        ElMessage.error(error?.message || '批量删除失败');
+    } finally {
+        manageBatchDeleting.value = false;
+    }
+};
+
 const confirmDeleteVehicle = async (row) => {
     const id = row?.vehicle?.id;
     if (!id) return;
@@ -806,6 +878,7 @@ const confirmDeleteVehicle = async (row) => {
     }
     try {
         await deleteVehicle(id);
+        selectedManageVehicleIds.value = selectedManageVehicleIds.value.filter((item) => Number(item) !== Number(id));
         ElMessage.success('车辆已删除');
         if (manageEditingVehicleId.value === id) {
             manageDialogVisible.value = false;

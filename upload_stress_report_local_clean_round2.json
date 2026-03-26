@@ -1,0 +1,25 @@
+{
+  "base_url": "http://localhost/api",
+  "upload_url": "http://localhost/api/upload",
+  "username": "admin",
+  "file": "D:\\code\\bus-gallery\\test.png",
+  "file_size_bytes": 21059,
+  "total_requests": 80,
+  "concurrency": 20,
+  "success": 80,
+  "failed": 0,
+  "success_rate": 1.0,
+  "wall_time_seconds": 6.166,
+  "throughput_rps": 12.974,
+  "latency_ms": {
+    "avg": 1500.68,
+    "p50": 1218.76,
+    "p95": 2588.52,
+    "p99": 2592.31,
+    "max": 2593.05
+  },
+  "status_counter": {
+    "http_200_ok": 80
+  },
+  "sample_errors": []
+}

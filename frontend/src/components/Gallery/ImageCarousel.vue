@@ -39,16 +39,16 @@
 
         <div v-if="images.length > 1" class="carousel__thumbs">
             <button
-                v-for="(image, index) in images"
-                :key="image.id || index"
+                v-for="thumb in visibleThumbs"
+                :key="thumb.image.id || thumb.index"
                 class="thumb"
-                :class="{ 'thumb--active': index === currentIndex }"
+                :class="{ 'thumb--active': thumb.index === currentIndex }"
                 type="button"
-                @click="go(index)"
+                @click="go(thumb.index)"
             >
                 <img
-                    :src="image.thumbnailUrl || FALLBACK_IMAGE"
-                    :alt="'预览' + (index + 1)"
+                    :src="thumb.image.thumbnailUrl || FALLBACK_IMAGE"
+                    :alt="'预览' + (thumb.index + 1)"
                     loading="lazy"
                     decoding="async"
                 />
@@ -114,11 +114,29 @@ watch(
 const images = computed(() => props.images || []);
 
 const activeImage = computed(() => images.value[currentIndex.value] || null);
+const THUMB_WINDOW_SIZE = 18;
 
 const activeImageUrl = computed(() => {
     const img = activeImage.value;
     if (!img) return FALLBACK_IMAGE;
     return img.url || img.thumbnailUrl || FALLBACK_IMAGE;
+});
+
+const visibleThumbs = computed(() => {
+    const total = images.value.length;
+    if (total <= THUMB_WINDOW_SIZE) {
+        return images.value.map((image, index) => ({ image, index }));
+    }
+    const half = Math.floor(THUMB_WINDOW_SIZE / 2);
+    let start = Math.max(0, currentIndex.value - half);
+    let end = Math.min(total, start + THUMB_WINDOW_SIZE);
+    if (end - start < THUMB_WINDOW_SIZE) {
+        start = Math.max(0, end - THUMB_WINDOW_SIZE);
+    }
+    return images.value.slice(start, end).map((image, offset) => ({
+        image,
+        index: start + offset
+    }));
 });
 const activeImageAlt = computed(() => activeImage.value?.description || '车辆图片');
 const uploaderLabel = computed(() => {
@@ -247,6 +265,8 @@ const go = (index) => {
     &__thumbs {
         display: flex;
         gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
     }
 
     &__watermark {

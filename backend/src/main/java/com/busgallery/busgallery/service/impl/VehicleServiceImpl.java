@@ -5,6 +5,10 @@ import com.busgallery.busgallery.mapper.*;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,18 +17,25 @@ import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class VehicleServiceImpl implements VehicleService {
 
     private static final int MAX_PAGE_SIZE = 12;
+    private static final int VEHICLE_IMAGE_DEADLOCK_MAX_RETRIES = 5;
+    private static final long VEHICLE_IMAGE_RETRY_BASE_DELAY_MS = 50L;
 
     private final VehicleMapper vehicleMapper;
     private final VehicleConfigMapper vehicleConfigMapper;
@@ -111,6 +122,7 @@ public class VehicleServiceImpl implements VehicleService {
         return config;
     }
 
+    @Transactional
     public Vehicle create(Vehicle vehicle,
                           VehicleConfig config,
                           List<Long> imageIds,
@@ -125,7 +137,7 @@ public class VehicleServiceImpl implements VehicleService {
         ensureCompanyExists(vehicle, companyName);
         vehicleMapper.insert(vehicle);
         upsertVehicleConfig(vehicle, config);
-        saveVehicleImages(vehicle.getId(), imageIds);
+        saveVehicleImages(vehicle.getId(), imageIds, false);
         Vehicle saved = vehicleMapper.selectById(vehicle.getId());
         populateVehicleRelations(saved);
         bumpVehiclePageVersion();
@@ -133,6 +145,7 @@ public class VehicleServiceImpl implements VehicleService {
         return saved;
     }
 
+    @Transactional
     public Vehicle update(Vehicle vehicle,
                           VehicleConfig config,
                           List<Long> imageIds,
@@ -148,7 +161,7 @@ public class VehicleServiceImpl implements VehicleService {
         ensureCompanyExists(vehicle, companyName);
         vehicleMapper.update(vehicle);
         upsertVehicleConfig(vehicle, config);
-        saveVehicleImages(vehicle.getId(), imageIds);
+        saveVehicleImages(vehicle.getId(), imageIds, true);
         Vehicle saved = vehicleMapper.selectById(vehicle.getId());
         populateVehicleRelations(saved);
         bumpVehiclePageVersion();
@@ -485,28 +498,126 @@ public class VehicleServiceImpl implements VehicleService {
         }
     }
 
-    private void saveVehicleImages(Long vehicleId, List<Long> imageIds) {
-        vehicleImageMapper.deleteByVehicleId(vehicleId);
-        if (CollectionUtils.isEmpty(imageIds)) {
+    private void saveVehicleImages(Long vehicleId, List<Long> imageIds, boolean replaceExisting) {
+        if (vehicleId == null) {
             return;
         }
-        List<VehicleImage> relations = new ArrayList<>(imageIds.size());
-        AtomicInteger order = new AtomicInteger(0);
-        for (Long imageId : imageIds) {
-            VehicleImage relation = new VehicleImage();
-            relation.setId(new VehicleImageId(vehicleId, imageId));
+        List<Long> orderedImageIds = normalizeImageIds(imageIds);
+        Map<Long, Integer> originalSortOrder = buildImageSortOrder(orderedImageIds);
+        List<Long> sortedImageIds = new ArrayList<>(orderedImageIds);
+        sortedImageIds.sort(Long::compareTo);
 
-            Vehicle vehicleRef = new Vehicle();
-            vehicleRef.setId(vehicleId);
-            relation.setVehicle(vehicleRef);
+        executeVehicleImageWriteWithRetry(() -> {
+            if (replaceExisting) {
+                vehicleImageMapper.deleteByVehicleId(vehicleId);
+            }
+            if (sortedImageIds.isEmpty()) {
+                return;
+            }
+            List<VehicleImage> relations = new ArrayList<>(sortedImageIds.size());
+            for (Long imageId : sortedImageIds) {
+                VehicleImage relation = new VehicleImage();
+                relation.setId(new VehicleImageId(vehicleId, imageId));
 
-            Image imageRef = new Image();
-            imageRef.setId(imageId);
-            relation.setImage(imageRef);
+                Vehicle vehicleRef = new Vehicle();
+                vehicleRef.setId(vehicleId);
+                relation.setVehicle(vehicleRef);
 
-            relation.setSortOrder(order.getAndIncrement());
-            relations.add(relation);
+                Image imageRef = new Image();
+                imageRef.setId(imageId);
+                relation.setImage(imageRef);
+
+                relation.setSortOrder(originalSortOrder.getOrDefault(imageId, 0));
+                relations.add(relation);
+            }
+            vehicleImageMapper.insertBatch(relations);
+        }, vehicleId, sortedImageIds.size(), replaceExisting);
+    }
+
+    private List<Long> normalizeImageIds(List<Long> imageIds) {
+        if (CollectionUtils.isEmpty(imageIds)) {
+            return List.of();
         }
-        vehicleImageMapper.insertBatch(relations);
+        List<Long> normalized = new ArrayList<>(imageIds.size());
+        Set<Long> dedupe = new LinkedHashSet<>();
+        for (Long imageId : imageIds) {
+            if (imageId == null) {
+                continue;
+            }
+            if (dedupe.add(imageId)) {
+                normalized.add(imageId);
+            }
+        }
+        return normalized;
+    }
+
+    private Map<Long, Integer> buildImageSortOrder(List<Long> orderedImageIds) {
+        Map<Long, Integer> sortOrder = new LinkedHashMap<>();
+        AtomicInteger index = new AtomicInteger(0);
+        orderedImageIds.forEach(imageId -> sortOrder.putIfAbsent(imageId, index.getAndIncrement()));
+        return sortOrder;
+    }
+
+    private void executeVehicleImageWriteWithRetry(Runnable writer,
+                                                   Long vehicleId,
+                                                   int imageCount,
+                                                   boolean replaceExisting) {
+        int attempt = 0;
+        while (true) {
+            try {
+                writer.run();
+                return;
+            } catch (RuntimeException ex) {
+                if (!isDeadlockException(ex) || attempt >= VEHICLE_IMAGE_DEADLOCK_MAX_RETRIES - 1) {
+                    throw ex;
+                }
+                long delayMs = computeBackoffMs(attempt);
+                log.warn("Deadlock on vehicle_image write, retrying: vehicleId={}, imageCount={}, replaceExisting={}, attempt={}, waitMs={}",
+                        vehicleId, imageCount, replaceExisting, attempt + 1, delayMs);
+                sleepQuietly(delayMs);
+                attempt++;
+            }
+        }
+    }
+
+    private boolean isDeadlockException(Throwable ex) {
+        if (ex instanceof DeadlockLoserDataAccessException
+                || ex instanceof CannotAcquireLockException
+                || ex instanceof PessimisticLockingFailureException) {
+            return true;
+        }
+        Throwable cursor = ex;
+        while (cursor != null) {
+            if (cursor instanceof SQLException sqlException) {
+                if (sqlException.getErrorCode() == 1213 || "40001".equals(sqlException.getSQLState())) {
+                    return true;
+                }
+            }
+            String message = cursor.getMessage();
+            if (StringUtils.hasText(message)) {
+                String normalized = message.toLowerCase();
+                if (normalized.contains("deadlock found when trying to get lock")
+                        || normalized.contains("sqlstate: 40001")
+                        || normalized.contains("error 1213")) {
+                    return true;
+                }
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
+    }
+
+    private long computeBackoffMs(int attempt) {
+        long base = (long) (VEHICLE_IMAGE_RETRY_BASE_DELAY_MS * Math.pow(2, attempt));
+        long jitter = ThreadLocalRandom.current().nextLong(20L, 80L);
+        return base + jitter;
+    }
+
+    private void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

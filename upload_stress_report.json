@@ -1,0 +1,68 @@
+{
+  "base_url": "http://192.144.227.251/api",
+  "upload_url": "http://192.144.227.251/api/upload",
+  "username": "admin",
+  "file": "D:\\code\\bus-gallery\\test.png",
+  "file_size_bytes": 64774,
+  "total_requests": 40,
+  "concurrency": 10,
+  "success": 4,
+  "failed": 36,
+  "success_rate": 0.1,
+  "wall_time_seconds": 11.592,
+  "throughput_rps": 3.451,
+  "latency_ms": {
+    "avg": 2711.85,
+    "p50": 2497.28,
+    "p95": 6391.56,
+    "p99": 6559.36,
+    "max": 6587.48
+  },
+  "status_counter": {
+    "http_200_ok": 4,
+    "http_500_biz_fail": 16,
+    "http_429_biz_fail": 20
+  },
+  "sample_errors": [
+    {
+      "i": 6,
+      "status": 500,
+      "body": "{\"code\":\"B0500\",\"message\":\"Internal server error\"}"
+    },
+    {
+      "i": 9,
+      "status": 500,
+      "body": "{\"code\":\"B0500\",\"message\":\"Internal server error\"}"
+    },
+    {
+      "i": 0,
+      "status": 500,
+      "body": "{\"code\":\"B0500\",\"message\":\"Internal server error\"}"
+    },
+    {
+      "i": 4,
+      "status": 500,
+      "body": "{\"code\":\"B0500\",\"message\":\"Internal server error\"}"
+    },
+    {
+      "i": 3,
+      "status": 500,
+      "body": "{\"code\":\"B0500\",\"message\":\"Internal server error\"}"
+    },
+    {
+      "i": 7,
+      "status": 500,
+      "body": "{\"code\":\"B0500\",\"message\":\"Internal server error\"}"
+    },
+    {
+      "i": 2,
+      "status": 500,
+      "body": "{\"code\":\"B0500\",\"message\":\"Internal server error\"}"
+    },
+    {
+      "i": 1,
+      "status": 500,
+      "body": "{\"code\":\"B0500\",\"message\":\"Internal server error\"}"
+    }
+  ]
+}

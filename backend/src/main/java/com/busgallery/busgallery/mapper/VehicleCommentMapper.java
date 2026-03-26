@@ -22,6 +22,12 @@ public interface VehicleCommentMapper {
 
     long countByVehicleId(@Param("vehicleId") Long vehicleId);
 
+    List<VehicleComment> selectByPlateNumber(@Param("plateNumber") String plateNumber,
+                                             @Param("offset") int offset,
+                                             @Param("limit") int limit);
+
+    long countByPlateNumber(@Param("plateNumber") String plateNumber);
+
     int insert(VehicleComment comment);
 
     int updateDisplayNameByUserId(@Param("userId") Long userId,

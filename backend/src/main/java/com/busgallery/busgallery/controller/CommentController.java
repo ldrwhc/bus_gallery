@@ -74,6 +74,7 @@ public class CommentController {
     public static class CommentResponse {
         private Long id;
         private Long vehicleId;
+        private String plateNumber;
         private Long userId;
         private String displayName;
         private String username;
@@ -84,6 +85,7 @@ public class CommentController {
             CommentResponse response = new CommentResponse();
             response.setId(comment.getId());
             response.setVehicleId(comment.getVehicleId());
+            response.setPlateNumber(comment.getPlateNumber());
             response.setUserId(comment.getUserId());
             response.setDisplayName(comment.getDisplayName());
             response.setUsername(comment.getUsername());
