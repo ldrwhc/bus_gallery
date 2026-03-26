@@ -3,8 +3,7 @@
         <main class="home-main">
             <section class="hero">
                 <p class="eyebrow">Bus Gallery</p>
-                <h1>图库收集</h1>
-                <p class="hero__desc">首页按变体逐条展示，向下滚动自动加载更多。</p>
+                <h1>图库搜集</h1>
                 <form class="hero-search" @submit.prevent="handleSearch">
                     <input v-model.trim="searchKeyword" type="text" placeholder="搜索车牌 / 车型 / 公司 / 地区" />
                     <button class="search-submit" type="submit">搜索图库</button>
@@ -18,8 +17,7 @@
             <section class="hot-section">
                 <header class="section-header">
                     <div class="section-title">
-                        <h2>最新车辆变体</h2>
-                        <p class="subtitle">每次下拉加载 {{ PAGE_SIZE }} 条，当前 {{ waterfallCards.length }} 条</p>
+                        <h2>热门图片</h2>
                     </div>
                 </header>
 
@@ -323,12 +321,6 @@ onBeforeUnmount(() => {
     line-height: 1.08;
 }
 
-.hero__desc {
-    margin: 0 0 18px;
-    max-width: 760px;
-    color: rgba(255, 255, 255, 0.92);
-}
-
 .hero-search {
     width: min(860px, 100%);
     background: rgba(255, 255, 255, 0.94);
@@ -403,11 +395,6 @@ onBeforeUnmount(() => {
     color: #0f172a;
 }
 
-.subtitle {
-    margin: 6px 0 0;
-    color: #64748b;
-}
-
 .state {
     border-radius: 14px;
     padding: 24px;
@@ -427,7 +414,7 @@ onBeforeUnmount(() => {
 
 .waterfall {
     width: 100%;
-    column-count: 4;
+    column-count: 3;
     column-gap: clamp(12px, 1.8vw, 18px);
 }
 
@@ -513,7 +500,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1200px) {
     .waterfall {
-        column-count: 3;
+        column-count: 2;
     }
 }
 

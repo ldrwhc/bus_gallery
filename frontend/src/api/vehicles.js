@@ -127,11 +127,13 @@ export const createVehicleComment = (vehicleId, content) =>
 export const deleteVehicleComment = (vehicleId, commentId) =>
     http.delete(`/vehicles/${vehicleId}/comments/${commentId}`);
 
-export const toggleFavorite = (vehicleId) => http.post(`/favorites/${vehicleId}/toggle`);
+export const setFavorite = (vehicleId, liked) =>
+    http.put(`/favorites/${vehicleId}`, { liked: Boolean(liked) });
 
 export const fetchFavoriteSummary = (vehicleId) => http.get(`/favorites/${vehicleId}/summary`);
 
 export const fetchFavorites = (userId) =>
     http.get('/favorites', { params: userId ? { userId } : undefined });
 
-export const fetchVehiclesByPlate = (plateNumber) => http.get(`/vehicles/plate/${plateNumber}`);
+export const fetchVehiclesByPlate = (plateNumber) =>
+    http.get(`/vehicles/plate/${encodeURIComponent(plateNumber)}`);

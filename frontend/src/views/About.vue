@@ -1100,7 +1100,7 @@ GET|/api/companies/{id}/model-summaries
 GET|/api/companies/{id}/vehicles
 GET|/api/favorites
 GET|/api/favorites/{vehicleId}/summary
-POST|/api/favorites/{vehicleId}/toggle
+PUT|/api/favorites/{vehicleId}
 DELETE|/api/images/{id}
 GET|/api/images/{id}
 PUT|/api/images/{id}
@@ -1153,7 +1153,7 @@ const groupMeta = {
   User: { name: '用户中心', intro: '用户资料与图片' },
   Vehicle: { name: '车辆数据', intro: '车辆列表、详情、维护' },
   Comment: { name: '评论互动', intro: '评论查询、发布、删除（作者/站长权限）' },
-  Favorite: { name: '收藏互动', intro: '收藏切换、摘要同步与一致性修复' },
+  Favorite: { name: '收藏互动', intro: '收藏状态设置、摘要同步与一致性修复' },
   Upload: { name: '上传提交流程', intro: '上传图片与车辆信息' },
   Image: { name: '图片资源', intro: '图片读取、上传与签名访问' },
   Review: { name: '审核中心', intro: '审核收件箱与审批' },
@@ -1204,8 +1204,8 @@ const flowRows = [
     title: '用户互动链路',
     frontend: 'VehicleDetail.vue 与 VehicleDetailModal.vue 负责评论/收藏交互：电脑端评论区固定在详情右侧并默认显示，移动端在详情下方；评论读有前端缓存 + 8s 轮询；UserProfile.vue 从收藏入口打开详情时会强制刷新 detail 与收藏摘要，避免旧快照导致 liked 状态错误。',
     nginx: 'Nginx 把互动请求按 /api 规则限流并转发到 UserController、CommentController、FavoriteController。',
-    redis: '评论读链路使用版本键模型（bg:comments:ver + list/count）；评论新增和删除都会 bump version。收藏使用覆盖写模型（bg:fav:summary + bg:fav:liked），toggle 后直接写入最终态，保证写后读一致。',
-    spring: 'RequireLogin 先校验登录态；CommentController 支持发布与删除（作者本人或 STATION）；FavoriteServiceImpl 执行收藏切换并返回摘要，前端再用 summary 接口做最终态校准。',
+    redis: '评论读链路使用版本键模型（bg:comments:ver + list/count）；评论新增和删除都会 bump version。收藏使用覆盖写模型（bg:fav:summary + bg:fav:liked），set-liked 后直接写入最终态，保证写后读一致。',
+    spring: 'RequireLogin 先校验登录态；CommentController 支持发布与删除（作者本人或 STATION）；FavoriteServiceImpl 执行 set-liked 幂等写并返回摘要，前端再用 summary 接口做最终态校准。',
     db: 'MySQL 读写 vehicle_comment、vehicle_favorite、app_user、image 表后把结果交回服务层并触发缓存更新。',
     other: '评论发布后发送 comment.created、收藏切换后发送 favorite.toggled 到 RabbitMQ；消息通过 afterCommit 发布，避免事务回滚时脏消息；副作用（通知/敏感词/热度/推荐/快照预热）采用 best-effort，失败只告警不阻塞主链路。'
   },
@@ -1414,10 +1414,10 @@ const interactionComponentRows = [
   },
   {
     front: 'components/Gallery/VehicleDetailModal.vue',
-    action: '切换收藏',
-    api: 'POST /api/favorites/{vehicleId}/toggle',
+    action: '设置收藏状态',
+    api: 'PUT /api/favorites/{vehicleId} { liked: true|false }',
     backend: 'FavoriteServiceImpl -> MySQL + Redis(summary/liked) + RabbitMQ(favorite.toggled)',
-    note: 'toggle 同步返回最终态并覆盖写 summary/liked，随后 afterCommit 发 favorite.toggled。'
+    note: 'set-liked 同步返回最终态并覆盖写 summary/liked，仅在状态真实变更时 afterCommit 发 favorite.toggled。'
   },
   {
     front: 'views/UserProfile.vue',
@@ -1532,8 +1532,8 @@ const redisKeyRows = [
   { group: '评论缓存', key: 'bg:comments:ver:{vehicleId}', value: 'version(number)', ttl: '无固定 TTL', created: '首次评论写入 bumpVersion', updated: '评论新增或删除都会 increment', usage: '评论 list/count 的版本失效锚点' },
   { group: '评论缓存', key: 'bg:comments:list:v{ver}:vid{vehicleId}:p{page}:s{size}', value: 'List<VehicleComment> JSON', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论列表 miss 后回源写入', updated: '评论新增/删除导致版本变化后自然失效', usage: '评论列表查询加速' },
   { group: '评论缓存', key: 'bg:comments:count:v{ver}:vid{vehicleId}', value: 'count(string)', ttl: 'busgallery.cache.comments.ttl-seconds (默认 30s)', created: '评论总数 miss 后回源写入', updated: '评论新增/删除导致版本变化后自然失效', usage: '评论数量读取加速' },
-  { group: '收藏缓存', key: 'bg:fav:summary:{vehicleId}', value: 'FavoriteSummary JSON', ttl: 'busgallery.cache.favorites.summary-ttl-seconds (默认 30s)', created: 'summary miss 或 toggle 后写入', updated: 'toggle 后覆盖最新总数和 topUsers', usage: '收藏摘要展示' },
-  { group: '收藏缓存', key: 'bg:fav:liked:{vehicleId}:{userId}', value: '"true"/"false"', ttl: 'busgallery.cache.favorites.liked-ttl-seconds (默认 30s)', created: 'summary 查询当前用户收藏态时写入', updated: 'toggle 后覆盖写最新 liked', usage: '当前用户是否已收藏判定' },
+  { group: '收藏缓存', key: 'bg:fav:summary:{vehicleId}', value: 'FavoriteSummary JSON', ttl: 'busgallery.cache.favorites.summary-ttl-seconds (默认 30s)', created: 'summary miss 或 set-liked 后写入', updated: 'set-liked 后覆盖最新总数和 topUsers', usage: '收藏摘要展示' },
+  { group: '收藏缓存', key: 'bg:fav:liked:{vehicleId}:{userId}', value: '"true"/"false"', ttl: 'busgallery.cache.favorites.liked-ttl-seconds (默认 30s)', created: 'summary 查询当前用户收藏态时写入', updated: 'set-liked 后覆盖写最新 liked', usage: '当前用户是否已收藏判定' },
   { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:latest', value: 'version(string)', ttl: '10m', created: '快照回源构建后写入', updated: '每次重建快照覆盖写最新版本；车辆修改/删除时主动 delete', usage: '指向当前有效快照版本' },
   { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:v{version}', value: 'base64(gzip(json))', ttl: '10m', created: '快照回源构建后写入版本键', updated: '新版本创建新 key；车辆修改/删除时命中版本键会被一起 delete', usage: '快照主缓存数据' },
   { group: '快照缓存', key: 'bg:snapshot:plate:{plate}:stale', value: 'base64(gzip(json))', ttl: '1h', created: '快照回源构建后同步写 stale', updated: '每次重建都覆盖 stale；车辆修改/删除时主动 delete', usage: '回源锁竞争时兜底返回旧快照' },
@@ -1691,7 +1691,7 @@ end`
     keys: 'bg:comments:* / bg:fav:*',
     steps: [
       '评论采用版本键模型：新增或删除评论都会 bump ver，list/count 缓存自然切换到新版本。',
-      '收藏采用覆盖写模型：toggle 后直接回写 summary 与 liked 两类键。',
+      '收藏采用覆盖写模型：set-liked 后直接回写 summary 与 liked 两类键。',
       '评论与收藏写库成功后会发布 RabbitMQ 事件触发异步副作用，消费者 best-effort 执行失败不影响主事务。',
       '两种策略都以“写请求完成后立刻更新缓存状态”为核心，确保写后读一致性。'
     ],
@@ -2278,7 +2278,7 @@ function redisActionTitle(action) {
   if (text.includes('发送邮箱验证码')) return '发送邮箱验证码';
   if (text.includes('提交 OTP')) return '提交 OTP';
   if (text.includes('请求上传/登录接口')) return '进入限流入口';
-  if (text.includes('发布评论 / 切换收藏')) return '提交评论或收藏';
+  if (text.includes('发布评论 / 设置收藏')) return '提交评论或收藏';
   if (text.includes('query page')) return '查询车辆分页';
   if (text.includes('cached page')) return '命中分页缓存';
   if (text.includes('return cache')) return '返回缓存数据';
@@ -2315,7 +2315,7 @@ function buildRedisFlowDetail(evt) {
   if (action.includes('发送邮箱验证码')) return '前端请求发送 OTP，后端先占用 cooldown 键，成功后写 challenge 键并异步发邮件。';
   if (action.includes('提交 OTP')) return '前端提交 challengeId+code，后端读取 OTP 键做哈希比对，成功后删除键并继续后续业务。';
   if (action.includes('请求上传/登录接口')) return '业务入口步骤：先执行限流计数和阈值判断，通过后才进入后续上传/登录业务。';
-  if (action.includes('发布评论 / 切换收藏')) return '前端触发评论或收藏写操作，后端先更新 MySQL，再按业务类型更新 Redis 一致性键。';
+  if (action.includes('发布评论 / 设置收藏')) return '前端触发评论或收藏写操作，后端先更新 MySQL，再按业务类型更新 Redis 一致性键。';
   if (action === 'user') return 'MySQL 返回用户记录（含角色与审核地区）供后端签发会话并写入 Redis。';
   if (action.includes('返回 captchaId + 图片')) return '后端返回 captchaId 和验证码图片；前端后续登录请求必须携带该 captchaId 与输入值。';
   if (action.includes('返回 token')) return '会话写入 Redis 成功后返回 token 给前端；后续请求通过 token 命中 busgallery:sessions:{token} 维持登录态。';
@@ -2555,7 +2555,7 @@ const redisConsistencyCards = [
   {
     title: '收藏覆盖写',
     desc: '收藏不是删缓存等回源，而是直接把 summary 和 liked 写成最新值，用户点完立刻看到新状态。',
-    trigger: '切换收藏',
+    trigger: '设置收藏',
     key: 'bg:fav:summary:* / bg:fav:liked:*',
     result: '写后读立即一致',
     tone: 'emerald'
@@ -2570,7 +2570,7 @@ const redisKeyGroupMeta = {
   '幂等': { tone: 'indigo', summary: '上传入口通过占位键拒绝重复提交' },
   '车辆列表缓存': { tone: 'sky', summary: 'version + page key 驱动分页缓存一致性' },
   '评论缓存': { tone: 'cyan', summary: '评论 list/count 通过版本键整体切换' },
-  '收藏缓存': { tone: 'emerald', summary: 'toggle 后直接覆盖写回最新摘要' },
+  '收藏缓存': { tone: 'emerald', summary: 'set-liked 后直接覆盖写回最新摘要' },
   '快照缓存': { tone: 'amber', summary: 'latest/version/stale/lock 负责热点快照与防击穿' }
 };
 const redisKeyGroupCards = computed(() => {
@@ -2874,7 +2874,7 @@ function cnName(api) {
   if (g === 'User') { if (p.endsWith('/me')) return '获取当前用户资料'; if (p.endsWith('/me/display-name')) return '修改用户昵称'; if (p.endsWith('/me/images')) return '获取我的图片'; if (p.includes('/images')) return '获取指定用户图片'; return '获取指定用户资料'; }
   if (g === 'Vehicle') { if (m === 'GET' && p === '/api/vehicles') return '查询车辆分页列表'; if (m === 'GET' && p === '/api/vehicles/manage') return '查询审核中心车辆管理列表'; if (m === 'GET' && p.includes('/plate/')) return '按车牌查询车辆分组'; if (m === 'GET') return '查询车辆详情'; if (m === 'POST') return '新增车辆'; if (m === 'PUT') return '更新车辆'; return '删除车辆'; }
   if (g === 'Comment') return m === 'GET' ? '查询车辆评论列表' : m === 'POST' ? '发布车辆评论' : '删除车辆评论';
-  if (g === 'Favorite') return p.endsWith('/toggle') ? '切换收藏状态' : p.endsWith('/summary') ? '查询收藏摘要' : '查询收藏列表';
+  if (g === 'Favorite') return (m === 'PUT' && p === '/api/favorites/{vehicleId}') ? '设置收藏状态' : p.endsWith('/summary') ? '查询收藏摘要' : '查询收藏列表';
   if (g === 'Upload') return '上传车辆与图片';
   if (g === 'Image') { if (p.includes('/access/')) return '按签名访问图片'; if (p.endsWith('/latest')) return '查询最新图片'; if (p.includes('/vehicle/')) return '查询车辆图片'; if (m === 'GET') return '查询图片详情'; if (m === 'POST') return '上传图片'; if (m === 'PUT') return '更新图片信息'; return '删除图片'; }
   if (g === 'Review') return p.endsWith('/inbox') ? '查询审核收件箱' : p.endsWith('/pending') ? '查询待审核列表' : p.includes('/approve') ? '通过审核' : p.includes('/reject') ? '驳回审核' : '更新审核提交';
@@ -3067,7 +3067,7 @@ const flowInterviewNotes = {
     { tag: '会话方案', title: '为什么不是 JWT', explain: 'Redis Session 支持实时失效、踢人和风控状态共享，后台可控性更强。' }
   ],
   'WF-04': [
-    { tag: '写后读一致', title: '互动数据如何更新', explain: '评论新增/删除通过版本键切换缓存，收藏切换通过 summary+liked 覆盖写；写库成功后再发 MQ 事件做异步副作用。' },
+    { tag: '写后读一致', title: '互动数据如何更新', explain: '评论新增/删除通过版本键切换缓存，收藏 set-liked 通过 summary+liked 覆盖写；写库成功后再发 MQ 事件做异步副作用。' },
     { tag: '异步边界', title: '为什么 afterCommit 再发 MQ', explain: '确保数据库事务提交成功后才发布事件，避免回滚时出现脏消息导致下游误处理。' }
   ],
   'WF-05': [

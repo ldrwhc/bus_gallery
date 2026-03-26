@@ -38,8 +38,12 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { fetchVehiclesByPlate } from '@/api/vehicles';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
 import { formatYearMonth } from '@/utils/formatters';
+
+const plateVariantCache = new Map();
+const plateVariantRequestMap = new Map();
 
 const props = defineProps({
     vehicle: {
@@ -63,6 +67,87 @@ const props = defineProps({
 const emit = defineEmits(['view-detail']);
 
 const currentIndex = ref(0);
+const remoteVariants = ref([]);
+
+const normalizePlate = (plate) => String(plate || '').replace(/\s+/g, '').trim();
+
+const normalizeVariantRecord = (item, fallbackIndex = 0) => {
+    if (!item) {
+        return null;
+    }
+    const vehicle = item.vehicle || item;
+    if (!vehicle) {
+        return null;
+    }
+    const images = Array.isArray(item.images) ? item.images : [];
+    return {
+        vehicle,
+        vehicleConfig: item.vehicleConfig || item.config || null,
+        images,
+        __fallbackIndex: fallbackIndex
+    };
+};
+
+const dedupeVariants = (source = []) => {
+    const result = [];
+    const seen = new Set();
+    source.forEach((variant, index) => {
+        const normalized = normalizeVariantRecord(variant, index);
+        if (!normalized?.vehicle) {
+            return;
+        }
+        const vehicleId = normalized.vehicle.id;
+        const plate = normalizePlate(normalized.vehicle.plateNumber);
+        const key = vehicleId != null ? `vid:${vehicleId}` : `plate:${plate}:idx:${index}`;
+        if (seen.has(key)) {
+            return;
+        }
+        seen.add(key);
+        result.push(normalized);
+    });
+    return result;
+};
+
+const loadPlateVariants = async (plateNumber) => {
+    const normalizedPlate = normalizePlate(plateNumber);
+    if (!normalizedPlate) {
+        remoteVariants.value = [];
+        return;
+    }
+
+    const cached = plateVariantCache.get(normalizedPlate);
+    if (cached) {
+        remoteVariants.value = cached;
+        return;
+    }
+
+    let pending = plateVariantRequestMap.get(normalizedPlate);
+    if (!pending) {
+        pending = fetchVehiclesByPlate(normalizedPlate)
+            .then((resp) => {
+                const list = Array.isArray(resp?.variants) ? resp.variants : [];
+                const normalized = dedupeVariants(list);
+                plateVariantCache.set(normalizedPlate, normalized);
+                return normalized;
+            })
+            .catch(() => [])
+            .finally(() => {
+                plateVariantRequestMap.delete(normalizedPlate);
+            });
+        plateVariantRequestMap.set(normalizedPlate, pending);
+    }
+
+    const latest = await pending;
+    remoteVariants.value = latest;
+};
+
+watch(
+    () => props.vehicle?.plateNumber,
+    (plate) => {
+        loadPlateVariants(plate);
+    },
+    { immediate: true }
+);
 
 watch(
     () => [props.variants, props.variantCount, props.vehicle?.id],
@@ -71,32 +156,31 @@ watch(
     }
 );
 
-const normalizedVariants = computed(() => {
+const localVariants = computed(() => {
     const source = Array.isArray(props.variants) && props.variants.length
         ? props.variants
         : [{ vehicle: props.vehicle, images: props.images }];
-    const result = [];
-    const seen = new Set();
-    source.forEach((variant, index) => {
-        const vehicleId = variant?.vehicle?.id;
-        const key = vehicleId != null
-            ? `vid:${vehicleId}`
-            : `fallback:${variant?.vehicle?.plateNumber || ''}:${index}`;
-        if (seen.has(key)) {
-            return;
-        }
-        seen.add(key);
-        result.push(variant);
-    });
-    return result;
+    return dedupeVariants(source);
 });
+
+const normalizedVariants = computed(() => dedupeVariants([
+    ...localVariants.value,
+    ...remoteVariants.value
+]));
+
+watch(
+    () => normalizedVariants.value.length,
+    (length) => {
+        if (currentIndex.value >= length) {
+            currentIndex.value = 0;
+        }
+    }
+);
 
 const variantTotal = computed(() => {
     const count = Number(props.variantCount);
-    if (Number.isFinite(count) && count > 0) {
-        return count;
-    }
-    return normalizedVariants.value.length;
+    const localCount = Number.isFinite(count) && count > 0 ? count : 0;
+    return Math.max(localCount, normalizedVariants.value.length);
 });
 
 const currentVariant = computed(() => normalizedVariants.value?.[currentIndex.value] || { vehicle: props.vehicle, images: props.images });

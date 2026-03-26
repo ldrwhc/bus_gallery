@@ -251,7 +251,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import ImageCarousel from './ImageCarousel.vue';
-import { fetchFavoriteSummary, toggleFavorite } from '@/api/vehicles';
+import { fetchFavoriteSummary, setFavorite } from '@/api/vehicles';
 import { CONFIG_INFO_FIELDS, VEHICLE_INFO_FIELDS } from '@/utils/constants';
 import { formatBoolean, formatFuelType, formatYearMonth } from '@/utils/formatters';
 import { isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
@@ -469,7 +469,7 @@ const syncLike = async (id) => {
     if (liked.value === syncedLiked.value) return;
     likeLoading.value = true;
     try {
-        const resp = await toggleFavorite(id);
+        const resp = await setFavorite(id, liked.value);
         liked.value = resp?.liked || false;
         likeTotal.value = resp?.total || 0;
         likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);

@@ -13,6 +13,7 @@ import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -44,36 +45,46 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     @Override
     @Transactional
-    public FavoriteSummary toggle(Long vehicleId, Long userId) {
+    public FavoriteSummary setLiked(Long vehicleId, Long userId, boolean liked) {
         var vehicle = vehicleService.findById(vehicleId);
         if (vehicle == null) {
             throw new NotFoundException("Vehicle not found");
         }
         VehicleFavorite existing = favoriteMapper.select(vehicleId, userId);
-        boolean liked;
-        if (existing == null) {
-            VehicleFavorite favorite = new VehicleFavorite();
-            favorite.setVehicleId(vehicleId);
-            favorite.setUserId(userId);
-            favoriteMapper.insert(favorite);
-            liked = true;
+        boolean changed = false;
+        if (liked) {
+            if (existing == null) {
+                VehicleFavorite favorite = new VehicleFavorite();
+                favorite.setVehicleId(vehicleId);
+                favorite.setUserId(userId);
+                try {
+                    favoriteMapper.insert(favorite);
+                    changed = true;
+                } catch (DuplicateKeyException ignore) {
+                    // Concurrent set-liked requests may race; treat duplicate insert as idempotent no-op.
+                }
+            }
         } else {
-            favoriteMapper.delete(vehicleId, userId);
-            liked = false;
+            if (existing != null) {
+                int affected = favoriteMapper.delete(vehicleId, userId);
+                changed = affected > 0;
+            }
         }
         long total = favoriteMapper.countByVehicle(vehicleId);
         List<UserLike> topUsers = buildTopUsers(vehicleId, userId);
         FavoriteSummary summary = new FavoriteSummary(liked, total, topUsers);
         cacheSummary(vehicleId, summary);
         cacheLiked(vehicleId, userId, liked);
-        busEventPublisher.publishFavoriteToggled(FavoriteToggledEvent.builder()
-                .vehicleId(vehicleId)
-                .plateNumber(vehicle.getPlateNumber())
-                .userId(userId)
-                .liked(liked)
-                .totalFavorites(total)
-                .createdAt(LocalDateTime.now())
-                .build());
+        if (changed) {
+            busEventPublisher.publishFavoriteToggled(FavoriteToggledEvent.builder()
+                    .vehicleId(vehicleId)
+                    .plateNumber(vehicle.getPlateNumber())
+                    .userId(userId)
+                    .liked(liked)
+                    .totalFavorites(total)
+                    .createdAt(LocalDateTime.now())
+                    .build());
+        }
         return summary;
     }
 

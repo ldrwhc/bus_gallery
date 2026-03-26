@@ -181,7 +181,7 @@ import VehicleCard from '@/components/VehicleCard.vue';
 import {
     fetchVehicleGallery,
     fetchFavoriteSummary,
-    toggleFavorite,
+    setFavorite,
     fetchVehiclesByPlate
 } from '@/api/vehicles';
 
@@ -479,7 +479,7 @@ const syncLike = async () => {
     if (liked.value === syncedLiked.value) return;
     likeLoading.value = true;
     try {
-        const resp = await toggleFavorite(id);
+        const resp = await setFavorite(id, liked.value);
         liked.value = resp?.liked || false;
         likeTotal.value = resp?.total || 0;
         likes.value = mapUsers(resp?.topUsers || []).slice(0, 2);

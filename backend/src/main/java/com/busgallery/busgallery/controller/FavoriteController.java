@@ -3,6 +3,8 @@ package com.busgallery.busgallery.controller;
 import com.busgallery.busgallery.auth.AuthContextHolder;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.exception.BizException;
+import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.service.FavoriteService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -17,11 +19,14 @@ public class FavoriteController {
 
     private final FavoriteService favoriteService;
 
-    @PostMapping("/{vehicleId}/toggle")
+    @PutMapping("/{vehicleId}")
     @RequireLogin
-    public FavoriteResponse toggle(@PathVariable Long vehicleId) {
+    public FavoriteResponse setLiked(@PathVariable Long vehicleId, @RequestBody SetFavoriteRequest request) {
+        if (request == null || request.getLiked() == null) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "liked is required");
+        }
         Long userId = AuthContextHolder.requireUser().getUserId();
-        FavoriteService.FavoriteSummary summary = favoriteService.toggle(vehicleId, userId);
+        FavoriteService.FavoriteSummary summary = favoriteService.setLiked(vehicleId, userId, request.getLiked());
         return FavoriteResponse.from(summary);
     }
 
@@ -31,6 +36,11 @@ public class FavoriteController {
         Long currentUserId = session != null ? session.getUserId() : null;
         FavoriteService.FavoriteSummary summary = favoriteService.summary(vehicleId, currentUserId);
         return FavoriteResponse.from(summary);
+    }
+
+    @Data
+    public static class SetFavoriteRequest {
+        private Boolean liked;
     }
 
     @GetMapping
