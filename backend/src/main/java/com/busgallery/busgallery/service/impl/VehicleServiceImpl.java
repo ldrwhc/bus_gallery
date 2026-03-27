@@ -1,6 +1,7 @@
 package com.busgallery.busgallery.service.impl;
 
 import com.busgallery.busgallery.entity.*;
+import com.busgallery.busgallery.dto.vehicle.ModelSummaryRow;
 import com.busgallery.busgallery.mapper.*;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
@@ -33,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class VehicleServiceImpl implements VehicleService {
 
-    private static final int MAX_PAGE_SIZE = 12;
+    private static final int MAX_PAGE_SIZE = 30;
     private static final int VEHICLE_IMAGE_DEADLOCK_MAX_RETRIES = 5;
     private static final long VEHICLE_IMAGE_RETRY_BASE_DELAY_MS = 50L;
 
@@ -86,11 +87,29 @@ public class VehicleServiceImpl implements VehicleService {
         return list;
     }
 
+    @Override
+    public List<ModelSummaryRow> listModelSummariesByCompany(Long companyId) {
+        if (companyId == null) {
+            return List.of();
+        }
+        return vehicleMapper.selectModelSummariesByCompany(companyId);
+    }
+
     public List<Vehicle> queryPage(int size, Long regionId, Long companyId, Long brandId, Long modelId, String keyword, java.time.LocalDate lastLaunch, Long lastId) {
         int pageSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
         List<Vehicle> list = vehicleMapper.selectPageByCursor(pageSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         list.forEach(this::populateVehicleRelations);
         return list;
+    }
+
+    @Override
+    public Vehicle findRandomByCompanyAndModel(Long companyId, Long modelId) {
+        if (companyId == null || modelId == null) {
+            return null;
+        }
+        Vehicle vehicle = vehicleMapper.selectRandomByCompanyAndModel(companyId, modelId);
+        populateVehicleRelations(vehicle);
+        return vehicle;
     }
 
     @Override

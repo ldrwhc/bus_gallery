@@ -160,6 +160,25 @@
                 id DESC
         </select>
 
+        <select id="selectModelSummariesByCompany" resultType="com.busgallery.busgallery.dto.vehicle.ModelSummaryRow">
+                SELECT DISTINCT
+                        m.id AS modelId,
+                        m.name AS modelName
+                FROM vehicle v
+                INNER JOIN model m ON v.model_id = m.id
+                WHERE v.company_id = #{companyId}
+                ORDER BY m.name ASC
+        </select>
+
+        <select id="selectRandomByCompanyAndModel" resultMap="VehicleResultMap">
+                SELECT <include refid="BaseColumnList"/>
+                FROM vehicle
+                WHERE company_id = #{companyId}
+                  AND model_id = #{modelId}
+                ORDER BY RAND()
+                LIMIT 1
+        </select>
+
         <select id="selectPageByCursor" resultMap="VehicleResultMap">
                 SELECT <include refid="BaseColumnList"/>
                 FROM vehicle v

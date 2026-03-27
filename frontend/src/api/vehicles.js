@@ -32,6 +32,9 @@ export const fetchVehicleGallery = (params = {}) =>
         nextId: response?.nextId ?? null
     }));
 
+export const fetchRandomVehicleSample = (companyId, modelId) =>
+    http.get('/vehicles/sample', { params: { companyId, modelId } });
+
 export const fetchManageVehiclePage = (params = {}) =>
     http.get('/vehicles/manage', { params }).then((response) => ({
         records: normalizeRecords(response),

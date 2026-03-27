@@ -79,82 +79,12 @@
                         </div>
                     </div>
 
-                    <section v-if="summaryLoading && !companyModelSummaries.length" class="state state--loading">
-                        正在加载车型汇总...
-                    </section>
-
-                    <section v-else-if="!companyModelSummaries.length" class="state state--empty">
-                        暂无车型汇总数据
-                    </section>
-
-                    <section v-else class="summary-grid">
-                        <article
-                            v-for="summary in companyModelSummaries"
-                            :key="summary.modelId || summary.modelName"
-                            class="summary-card"
-                        >
-                            <div class="summary-card__meta">
-                                <p class="summary-card__title">{{ summary.modelName || '未命名车型' }}</p>
-                            </div>
-                            <button
-                                class="text-btn"
-                                type="button"
-                                @click="openModelVehicles(summary)"
-                            >
-                                查看该车型车辆
-                            </button>
-                        </article>
-                    </section>
-
-                    <div class="filter-grid">
-                        <div v-if="activeModelName" class="filter-line">
-                            <span class="filter-label">当前车型</span>
-                            <div class="chip-row">
-                                <button type="button" class="filter-chip active" @click="clearModelFocus">
-                                    {{ activeModelName }} · 清除
-                                </button>
-                            </div>
-                        </div>
-                        <div v-if="vehicleFilterOptions.years.length" class="filter-line">
-                            <span class="filter-label">年份</span>
-                            <div class="chip-row">
-                                <button
-                                    v-for="year in vehicleFilterOptions.years"
-                                    :key="year"
-                                    type="button"
-                                    :class="['filter-chip', { active: vehicleFilters.year === year }]"
-                                    @click="vehicleFilters.year = vehicleFilters.year === year ? '' : year"
-                                >
-                                    {{ year }}
-                                </button>
-                            </div>
-                        </div>
-                        <div v-if="vehicleFilterOptions.brands.length" class="filter-line">
-                            <span class="filter-label">品牌</span>
-                            <div class="chip-row">
-                                <button
-                                    v-for="brand in vehicleFilterOptions.brands"
-                                    :key="brand"
-                                    type="button"
-                                    :class="['filter-chip', { active: vehicleFilters.brand === brand }]"
-                                    @click="vehicleFilters.brand = vehicleFilters.brand === brand ? '' : brand"
-                                >
-                                    {{ brand }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <section v-if="detailLoading || vehiclesLoading" class="state state--loading">
-                        正在加载车辆明细...
-                    </section>
-
-                    <section v-else-if="!hasVehiclePayload" class="state state--empty">
-                        点击上方车型卡片后，再按需加载车辆明细
+                    <section v-if="detailLoading || summaryLoading || modelCardsLoading" class="state state--loading">
+                        正在加载车型卡片...
                     </section>
 
                     <section v-else-if="!groupedVehicleTimeline.length" class="state state--empty">
-                        暂无符合筛选条件的车辆数据
+                        暂无车型数据
                     </section>
 
                     <section v-else class="timeline">
@@ -172,7 +102,7 @@
                                             {{ item.modelName }}
                                         </router-link>
                                         <button
-                                            v-if="isAuthenticated && item.vehicles?.length"
+                                            v-if="isAuthenticated"
                                             class="menu-btn"
                                             type="button"
                                             @click="openVehicleList(group.year, item)"
@@ -183,7 +113,7 @@
                                     <div class="detail-card__image">
                                         <img :src="item.coverImage || placeholderLogo" :alt="item.modelName" loading="lazy" decoding="async" />
                                     </div>
-                                    <p class="detail-card__caption">上线年份：{{ group.year }}</p>
+                                    <p class="detail-card__caption">样本年份：{{ item.sampleYear || '未知' }}</p>
                                 </div>
                             </div>
                         </article>
@@ -203,6 +133,27 @@
                             </div>
                             <button class="close-btn" type="button" @click="closeVehicleList">×</button>
                         </header>
+                        <div class="vehicle-overlay__pager">
+                            <button
+                                class="pager-btn"
+                                type="button"
+                                :disabled="vehicleListLoading || vehicleListPage <= 1"
+                                @click="loadVehicleListPage(vehicleListPage - 1)"
+                            >
+                                上一页
+                            </button>
+                            <span class="pager-text">
+                                第 {{ vehicleListPage }} 页 · 每页 {{ vehicleListPageSize }} 条 · 共 {{ vehicleListTotal }} 条
+                            </span>
+                            <button
+                                class="pager-btn"
+                                type="button"
+                                :disabled="vehicleListLoading || !vehicleListHasNext"
+                                @click="loadVehicleListPage(vehicleListPage + 1)"
+                            >
+                                下一页
+                            </button>
+                        </div>
                         <div class="vehicle-overlay__content">
                             <table class="vehicle-overlay__table">
                                 <thead>
@@ -213,6 +164,12 @@
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    <tr v-if="vehicleListLoading">
+                                        <td colspan="3">正在加载...</td>
+                                    </tr>
+                                    <tr v-else-if="!groupedVehicleRows.length">
+                                        <td colspan="3">暂无车辆</td>
+                                    </tr>
                                     <tr v-for="row in groupedVehicleRows" :key="row.key">
                                         <td>
                                             <span class="plate">{{ row.plate }}</span>
@@ -266,10 +223,11 @@
 </template>
 
 <script setup>
-import { computed, ref, reactive, watch, onMounted, defineAsyncComponent } from 'vue';
+import { computed, ref, watch, onMounted, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
+import { fetchVehicleGallery, fetchRandomVehicleSample } from '@/api/vehicles';
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
 const store = useStore();
@@ -332,82 +290,30 @@ const companyModelSummaries = computed(() =>
         : []
 );
 
-const companyVehicles = computed(() =>
-    selectedCompanyId.value ? store.state.companies.vehiclesByCompany[selectedCompanyId.value] || [] : []
-);
-
-const hasVehiclePayload = computed(
-    () =>
-        Boolean(
-            selectedCompanyId.value &&
-                store.state.companies.vehiclesFetchedAtMap?.[selectedCompanyId.value]
-        )
-);
-
-const activeModelId = ref(null);
-
-const vehicleFilters = reactive({
-    year: '',
-    brand: ''
-});
-
-const vehicleFilterOptions = computed(() => {
-    const years = new Set();
-    const brands = new Set();
-    companyVehicles.value.forEach((detail) => {
-        const year = formatYearValue(detail.vehicle?.launchDate);
-        if (year) years.add(year);
-        const brandName =
-            detail.vehicle?.model?.brand?.name ||
-            detail.vehicleConfig?.brandName ||
-            detail.vehicle?.brandName;
-        if (brandName) brands.add(brandName);
-    });
-    return {
-        years: Array.from(years),
-        brands: Array.from(brands)
-    };
-});
-
-const filteredCompanyVehicles = computed(() =>
-    companyVehicles.value.filter((detail) => {
-        const year = formatYearValue(detail.vehicle?.launchDate);
-        const modelId = detail.vehicle?.model?.id || detail.vehicleConfig?.modelId || null;
-        const brandName =
-            detail.vehicle?.model?.brand?.name ||
-            detail.vehicleConfig?.brandName ||
-            detail.vehicle?.brandName;
-        const matchYear = !vehicleFilters.year || vehicleFilters.year === year;
-        const matchBrand = !vehicleFilters.brand || vehicleFilters.brand === brandName;
-        const matchModel = !activeModelId.value || Number(activeModelId.value) === Number(modelId);
-        return matchYear && matchBrand && matchModel;
-    })
-);
+const modelCardsLoading = ref(false);
+const modelCardMap = ref({});
 
 const detailLoading = computed(() =>
     selectedCompanyId.value ? store.state.companies.detailLoadingMap[selectedCompanyId.value] : false
-);
-
-const vehiclesLoading = computed(() =>
-    selectedCompanyId.value ? store.state.companies.vehiclesLoadingMap[selectedCompanyId.value] : false
 );
 
 const summaryLoading = computed(() =>
     selectedCompanyId.value ? store.state.companies.summaryLoadingMap[selectedCompanyId.value] : false
 );
 
-const activeModelName = computed(() => {
-    if (!activeModelId.value) return '';
-    const hit = companyModelSummaries.value.find(
-        (summary) => Number(summary.modelId) === Number(activeModelId.value)
-    );
-    return hit?.modelName || '';
-});
-
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
 const vehicleListVisible = ref(false);
 const vehicleListTitle = ref('');
 const vehicleListItems = ref([]);
+const vehicleListPage = ref(1);
+const vehicleListTotal = ref(0);
+const vehicleListHasNext = ref(false);
+const vehicleListLoading = ref(false);
+const vehicleListPageSize = 30;
+const vehicleListCursorByPage = ref({
+    1: { lastLaunch: null, lastId: null }
+});
+const vehicleListModelId = ref(null);
 const activeVehicleId = ref(null);
 
 const groupedVehicleRows = computed(() => {
@@ -483,12 +389,59 @@ const companyRegionName = computed(() => {
     return '地区待补充';
 });
 
+const modelCardsToken = ref(0);
+const loadModelCards = async (companyId, summaries = []) => {
+    const token = ++modelCardsToken.value;
+    if (!companyId || !Array.isArray(summaries) || !summaries.length) {
+        modelCardMap.value = {};
+        modelCardsLoading.value = false;
+        return;
+    }
+    modelCardsLoading.value = true;
+    const entries = await Promise.all(
+        summaries.map(async (summary) => {
+            const modelId = Number(summary?.modelId || 0);
+            if (!modelId) return [modelId, null];
+            try {
+                const sample = await fetchRandomVehicleSample(companyId, modelId);
+                const sampleImages = Array.isArray(sample?.images) ? sample.images : [];
+                const coverImage = resolveImage(sampleImages) || summary?.thumbnailUrl || null;
+                return [
+                    modelId,
+                    {
+                        vehicleId: sample?.vehicle?.id || null,
+                        coverImage,
+                        sampleYear: formatYearValue(sample?.vehicle?.launchDate)
+                    }
+                ];
+            } catch (error) {
+                return [
+                    modelId,
+                    {
+                        vehicleId: null,
+                        coverImage: summary?.thumbnailUrl || null,
+                        sampleYear: '年份未知'
+                    }
+                ];
+            }
+        })
+    );
+
+    if (token !== modelCardsToken.value) {
+        return;
+    }
+    modelCardMap.value = Object.fromEntries(entries.filter(([modelId]) => Number(modelId) > 0));
+    modelCardsLoading.value = false;
+};
+
 const groupedVehicleTimeline = computed(() => {
-    if (!filteredCompanyVehicles.value.length) return [];
+    if (!companyModelSummaries.value.length) return [];
     const yearMap = new Map();
-    filteredCompanyVehicles.value.forEach((detail) => {
-        const year = formatYearValue(detail.vehicle?.launchDate);
-        const modelId = detail.vehicle?.model?.id || detail.vehicleConfig?.modelId || detail.vehicle?.id;
+    companyModelSummaries.value.forEach((summary) => {
+        const modelId = Number(summary?.modelId || 0);
+        if (!modelId) return;
+        const card = modelCardMap.value[modelId] || {};
+        const year = card.sampleYear || '年份未知';
         const yearBucket = yearMap.get(year) || new Map();
         if (!yearMap.has(year)) {
             yearMap.set(year, yearBucket);
@@ -497,19 +450,22 @@ const groupedVehicleTimeline = computed(() => {
         if (!entry) {
             entry = {
                 modelId,
-                modelName: detail.vehicle?.model?.name || detail.vehicleConfig?.modelName || '未命名车型',
-                vehicles: [],
-                coverImage: resolveImage(detail.images)
+                modelName: summary?.modelName || '未命名车型',
+                coverImage: card.coverImage || summary?.thumbnailUrl || null,
+                sampleYear: card.sampleYear || '年份未知'
             };
             yearBucket.set(modelId, entry);
         }
-        if (!entry.coverImage) {
-            entry.coverImage = resolveImage(detail.images);
-        }
-        entry.vehicles.push(detail);
     });
     return Array.from(yearMap.entries())
-        .sort((a, b) => Number(b[0]) - Number(a[0]))
+        .sort((a, b) => {
+            const aNum = Number(a[0]);
+            const bNum = Number(b[0]);
+            if (Number.isNaN(aNum) && Number.isNaN(bNum)) return 0;
+            if (Number.isNaN(aNum)) return 1;
+            if (Number.isNaN(bNum)) return -1;
+            return bNum - aNum;
+        })
         .map(([year, modelMap]) => ({
             year,
             items: Array.from(modelMap.values())
@@ -518,32 +474,64 @@ const groupedVehicleTimeline = computed(() => {
 
 const getCardKey = (year, item) => `${year}-${item.modelId || item.modelName}`;
 
-const openModelVehicles = async (summary) => {
-    if (!selectedCompanyId.value || !summary?.modelId) return;
-    activeModelId.value = Number(summary.modelId);
+const loadVehicleListPage = async (targetPage) => {
+    if (!selectedCompanyId.value || !vehicleListModelId.value) return;
+    const page = Math.max(1, Number(targetPage) || 1);
+    const cursor = vehicleListCursorByPage.value[page];
+    if (page > 1 && !cursor) {
+        return;
+    }
+    vehicleListLoading.value = true;
     try {
-        await store.dispatch('companies/loadCompanyVehicles', {
-            companyId: selectedCompanyId.value
+        const response = await fetchVehicleGallery({
+            size: vehicleListPageSize,
+            companyId: selectedCompanyId.value,
+            modelId: vehicleListModelId.value,
+            ...(cursor?.lastLaunch ? { lastLaunch: cursor.lastLaunch } : {}),
+            ...(cursor?.lastId ? { lastId: cursor.lastId } : {})
         });
-    } catch (error) {
-        console.error(error);
+        const records = Array.isArray(response?.records) ? response.records : [];
+        vehicleListItems.value = records;
+        vehicleListPage.value = page;
+        vehicleListTotal.value = Number(response?.total || 0);
+        vehicleListHasNext.value = response?.nextLaunch != null || response?.nextId != null;
+        if (vehicleListHasNext.value) {
+            vehicleListCursorByPage.value[page + 1] = {
+                lastLaunch: response?.nextLaunch || null,
+                lastId: response?.nextId || null
+            };
+        } else {
+            delete vehicleListCursorByPage.value[page + 1];
+        }
+    } finally {
+        vehicleListLoading.value = false;
     }
 };
 
-const clearModelFocus = () => {
-    activeModelId.value = null;
-};
-
 const openVehicleList = (year, item) => {
-    if (!Array.isArray(item.vehicles) || !item.vehicles.length) return;
+    if (!item?.modelId) return;
     vehicleListTitle.value = `${item.modelName} · ${year}`;
-    vehicleListItems.value = item.vehicles;
+    vehicleListModelId.value = Number(item.modelId);
+    vehicleListCursorByPage.value = {
+        1: { lastLaunch: null, lastId: null }
+    };
+    vehicleListPage.value = 1;
+    vehicleListTotal.value = 0;
+    vehicleListHasNext.value = false;
+    vehicleListItems.value = [];
     vehicleListVisible.value = true;
+    loadVehicleListPage(1).catch((error) => {
+        console.error(error);
+    });
 };
 
 const closeVehicleList = () => {
     vehicleListVisible.value = false;
     vehicleListItems.value = [];
+    vehicleListModelId.value = null;
+    vehicleListCursorByPage.value = {
+        1: { lastLaunch: null, lastId: null }
+    };
 };
 
 const vehicleDetailVisible = computed(() => Boolean(activeVehicleId.value));
@@ -571,18 +559,25 @@ const closeVehicleDetail = () => {
 
 watch(
     () => selectedCompanyId.value,
-    (id) => {
-        vehicleFilters.year = '';
-        vehicleFilters.brand = '';
-        activeModelId.value = null;
+    async (id) => {
         closeVehicleList();
 
         if (!id) {
             store.dispatch('companies/loadCompanyCatalog');
+            modelCardMap.value = {};
+            modelCardsLoading.value = false;
             return;
         }
-        store.dispatch('companies/loadCompanyDetail', { companyId: id });
-        store.dispatch('companies/loadCompanyModelSummaries', { companyId: id });
+        try {
+            await Promise.all([
+                store.dispatch('companies/loadCompanyDetail', { companyId: id }),
+                store.dispatch('companies/loadCompanyModelSummaries', { companyId: id })
+            ]);
+            await loadModelCards(id, companyModelSummaries.value);
+        } catch (error) {
+            modelCardsLoading.value = false;
+            console.error(error);
+        }
     },
     { immediate: true }
 );
@@ -935,6 +930,35 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+}
+
+.vehicle-overlay__pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.pager-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+    color: #1e293b;
+}
+
+.pager-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.pager-text {
+    color: #475569;
+    font-size: 0.9rem;
 }
 
 .vehicle-overlay__eyebrow {

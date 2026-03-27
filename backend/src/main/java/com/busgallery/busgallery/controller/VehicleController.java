@@ -85,6 +85,18 @@ public class VehicleController {
         return pageInternal(size, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
     }
 
+    @GetMapping("/sample")
+    public VehicleSummary randomSample(@RequestParam Long companyId,
+                                       @RequestParam Long modelId) {
+        Vehicle vehicle = vehicleService.findRandomByCompanyAndModel(companyId, modelId);
+        if (vehicle == null) {
+            return new VehicleSummary(null, Collections.emptyList());
+        }
+        List<ImageDTO> images = mapImages(imageService.listByVehicle(vehicle.getId()));
+        refreshSignedUrls(images);
+        return new VehicleSummary(mapVehicle(vehicle), images);
+    }
+
     @GetMapping("/manage")
     @RequireLogin
     public VehiclePageResponse managePage(@RequestParam(defaultValue = "12") int size,

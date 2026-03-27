@@ -1,6 +1,7 @@
 package com.busgallery.busgallery.mapper;
 
 import com.busgallery.busgallery.entity.Vehicle;
+import com.busgallery.busgallery.dto.vehicle.ModelSummaryRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -25,6 +26,11 @@ public interface VehicleMapper {
     List<Vehicle> selectByCompanyId(@Param("companyId") Long companyId);
 
     List<Vehicle> selectByModelId(@Param("modelId") Long modelId);
+
+    List<ModelSummaryRow> selectModelSummariesByCompany(@Param("companyId") Long companyId);
+
+    Vehicle selectRandomByCompanyAndModel(@Param("companyId") Long companyId,
+                                          @Param("modelId") Long modelId);
 
     List<Vehicle> selectPageByCursor(@Param("limit") int limit,
                                      @Param("regionId") Long regionId,

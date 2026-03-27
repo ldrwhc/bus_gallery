@@ -4,6 +4,7 @@ import com.busgallery.busgallery.entity.Company;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.entity.VehicleConfig;
+import com.busgallery.busgallery.dto.vehicle.ModelSummaryRow;
 import com.busgallery.busgallery.service.CompanyService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
@@ -11,8 +12,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -74,24 +73,10 @@ public class CompanyController {
      */
     @GetMapping("/{id}/model-summaries")
     public List<ModelSummary> listModelSummaries(@PathVariable Long id) {
-        List<Vehicle> vehicles = vehicleService.listByCompany(id);
-        Map<Long, ModelSummary> summaryMap = new LinkedHashMap<>();
-        for (Vehicle vehicle : vehicles) {
-            if (vehicle.getModel() == null) {
-                continue;
-            }
-            Long modelId = vehicle.getModel().getId();
-            ModelSummary summary = summaryMap.computeIfAbsent(modelId, key ->
-                    new ModelSummary(modelId, vehicle.getModel().getName(), null));
-            if (!StringUtils.hasText(summary.getThumbnailUrl())) {
-                List<Image> images = imageService.listByVehicle(vehicle.getId());
-                if (!CollectionUtils.isEmpty(images)) {
-                    Image img = images.get(0);
-                    summary.setThumbnailUrl(StringUtils.hasText(img.getThumbnailUrl()) ? img.getThumbnailUrl() : img.getUrl());
-                }
-            }
-        }
-        return new ArrayList<>(summaryMap.values());
+        List<ModelSummaryRow> rows = vehicleService.listModelSummariesByCompany(id);
+        return rows.stream()
+                .map(row -> new ModelSummary(row.getModelId(), row.getModelName(), null))
+                .toList();
     }
 
     /**

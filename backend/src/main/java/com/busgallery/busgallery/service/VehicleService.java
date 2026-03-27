@@ -2,6 +2,7 @@ package com.busgallery.busgallery.service;
 
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.entity.VehicleConfig;
+import com.busgallery.busgallery.dto.vehicle.ModelSummaryRow;
 
 import java.util.List;
 
@@ -19,7 +20,11 @@ public interface VehicleService {
 
     List<Vehicle> listByModel(Long modelId);
 
+    List<ModelSummaryRow> listModelSummariesByCompany(Long companyId);
+
     List<Vehicle> queryPage(int size, Long regionId, Long companyId, Long brandId, Long modelId, String keyword, java.time.LocalDate lastLaunch, Long lastId);
+
+    Vehicle findRandomByCompanyAndModel(Long companyId, Long modelId);
 
     List<Vehicle> listHotByViewCount(int limit);
 
