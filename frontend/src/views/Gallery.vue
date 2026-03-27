@@ -77,6 +77,7 @@
 import { computed, reactive, ref, watch, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
+import { fetchVehicleGallery } from '@/api/vehicles';
 import VehicleCard from '@/components/Gallery/VehicleCard.vue';
 
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
@@ -212,6 +213,38 @@ const getCursorForPage = (targetPage) => {
     return cursorByPage.value[targetPage] || null;
 };
 
+const ensureCursorForPage = async (targetPage, filterPayload, token) => {
+    if (targetPage <= 1) {
+        return true;
+    }
+    for (let page = 2; page <= targetPage; page += 1) {
+        if (cursorByPage.value[page]) {
+            continue;
+        }
+        const previousCursor = cursorByPage.value[page - 1];
+        if (!previousCursor) {
+            return false;
+        }
+        const probe = await fetchVehicleGallery({
+            ...filterPayload,
+            size: PAGE_SIZE,
+            ...(previousCursor.lastLaunch ? { lastLaunch: previousCursor.lastLaunch } : {}),
+            ...(previousCursor.lastId ? { lastId: previousCursor.lastId } : {})
+        });
+        if (token !== loadingToken.value) {
+            return false;
+        }
+        if (probe?.nextLaunch == null && probe?.nextId == null) {
+            return false;
+        }
+        cursorByPage.value[page] = {
+            lastLaunch: probe?.nextLaunch || null,
+            lastId: probe?.nextId || null
+        };
+    }
+    return true;
+};
+
 const loadGalleryByRoute = async (page, keyword) => {
     const normalizedPage = normalizePage(page);
     const normalizedKeyword = normalizeKeyword(keyword);
@@ -224,16 +257,23 @@ const loadGalleryByRoute = async (page, keyword) => {
     }
 
     const filterPayload = sanitizeFilters(filters);
-    const cursor = getCursorForPage(normalizedPage);
+    let cursor = getCursorForPage(normalizedPage);
 
     if (token !== loadingToken.value) {
         return;
     }
 
     if (normalizedPage > 1 && !cursor) {
-        currentPage.value = 1;
-        await setRoutePage(1, normalizedKeyword, true);
-        return;
+        const resolved = await ensureCursorForPage(normalizedPage, filterPayload, token);
+        if (token !== loadingToken.value) {
+            return;
+        }
+        cursor = getCursorForPage(normalizedPage);
+        if (!resolved || !cursor) {
+            currentPage.value = 1;
+            await setRoutePage(1, normalizedKeyword, true);
+            return;
+        }
     }
 
     const response = await store.dispatch('vehicles/loadVehicleGallery', {
@@ -291,13 +331,7 @@ const handleResetFilters = () => {
 };
 
 const handlePageChange = (nextPage) => {
-    const current = currentPage.value || 1;
-    let target = normalizePage(nextPage);
-    if (target > current + 1) {
-        target = current + 1;
-    } else if (target < current - 1) {
-        target = current - 1;
-    }
+    const target = normalizePage(nextPage);
     setRoutePage(target, filters.keyword).catch((error) => {
         console.error(error);
     });
