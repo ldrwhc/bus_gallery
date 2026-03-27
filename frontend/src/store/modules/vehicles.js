@@ -39,6 +39,12 @@ const parseList = (payload) => {
 
 const COMMENT_CACHE_TTL_MS = 30 * 1000;
 const COMMENT_MIN_REFRESH_MS = 2000;
+const DETAIL_SNAPSHOT_TTL_MS = 20 * 1000;
+
+const detailSnapshotCache = new Map();
+const detailSnapshotPendingMap = new Map();
+
+const normalizePlate = (plate) => String(plate || '').replace(/\s+/g, '').trim();
 
 const state = () => ({
     gallery: [],
@@ -214,7 +220,14 @@ const actions = {
                 list.length;
             commit('SET_GALLERY', list);
             commit('SET_PAGINATION', { page, size, total });
-            return list;
+            return {
+                records: list,
+                total,
+                page,
+                size,
+                nextLaunch: response?.nextLaunch ?? null,
+                nextId: response?.nextId ?? null
+            };
         } catch (error) {
             commit('SET_GALLERY_ERROR', error.message || '加载车辆图库失败');
             throw error;
@@ -262,28 +275,62 @@ const actions = {
             };
 
             const applySnapshotByPlate = async (plate) => {
-                if (!plate) return false;
-                try {
-                    const snapshot = await fetchSnapshotByPlate(plate);
-                    if (snapshot && Array.isArray(snapshot.variants) && snapshot.variants.length) {
-                        snapshot.variants.forEach((variant) => {
-                            const id = variant?.vehicle?.id;
-                            if (!id) return;
-                            const detail = {
-                                ...snapshot,
-                                vehicle: variant.vehicle,
-                                vehicleConfig: variant.vehicleConfig,
-                                images: variant.images || [],
-                                variants: snapshot.variants
-                            };
-                            commit('SET_VEHICLE_DETAIL', { vehicleId: id, detail });
-                        });
-                        return true;
+                const normalizedPlate = normalizePlate(plate);
+                if (!normalizedPlate) return false;
+
+                const applySnapshot = (snapshot) => {
+                    if (!snapshot || !Array.isArray(snapshot.variants) || !snapshot.variants.length) {
+                        return false;
                     }
-                } catch (e) {
-                    // fallback to normal detail endpoint
+                    snapshot.variants.forEach((variant) => {
+                        const id = variant?.vehicle?.id;
+                        if (!id) return;
+                        const detail = {
+                            ...snapshot,
+                            vehicle: variant.vehicle,
+                            vehicleConfig: variant.vehicleConfig,
+                            images: variant.images || [],
+                            variants: snapshot.variants
+                        };
+                        commit('SET_VEHICLE_DETAIL', { vehicleId: id, detail });
+                    });
+                    return true;
+                };
+
+                const nowTs = Date.now();
+                const cached = detailSnapshotCache.get(normalizedPlate);
+                if (cached && cached.expiresAt > nowTs) {
+                    return applySnapshot(cached.snapshot);
                 }
-                return false;
+                if (cached) {
+                    detailSnapshotCache.delete(normalizedPlate);
+                }
+
+                let pending = detailSnapshotPendingMap.get(normalizedPlate);
+                if (!pending) {
+                    pending = fetchSnapshotByPlate(normalizedPlate)
+                        .then((snapshot) => {
+                            detailSnapshotCache.set(normalizedPlate, {
+                                snapshot: snapshot || null,
+                                expiresAt: Date.now() + DETAIL_SNAPSHOT_TTL_MS
+                            });
+                            return snapshot;
+                        })
+                        .catch(() => {
+                            detailSnapshotCache.set(normalizedPlate, {
+                                snapshot: null,
+                                expiresAt: Date.now() + Math.min(DETAIL_SNAPSHOT_TTL_MS, 8000)
+                            });
+                            return null;
+                        })
+                        .finally(() => {
+                            detailSnapshotPendingMap.delete(normalizedPlate);
+                        });
+                    detailSnapshotPendingMap.set(normalizedPlate, pending);
+                }
+
+                const snapshot = await pending;
+                return applySnapshot(snapshot);
             };
 
             const plate = findPlateByVehicleId();

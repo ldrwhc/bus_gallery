@@ -12,7 +12,7 @@ const normalizedBase = configuredBase || `${fallbackOrigin.replace(/\/$/, '')}/a
 
 const http = axios.create({
     baseURL: normalizedBase,
-    timeout: 10000
+    timeout: 20000
 });
 
 let authToastCooldown = false;
@@ -88,7 +88,20 @@ http.interceptors.response.use(
         const status = error?.response?.status;
         const requestConfig = error?.config;
         const method = (requestConfig?.method || 'get').toLowerCase();
-        if (status === 429 && requestConfig && method === 'get' && !requestConfig.__retried429) {
+        const isGetRequest = method === 'get';
+        const isTimeout = error?.code === 'ECONNABORTED' || /timeout/i.test(error?.message || '');
+        const isNetworkFlake = !error?.response && !status;
+        if (
+            requestConfig &&
+            isGetRequest &&
+            !requestConfig.__retriedTransient &&
+            (isTimeout || isNetworkFlake)
+        ) {
+            requestConfig.__retriedTransient = true;
+            await new Promise((resolve) => setTimeout(resolve, 400));
+            return http.request(requestConfig);
+        }
+        if (status === 429 && requestConfig && isGetRequest && !requestConfig.__retried429) {
             requestConfig.__retried429 = true;
             const retryAfterHeader = Number(error?.response?.headers?.['retry-after']);
             const delayMs = Number.isFinite(retryAfterHeader)

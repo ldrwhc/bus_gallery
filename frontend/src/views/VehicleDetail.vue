@@ -181,8 +181,7 @@ import VehicleCard from '@/components/VehicleCard.vue';
 import {
     fetchVehicleGallery,
     fetchFavoriteSummary,
-    setFavorite,
-    fetchVehiclesByPlate
+    setFavorite
 } from '@/api/vehicles';
 
 const route = useRoute();
@@ -242,8 +241,11 @@ const resizeHandler = () => {
 };
 
 const COMMENT_PAGE_SIZE = 50;
-const COMMENT_POLL_INTERVAL_MS = 8000;
+const COMMENT_POLL_INTERVAL_MS = 25000;
 let commentPollTimer = null;
+
+const isDocumentVisible = () =>
+    typeof document === 'undefined' || document.visibilityState === 'visible';
 
 const syncCommentsFromCache = (vehicleId) => {
     const cached = store.state.vehicles?.commentCache?.[vehicleId];
@@ -285,18 +287,7 @@ const loadDetail = async (id) => {
     likeTotal.value = 0;
     likes.value = [];
     const detail = await store.dispatch('vehicles/loadVehicleDetail', id);
-    let grouped = Array.isArray(detail?.variants) ? detail.variants : [];
-    if (!grouped.length) {
-        try {
-            const plate = (detail?.vehicle?.plateNumber || '').replace(/\s+/g, '');
-            if (plate) {
-                const resp = await fetchVehiclesByPlate(plate);
-                grouped = resp?.variants || [];
-            }
-        } catch (e) {
-            grouped = [];
-        }
-    }
+    const grouped = Array.isArray(detail?.variants) ? detail.variants : [];
     variants.value = grouped.length ? grouped : [detail];
     currentVariantIndex.value =
         variants.value.findIndex((v) => v.vehicle?.id === detail?.vehicle?.id) >= 0
@@ -528,7 +519,10 @@ const toggleLike = () => {
 };
 
 function refreshCommentPolling() {
-    const shouldPoll = isAuthenticated.value && Boolean(vehicleData.value?.vehicle?.id);
+    const shouldPoll =
+        isAuthenticated.value &&
+        Boolean(vehicleData.value?.vehicle?.id) &&
+        isDocumentVisible();
     if (!shouldPoll) {
         if (commentPollTimer) {
             clearInterval(commentPollTimer);
@@ -538,10 +532,17 @@ function refreshCommentPolling() {
     }
     if (commentPollTimer) return;
     commentPollTimer = setInterval(() => {
-        if (!isAuthenticated.value) return;
+        if (!isAuthenticated.value || !isDocumentVisible()) return;
         loadComments({ force: true });
     }, COMMENT_POLL_INTERVAL_MS);
 }
+
+const onDocumentVisibilityChange = () => {
+    refreshCommentPolling();
+    if (isDocumentVisible() && isAuthenticated.value && vehicleData.value?.vehicle?.id) {
+        loadComments({ force: true }).catch(() => {});
+    }
+};
 
 const goLogin = () => {
     router.push({ name: 'Login', query: { redirect: route.fullPath } });
@@ -552,7 +553,8 @@ watch(
     (id) => {
         const resolved = Number(id);
         if (Number.isNaN(resolved)) {
-            vehicleData.value = null;
+            variants.value = [];
+            imageList.value = [];
             sameCompany.value = [];
             return;
         }
@@ -576,10 +578,16 @@ onMounted(() => {
     store.dispatch('brands/loadBrands').catch(() => {});
     resizeHandler();
     window.addEventListener('resize', resizeHandler);
+    if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', onDocumentVisibilityChange);
+    }
 });
 
 onBeforeUnmount(() => {
     window.removeEventListener('resize', resizeHandler);
+    if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onDocumentVisibilityChange);
+    }
     if (likeDebounceTimer) {
         clearTimeout(likeDebounceTimer);
     }

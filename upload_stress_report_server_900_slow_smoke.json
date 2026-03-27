@@ -1,0 +1,25 @@
+{
+  "base_url": "http://192.144.227.251/api",
+  "upload_url": "http://192.144.227.251/api/upload",
+  "username": "admin",
+  "file": "D:\\code\\bus-gallery\\test.png",
+  "file_size_bytes": 21059,
+  "total_requests": 10,
+  "concurrency": 1,
+  "success": 10,
+  "failed": 0,
+  "success_rate": 1.0,
+  "wall_time_seconds": 9.446,
+  "throughput_rps": 1.059,
+  "latency_ms": {
+    "avg": 643.77,
+    "p50": 413.9,
+    "p95": 1651.82,
+    "p99": 1827.42,
+    "max": 1871.32
+  },
+  "status_counter": {
+    "http_200_ok": 10
+  },
+  "sample_errors": []
+}

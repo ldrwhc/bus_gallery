@@ -54,6 +54,17 @@
                         :variant-count="item.variantCount"
                         @view-detail="openVehicleDetail" />
                 </div>
+
+                <div v-if="pagination.total > pageSize" class="pagination-wrap">
+                    <el-pagination
+                        background
+                        layout="prev, pager, next, jumper, total"
+                        :current-page="currentPage"
+                        :page-size="pageSize"
+                        :total="pagination.total"
+                        @current-change="handlePageChange"
+                    />
+                </div>
             </section>
         </main>
 
@@ -63,11 +74,15 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted, defineAsyncComponent } from 'vue';
+import { computed, reactive, ref, watch, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import VehicleCard from '@/components/Gallery/VehicleCard.vue';
+import { fetchVehicleGallery } from '@/api/vehicles';
+
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
+
+const PAGE_SIZE = 12;
 
 const store = useStore();
 const route = useRoute();
@@ -81,9 +96,70 @@ const filters = reactive({
     keyword: ''
 });
 
+const cursorByPage = ref({
+    1: { lastLaunch: null, lastId: null }
+});
+const currentPage = ref(1);
+const loadingToken = ref(0);
+
 const rawGallery = computed(() => store.state.vehicles.gallery);
+const galleryLoading = computed(() => store.state.vehicles.galleryLoading);
+const galleryError = computed(() => store.state.vehicles.galleryError);
+const pagination = computed(() => store.state.vehicles.pagination);
+const pageSize = computed(() => pagination.value.size || PAGE_SIZE);
 
 const normalizePlate = (p) => (p || '').replace(/\s+/g, '');
+const normalizePage = (value) => {
+    const num = Number(value);
+    return Number.isInteger(num) && num > 0 ? num : 1;
+};
+const normalizeKeyword = (value) => (typeof value === 'string' ? value.trim() : '');
+const resetCursorCache = () => {
+    cursorByPage.value = { 1: { lastLaunch: null, lastId: null } };
+};
+
+const sanitizeFilters = (source = filters) => {
+    const payload = {};
+    Object.entries(source).forEach(([key, value]) => {
+        if (value === null || value === undefined || value === '') {
+            return;
+        }
+        payload[key] = value;
+    });
+    return payload;
+};
+
+const buildRouteQuery = (page, keyword) => {
+    const query = {};
+    const normalizedKeyword = normalizeKeyword(keyword);
+    if (normalizedKeyword) {
+        query.keyword = normalizedKeyword;
+    }
+    if (page > 1) {
+        query.page = String(page);
+    }
+    return query;
+};
+
+const isSameQuery = (a = {}, b = {}) => {
+    const aEntries = Object.entries(a).filter(([, val]) => val != null && val !== '');
+    const bEntries = Object.entries(b).filter(([, val]) => val != null && val !== '');
+    if (aEntries.length !== bEntries.length) return false;
+    return aEntries.every(([key, val]) => String(b[key] ?? '') === String(val));
+};
+
+const setRoutePage = async (page, keyword, replace = false) => {
+    const query = buildRouteQuery(page, keyword);
+    if (isSameQuery(query, route.query)) {
+        return;
+    }
+    const navigation = { name: 'Gallery', query };
+    if (replace) {
+        await router.replace(navigation);
+        return;
+    }
+    await router.push(navigation);
+};
 
 const gallery = computed(() => {
     const map = new Map();
@@ -110,7 +186,6 @@ const gallery = computed(() => {
                 acc.variants.push(item);
                 acc.variantCount = acc.variants.length;
             }
-            // 保留最早 vehicle 作为主显示
             acc.images = acc.images.length ? acc.images : [...(item.images || [])];
         }
     });
@@ -119,9 +194,6 @@ const gallery = computed(() => {
         return rest;
     });
 });
-const galleryLoading = computed(() => store.state.vehicles.galleryLoading);
-const galleryError = computed(() => store.state.vehicles.galleryError);
-const pagination = computed(() => store.state.vehicles.pagination);
 
 const activeVehicleId = ref(null);
 const activeVehicleDetail = computed(() =>
@@ -134,34 +206,86 @@ const activeVehicleLoading = computed(
 );
 const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
 
-const mergeFilters = (payload = {}) => {
-    Object.keys(filters).forEach((key) => {
-        if (Object.prototype.hasOwnProperty.call(payload, key)) {
-            filters[key] = payload[key];
+const ensureCursorForPage = async (targetPage, filterPayload) => {
+    if (targetPage <= 1) {
+        return { lastLaunch: null, lastId: null };
+    }
+    if (cursorByPage.value[targetPage]) {
+        return cursorByPage.value[targetPage];
+    }
+
+    const knownPages = Object.keys(cursorByPage.value)
+        .map((num) => Number(num))
+        .filter((num) => Number.isInteger(num) && num >= 1 && num < targetPage)
+        .sort((a, b) => b - a);
+    let pageCursor = knownPages.length ? knownPages[0] : 1;
+    let cursor = cursorByPage.value[pageCursor] || { lastLaunch: null, lastId: null };
+
+    while (pageCursor < targetPage) {
+        const response = await fetchVehicleGallery({
+            size: PAGE_SIZE,
+            ...filterPayload,
+            ...(cursor?.lastLaunch ? { lastLaunch: cursor.lastLaunch } : {}),
+            ...(cursor?.lastId ? { lastId: cursor.lastId } : {})
+        });
+        const hasNextCursor = response?.nextLaunch != null || response?.nextId != null;
+        if (!hasNextCursor) {
+            return null;
         }
-    });
+        cursor = {
+            lastLaunch: response?.nextLaunch || null,
+            lastId: response?.nextId || null
+        };
+        pageCursor += 1;
+        cursorByPage.value[pageCursor] = cursor;
+    }
+
+    return cursorByPage.value[targetPage] || null;
 };
 
-const fetchGallery = (override = {}) => {
-    mergeFilters(override);
-    return store.dispatch('vehicles/loadVehicleGallery', {
-        ...filters,
-        ...override
-    });
-};
+const loadGalleryByRoute = async (page, keyword) => {
+    const normalizedPage = normalizePage(page);
+    const normalizedKeyword = normalizeKeyword(keyword);
+    const token = ++loadingToken.value;
 
-const refreshGallery = () => fetchGallery({ page: 1 });
+    const keywordChanged = normalizedKeyword !== filters.keyword;
+    filters.keyword = normalizedKeyword;
+    if (keywordChanged) {
+        resetCursorCache();
+    }
 
-const handleResetFilters = () => {
-    Object.assign(filters, {
-        regionId: null,
-        companyId: null,
-        brandId: null,
-        modelId: null,
-        keyword: ''
+    const filterPayload = sanitizeFilters(filters);
+    const cursor =
+        normalizedPage > 1 ? await ensureCursorForPage(normalizedPage, filterPayload) : { lastLaunch: null, lastId: null };
+
+    if (token !== loadingToken.value) {
+        return;
+    }
+
+    if (normalizedPage > 1 && !cursor) {
+        currentPage.value = 1;
+        await setRoutePage(1, normalizedKeyword, true);
+        return;
+    }
+
+    const response = await store.dispatch('vehicles/loadVehicleGallery', {
+        ...filterPayload,
+        size: PAGE_SIZE,
+        page: normalizedPage,
+        ...(cursor?.lastLaunch ? { lastLaunch: cursor.lastLaunch } : {}),
+        ...(cursor?.lastId ? { lastId: cursor.lastId } : {})
     });
-    store.dispatch('vehicles/resetGalleryFilters');
-    router.replace({ name: 'Gallery' });
+    if (token !== loadingToken.value) {
+        return;
+    }
+
+    if (response?.nextLaunch != null || response?.nextId != null) {
+        cursorByPage.value[normalizedPage + 1] = {
+            lastLaunch: response?.nextLaunch || null,
+            lastId: response?.nextId || null
+        };
+    }
+    currentPage.value = normalizedPage;
 };
 
 const openVehicleDetail = async (vehicleId) => {
@@ -179,28 +303,44 @@ const closeDetail = () => {
 };
 
 const handleRetry = () => {
-    fetchGallery({ page: pagination.value.page || 1 });
+    loadGalleryByRoute(currentPage.value, filters.keyword).catch((error) => {
+        console.error(error);
+    });
 };
 
-const syncKeywordFromRoute = () => {
-    const keyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
-    filters.keyword = keyword;
-    return keyword;
+const handleResetFilters = () => {
+    Object.assign(filters, {
+        regionId: null,
+        companyId: null,
+        brandId: null,
+        modelId: null,
+        keyword: ''
+    });
+    resetCursorCache();
+    setRoutePage(1, '', true).catch((error) => {
+        console.error(error);
+    });
+};
+
+const handlePageChange = (nextPage) => {
+    setRoutePage(nextPage, filters.keyword).catch((error) => {
+        console.error(error);
+    });
 };
 
 watch(
-    () => route.query.keyword,
-    (value) => {
-        const keyword = typeof value === 'string' ? value : '';
-        if (keyword === filters.keyword) return;
-        fetchGallery({ keyword, page: 1 });
-    }
+    () => [route.query.keyword, route.query.page],
+    async ([keyword, page]) => {
+        const normalizedKeyword = normalizeKeyword(keyword);
+        const normalizedPage = normalizePage(page);
+        try {
+            await loadGalleryByRoute(normalizedPage, normalizedKeyword);
+        } catch (error) {
+            console.error(error);
+        }
+    },
+    { immediate: true }
 );
-
-onMounted(() => {
-    const initialKeyword = syncKeywordFromRoute();
-    fetchGallery({ page: 1, keyword: initialKeyword });
-});
 </script>
 
 <style scoped lang="scss">
@@ -329,6 +469,12 @@ onMounted(() => {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 20px;
+}
+
+.pagination-wrap {
+    margin-top: 22px;
+    display: flex;
+    justify-content: center;
 }
 
 .state {

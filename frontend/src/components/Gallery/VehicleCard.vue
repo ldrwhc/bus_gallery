@@ -38,12 +38,8 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { fetchVehiclesByPlate } from '@/api/vehicles';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
 import { formatYearMonth } from '@/utils/formatters';
-
-const plateVariantCache = new Map();
-const plateVariantRequestMap = new Map();
 
 const props = defineProps({
     vehicle: {
@@ -67,7 +63,6 @@ const props = defineProps({
 const emit = defineEmits(['view-detail']);
 
 const currentIndex = ref(0);
-const remoteVariants = ref([]);
 
 const normalizePlate = (plate) => String(plate || '').replace(/\s+/g, '').trim();
 
@@ -108,47 +103,6 @@ const dedupeVariants = (source = []) => {
     return result;
 };
 
-const loadPlateVariants = async (plateNumber) => {
-    const normalizedPlate = normalizePlate(plateNumber);
-    if (!normalizedPlate) {
-        remoteVariants.value = [];
-        return;
-    }
-
-    const cached = plateVariantCache.get(normalizedPlate);
-    if (cached) {
-        remoteVariants.value = cached;
-        return;
-    }
-
-    let pending = plateVariantRequestMap.get(normalizedPlate);
-    if (!pending) {
-        pending = fetchVehiclesByPlate(normalizedPlate)
-            .then((resp) => {
-                const list = Array.isArray(resp?.variants) ? resp.variants : [];
-                const normalized = dedupeVariants(list);
-                plateVariantCache.set(normalizedPlate, normalized);
-                return normalized;
-            })
-            .catch(() => [])
-            .finally(() => {
-                plateVariantRequestMap.delete(normalizedPlate);
-            });
-        plateVariantRequestMap.set(normalizedPlate, pending);
-    }
-
-    const latest = await pending;
-    remoteVariants.value = latest;
-};
-
-watch(
-    () => props.vehicle?.plateNumber,
-    (plate) => {
-        loadPlateVariants(plate);
-    },
-    { immediate: true }
-);
-
 watch(
     () => [props.variants, props.variantCount, props.vehicle?.id],
     () => {
@@ -163,10 +117,7 @@ const localVariants = computed(() => {
     return dedupeVariants(source);
 });
 
-const normalizedVariants = computed(() => dedupeVariants([
-    ...localVariants.value,
-    ...remoteVariants.value
-]));
+const normalizedVariants = computed(() => dedupeVariants(localVariants.value));
 
 watch(
     () => normalizedVariants.value.length,

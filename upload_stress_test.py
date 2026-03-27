@@ -22,6 +22,17 @@ def parse_args():
     parser.add_argument("--total", type=int, default=40, help="Total upload requests")
     parser.add_argument("--concurrency", type=int, default=10, help="Concurrent workers")
     parser.add_argument("--timeout", type=int, default=30, help="Request timeout seconds")
+    parser.add_argument(
+        "--plate-mode",
+        choices=["mixed", "incremental"],
+        default="mixed",
+        help="Plate generation mode: mixed (100 fixed + 900 incremental) or incremental",
+    )
+    parser.add_argument("--plate-prefix", default="浙A 11", help="Plate prefix used in incremental mode")
+    parser.add_argument("--plate-start", type=int, default=1, help="Starting numeric suffix in incremental mode")
+    parser.add_argument("--fixed-first-count", type=int, default=100, help="Fixed plate count in mixed mode")
+    parser.add_argument("--fixed-plate", default="浙A 11000", help="Fixed plate value in mixed mode")
+    parser.add_argument("--pace-ms", type=int, default=0, help="Sleep milliseconds before each request")
     parser.add_argument("--report", default="", help="Optional report output path (.json)")
     return parser.parse_args()
 
@@ -62,6 +73,17 @@ def percentile(sorted_values, p):
     return float(sorted_values[f] * (1.0 - d) + sorted_values[c] * d)
 
 
+def build_plate_number(index, args):
+    if args.plate_mode == "incremental":
+        suffix = args.plate_start + index
+        return f"{args.plate_prefix}{suffix:03d}"
+
+    if index < args.fixed_first_count:
+        return args.fixed_plate
+    suffix = ((index - args.fixed_first_count) % 900) + 1
+    return f"{args.plate_prefix}{suffix:03d}"
+
+
 def main():
     args = parse_args()
     file_path = os.path.abspath(args.file)
@@ -84,7 +106,7 @@ def main():
         raise RuntimeError(f"Login succeeded but token missing. response={login_json}")
 
     payload = {
-        "plateNumber": "浙A 11111",
+        "plateNumber": "浙A 11000",
         "brandName": "BJ",
         "modelName": "TEST",
         "companyName": "电车公司",
@@ -111,7 +133,10 @@ def main():
             "Idempotency-Key": f"loadtest-{int(time.time() * 1000)}-{i}-{uuid.uuid4().hex[:8]}",
         }
         local_payload = dict(payload)
+        local_payload["plateNumber"] = build_plate_number(i, args)
         local_payload["customNumber"] = f"LT-{i:05d}"
+        if args.pace_ms > 0:
+            time.sleep(args.pace_ms / 1000.0)
         start = time.perf_counter()
         try:
             with open(file_path, "rb") as f:

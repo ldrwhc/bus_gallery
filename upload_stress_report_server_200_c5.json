@@ -1,0 +1,68 @@
+{
+  "base_url": "http://192.144.227.251/api",
+  "upload_url": "http://192.144.227.251/api/upload",
+  "username": "admin",
+  "file": "D:\\code\\bus-gallery\\test.png",
+  "file_size_bytes": 21059,
+  "total_requests": 200,
+  "concurrency": 5,
+  "success": 15,
+  "failed": 185,
+  "success_rate": 0.075,
+  "wall_time_seconds": 273.349,
+  "throughput_rps": 0.732,
+  "latency_ms": {
+    "avg": 6814.37,
+    "p50": 29.24,
+    "p95": 60024.34,
+    "p99": 61022.89,
+    "max": 61030.16
+  },
+  "status_counter": {
+    "http_200_ok": 15,
+    "exception": 20,
+    "http_502_biz_fail": 165
+  },
+  "sample_errors": [
+    {
+      "i": 15,
+      "status": "exception",
+      "body": "HTTPConnectionPool(host='192.144.227.251', port=80): Read timed out. (read timeout=60)"
+    },
+    {
+      "i": 16,
+      "status": "exception",
+      "body": "HTTPConnectionPool(host='192.144.227.251', port=80): Read timed out. (read timeout=60)"
+    },
+    {
+      "i": 17,
+      "status": "exception",
+      "body": "HTTPConnectionPool(host='192.144.227.251', port=80): Read timed out. (read timeout=60)"
+    },
+    {
+      "i": 18,
+      "status": "exception",
+      "body": "HTTPConnectionPool(host='192.144.227.251', port=80): Read timed out. (read timeout=60)"
+    },
+    {
+      "i": 19,
+      "status": "exception",
+      "body": "HTTPConnectionPool(host='192.144.227.251', port=80): Read timed out. (read timeout=60)"
+    },
+    {
+      "i": 20,
+      "status": "exception",
+      "body": "HTTPConnectionPool(host='192.144.227.251', port=80): Read timed out. (read timeout=60)"
+    },
+    {
+      "i": 22,
+      "status": "exception",
+      "body": "HTTPConnectionPool(host='192.144.227.251', port=80): Read timed out. (read timeout=60)"
+    },
+    {
+      "i": 23,
+      "status": "exception",
+      "body": "HTTPConnectionPool(host='192.144.227.251', port=80): Read timed out. (read timeout=60)"
+    }
+  ]
+}

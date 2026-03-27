@@ -1,0 +1,68 @@
+{
+  "base_url": "http://192.144.227.251/api",
+  "upload_url": "http://192.144.227.251/api/upload",
+  "username": "admin",
+  "file": "D:\\code\\bus-gallery\\test.png",
+  "file_size_bytes": 21059,
+  "total_requests": 900,
+  "concurrency": 1,
+  "success": 681,
+  "failed": 219,
+  "success_rate": 0.7567,
+  "wall_time_seconds": 685.14,
+  "throughput_rps": 1.314,
+  "latency_ms": {
+    "avg": 460.45,
+    "p50": 335.16,
+    "p95": 857.86,
+    "p99": 3313.41,
+    "max": 60025.83
+  },
+  "status_counter": {
+    "http_200_ok": 681,
+    "http_502_biz_fail": 218,
+    "exception": 1
+  },
+  "sample_errors": [
+    {
+      "i": 280,
+      "status": 502,
+      "body": "<html>\r <head><title>502 Bad Gateway</title></head>\r <body>\r <center><h1>502 Bad Gateway</h1></center>\r <hr><center>nginx/1.25.5</center>\r </body>\r </html>\r "
+    },
+    {
+      "i": 281,
+      "status": 502,
+      "body": "<html>\r <head><title>502 Bad Gateway</title></head>\r <body>\r <center><h1>502 Bad Gateway</h1></center>\r <hr><center>nginx/1.25.5</center>\r </body>\r </html>\r "
+    },
+    {
+      "i": 282,
+      "status": 502,
+      "body": "<html>\r <head><title>502 Bad Gateway</title></head>\r <body>\r <center><h1>502 Bad Gateway</h1></center>\r <hr><center>nginx/1.25.5</center>\r </body>\r </html>\r "
+    },
+    {
+      "i": 283,
+      "status": 502,
+      "body": "<html>\r <head><title>502 Bad Gateway</title></head>\r <body>\r <center><h1>502 Bad Gateway</h1></center>\r <hr><center>nginx/1.25.5</center>\r </body>\r </html>\r "
+    },
+    {
+      "i": 284,
+      "status": 502,
+      "body": "<html>\r <head><title>502 Bad Gateway</title></head>\r <body>\r <center><h1>502 Bad Gateway</h1></center>\r <hr><center>nginx/1.25.5</center>\r </body>\r </html>\r "
+    },
+    {
+      "i": 285,
+      "status": 502,
+      "body": "<html>\r <head><title>502 Bad Gateway</title></head>\r <body>\r <center><h1>502 Bad Gateway</h1></center>\r <hr><center>nginx/1.25.5</center>\r </body>\r </html>\r "
+    },
+    {
+      "i": 286,
+      "status": 502,
+      "body": "<html>\r <head><title>502 Bad Gateway</title></head>\r <body>\r <center><h1>502 Bad Gateway</h1></center>\r <hr><center>nginx/1.25.5</center>\r </body>\r </html>\r "
+    },
+    {
+      "i": 287,
+      "status": 502,
+      "body": "<html>\r <head><title>502 Bad Gateway</title></head>\r <body>\r <center><h1>502 Bad Gateway</h1></center>\r <hr><center>nginx/1.25.5</center>\r </body>\r </html>\r "
+    }
+  ]
+}
