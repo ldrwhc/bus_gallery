@@ -3,7 +3,7 @@ package com.busgallery.busgallery.controller;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.RoleGuard;
 import com.busgallery.busgallery.auth.UserRole;
-import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
@@ -107,7 +107,7 @@ public class VehicleController {
                                           @RequestParam(required = false) String keyword,
                                           @RequestParam(required = false) LocalDate lastLaunch,
                                           @RequestParam(required = false) Long lastId) {
-        UserSession session = RoleGuard.requireReviewerOrStation();
+        AuthPrincipal session = RoleGuard.requireReviewerOrStation();
         Long effectiveRegionId = resolveManageRegionFilter(session, regionId);
         return pageInternal(size, effectiveRegionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
     }
@@ -145,7 +145,7 @@ public class VehicleController {
         return refreshSignedUrls(response);
     }
 
-    private Long resolveManageRegionFilter(UserSession session, Long requestRegionId) {
+    private Long resolveManageRegionFilter(AuthPrincipal session, Long requestRegionId) {
         if (session == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "未登录");
         }
@@ -244,7 +244,7 @@ public class VehicleController {
     @PostMapping
     @RequireLogin
     public VehicleDetailResponse create(@Valid @RequestBody VehicleRequest request) {
-        UserSession session = RoleGuard.requireReviewerOrStation();
+        AuthPrincipal session = RoleGuard.requireReviewerOrStation();
         assertRegionWriteAllowed(session, request.getRegionId());
         Vehicle vehicle = request.toVehicle();
         VehicleConfig config = request.toVehicleConfig();
@@ -265,7 +265,7 @@ public class VehicleController {
     @PutMapping("/{id}")
     @RequireLogin
     public VehicleDetailResponse update(@PathVariable Long id, @Valid @RequestBody VehicleRequest request) {
-        UserSession session = RoleGuard.requireReviewerOrStation();
+        AuthPrincipal session = RoleGuard.requireReviewerOrStation();
         Vehicle existing = vehicleService.findById(id);
         if (existing == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "车辆不存在");
@@ -291,7 +291,7 @@ public class VehicleController {
     @DeleteMapping("/{id}")
     @RequireLogin
     public void delete(@PathVariable Long id) {
-        UserSession session = RoleGuard.requireReviewerOrStation();
+        AuthPrincipal session = RoleGuard.requireReviewerOrStation();
         Vehicle existing = vehicleService.findById(id);
         if (existing == null) {
             return;
@@ -303,7 +303,7 @@ public class VehicleController {
     @PostMapping("/batch-delete")
     @RequireLogin
     public VehicleBatchDeleteResponse batchDelete(@RequestBody VehicleBatchDeleteRequest request) {
-        UserSession session = RoleGuard.requireReviewerOrStation();
+        AuthPrincipal session = RoleGuard.requireReviewerOrStation();
         List<Long> ids = request == null ? Collections.emptyList() : request.getIds();
         List<Long> normalizedIds = ids.stream()
                 .filter(Objects::nonNull)
@@ -333,7 +333,7 @@ public class VehicleController {
         return new VehicleBatchDeleteResponse(normalizedIds.size(), deletedIds, failedIds);
     }
 
-    private void assertVehicleUpdateAllowed(UserSession session, Vehicle existing, VehicleRequest request) {
+    private void assertVehicleUpdateAllowed(AuthPrincipal session, Vehicle existing, VehicleRequest request) {
         if (session == null || session.getRole() == UserRole.STATION) {
             return;
         }
@@ -354,7 +354,7 @@ public class VehicleController {
         throw new BizException(ErrorCode.UNAUTHORIZED, "目标车辆不在你的审核地区");
     }
 
-    private void assertRegionWriteAllowed(UserSession session, Long targetRegionId) {
+    private void assertRegionWriteAllowed(AuthPrincipal session, Long targetRegionId) {
         if (session == null || session.getRole() == UserRole.STATION) {
             return;
         }
@@ -371,7 +371,7 @@ public class VehicleController {
         }
     }
 
-    private boolean isRegionInReviewerScope(UserSession session, Long targetRegionId) {
+    private boolean isRegionInReviewerScope(AuthPrincipal session, Long targetRegionId) {
         if (session == null || session.getReviewRegionId() == null || targetRegionId == null) {
             return false;
         }
@@ -380,7 +380,7 @@ public class VehicleController {
         return reviewerProvinceId != null && reviewerProvinceId.equals(targetProvinceId);
     }
 
-    private boolean reviewerOwnsAnyVehicleImage(UserSession session, Long vehicleId) {
+    private boolean reviewerOwnsAnyVehicleImage(AuthPrincipal session, Long vehicleId) {
         if (session == null || session.getUserId() == null || vehicleId == null) {
             return false;
         }

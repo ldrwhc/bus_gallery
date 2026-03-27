@@ -1,8 +1,8 @@
 package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.RequireLogin;
-import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.auth.UserSessionService;
 import com.busgallery.busgallery.dto.request.UserDisplayNameUpdateRequest;
 import com.busgallery.busgallery.dto.response.ImageResponse;
@@ -42,7 +42,7 @@ public class UserController {
     @GetMapping("/me")
     @RequireLogin
     public UserProfileResponse currentUser() {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         User user = userService.findById(session.getUserId());
         if (user == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
@@ -54,7 +54,7 @@ public class UserController {
     @PutMapping("/me/display-name")
     @RequireLogin
     public UserProfileResponse updateDisplayName(@Valid @RequestBody UserDisplayNameUpdateRequest request) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         User user = userService.updateDisplayName(session.getUserId(), request.getDisplayName());
         if (user == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
@@ -76,7 +76,7 @@ public class UserController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "12") int size
     ) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         User user = userService.findById(session.getUserId());
         if (user == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");

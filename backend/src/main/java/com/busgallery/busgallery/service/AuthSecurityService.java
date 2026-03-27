@@ -1,6 +1,6 @@
 package com.busgallery.busgallery.service;
 
-import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.dto.response.AuthChallengeResponse;
 import com.busgallery.busgallery.dto.response.AuthTicketResponse;
 
@@ -14,9 +14,9 @@ public interface AuthSecurityService {
 
     void verifyRegisterCode(String challengeId, String email, String emailCode);
 
-    AuthChallengeResponse sendPasswordChangeCode(UserSession session, String currentPassword, String clientIp);
+    AuthChallengeResponse sendPasswordChangeCode(AuthPrincipal session, String currentPassword, String clientIp);
 
-    void changePassword(UserSession session, String challengeId, String emailCode, String newPassword, String confirmPassword);
+    void changePassword(AuthPrincipal session, String challengeId, String emailCode, String newPassword, String confirmPassword);
 
     AuthChallengeResponse sendForgotPasswordCode(String usernameOrEmail, String clientIp);
 
@@ -24,7 +24,7 @@ public interface AuthSecurityService {
 
     void resetForgotPassword(String resetTicket, String newPassword, String confirmPassword);
 
-    AuthChallengeResponse sendBindEmailCode(UserSession session, String email, String currentPassword, String clientIp);
+    AuthChallengeResponse sendBindEmailCode(AuthPrincipal session, String email, String currentPassword, String clientIp);
 
-    void confirmBindEmail(UserSession session, String challengeId, String email, String emailCode);
+    void confirmBindEmail(AuthPrincipal session, String challengeId, String email, String emailCode);
 }

@@ -1,8 +1,8 @@
 package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.RequireLogin;
-import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.dto.response.PageResponse;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
@@ -33,7 +33,7 @@ public class FavoriteController {
 
     @GetMapping("/{vehicleId}/summary")
     public FavoriteResponse summary(@PathVariable Long vehicleId) {
-        UserSession session = AuthContextHolder.get();
+        AuthPrincipal session = AuthContextHolder.getPrincipal();
         Long currentUserId = session != null ? session.getUserId() : null;
         FavoriteService.FavoriteSummary summary = favoriteService.summary(vehicleId, currentUserId);
         return FavoriteResponse.from(summary);

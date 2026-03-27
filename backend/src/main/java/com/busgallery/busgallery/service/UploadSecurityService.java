@@ -1,7 +1,7 @@
 package com.busgallery.busgallery.service;
 
 import com.busgallery.busgallery.auth.UserRole;
-import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.config.UploadSecurityProperties;
 import com.busgallery.busgallery.entity.SubmissionStatus;
 import com.busgallery.busgallery.exception.BizException;
@@ -32,7 +32,7 @@ public class UploadSecurityService {
     private final ImageMapper imageMapper;
     private final VehicleSubmissionRepository submissionRepository;
 
-    public void checkUploadQuotaAndRate(UserSession session, String clientIp) {
+    public void checkUploadQuotaAndRate(AuthPrincipal session, String clientIp) {
         if (session == null || session.getUserId() == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "请先登录");
         }

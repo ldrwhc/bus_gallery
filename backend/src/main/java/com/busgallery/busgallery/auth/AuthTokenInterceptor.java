@@ -33,7 +33,7 @@ public class AuthTokenInterceptor implements HandlerInterceptor {
             if (StringUtils.hasText(token)) {
                 UserSession session = userSessionService.getSession(token);
                 if (session != null) {
-                    AuthContextHolder.set(session);
+                    AuthContextHolder.set(AuthPrincipal.fromSession(session));
                 }
             }
             if (handler instanceof HandlerMethod handlerMethod) {

@@ -1,7 +1,7 @@
 package com.busgallery.busgallery.service.impl;
 
 import com.busgallery.busgallery.auth.UserRole;
-import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.dto.request.VehicleUpsertPayload;
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.exception.BizException;
@@ -39,14 +39,14 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     @Transactional
-    public VehicleSubmission submitCreate(UserSession session, VehicleUpsertPayload payload, Long imageId) {
+    public VehicleSubmission submitCreate(AuthPrincipal session, VehicleUpsertPayload payload, Long imageId) {
         payload.validate();
         return createSubmission(session, payload, imageId, null, SubmissionActionType.CREATE);
     }
 
     @Override
     @Transactional
-    public VehicleSubmission submitUpdate(UserSession session,
+    public VehicleSubmission submitUpdate(AuthPrincipal session,
                                           VehicleUpsertPayload payload,
                                           Long vehicleId,
                                           Long imageId) {
@@ -59,7 +59,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     }
 
     @Override
-    public List<VehicleSubmission> listInbox(UserSession session) {
+    public List<VehicleSubmission> listInbox(AuthPrincipal session) {
         if (session.getRole() == UserRole.STATION || session.getRole() == UserRole.REVIEWER) {
             return listPendingForReview(session);
         }
@@ -70,7 +70,7 @@ public class SubmissionServiceImpl implements SubmissionService {
     }
 
     @Override
-    public List<VehicleSubmission> listPendingForReview(UserSession session) {
+    public List<VehicleSubmission> listPendingForReview(AuthPrincipal session) {
         if (session.getRole() == UserRole.STATION) {
             return submissionRepository.findByStatusOrderByCreatedAtAsc(SubmissionStatus.PENDING);
         }
@@ -122,7 +122,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     @Transactional
-    public VehicleSubmission approve(UserSession reviewer, Long submissionId, VehicleUpsertPayload reviewPayload) {
+    public VehicleSubmission approve(AuthPrincipal reviewer, Long submissionId, VehicleUpsertPayload reviewPayload) {
         VehicleSubmission submission = requirePendingSubmission(submissionId);
         checkReviewPermission(reviewer, submission);
 
@@ -180,7 +180,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     @Transactional
-    public VehicleSubmission reject(UserSession reviewer, Long submissionId, String rejectCode, String rejectReason) {
+    public VehicleSubmission reject(AuthPrincipal reviewer, Long submissionId, String rejectCode, String rejectReason) {
         VehicleSubmission submission = requirePendingSubmission(submissionId);
         checkReviewPermission(reviewer, submission);
         if (!StringUtils.hasText(rejectReason)) {
@@ -197,7 +197,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         return submissionRepository.save(submission);
     }
 
-    private VehicleSubmission createSubmission(UserSession session,
+    private VehicleSubmission createSubmission(AuthPrincipal session,
                                                VehicleUpsertPayload payload,
                                                Long imageId,
                                                Long vehicleId,
@@ -229,7 +229,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         return submission;
     }
 
-    private void checkReviewPermission(UserSession reviewer, VehicleSubmission submission) {
+    private void checkReviewPermission(AuthPrincipal reviewer, VehicleSubmission submission) {
         if (reviewer.getRole() == UserRole.STATION) {
             return;
         }

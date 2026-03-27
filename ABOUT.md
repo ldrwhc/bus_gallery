@@ -198,3 +198,10 @@ RabbitMQ 异步副作用（收藏切换）：
 - `image.thumbnailUrl` is used by non-detail browsing pages and list cards.
 - All image URLs are short-lived signed URLs via `/api/images/access/{token}`.
 - Historical data can be repaired with `ImageDisplayBackfillRunner` using `busgallery.image-display-backfill.*` configs.
+
+## 2026-03 Auth Context Update
+
+- Request context no longer stores full `UserSession` directly.
+- `AuthTokenInterceptor` now maps Redis session payload into `AuthPrincipal`.
+- `AuthContextHolder` keeps `ThreadLocal<AuthPrincipal>` only.
+- Service signatures related to auth/review/upload/submission are migrated from `UserSession` to `AuthPrincipal`.

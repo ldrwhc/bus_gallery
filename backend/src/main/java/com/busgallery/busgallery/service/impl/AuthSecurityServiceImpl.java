@@ -1,6 +1,6 @@
 package com.busgallery.busgallery.service.impl;
 
-import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.UserSessionService;
 import com.busgallery.busgallery.config.AuthSecurityProperties;
 import com.busgallery.busgallery.dto.response.AuthChallengeResponse;
@@ -110,7 +110,7 @@ public class AuthSecurityServiceImpl implements AuthSecurityService {
     }
 
     @Override
-    public AuthChallengeResponse sendPasswordChangeCode(UserSession session, String currentPassword, String clientIp) {
+    public AuthChallengeResponse sendPasswordChangeCode(AuthPrincipal session, String currentPassword, String clientIp) {
         if (session == null || session.getUserId() == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "请先登录");
         }
@@ -131,7 +131,7 @@ public class AuthSecurityServiceImpl implements AuthSecurityService {
 
     @Override
     @Transactional
-    public void changePassword(UserSession session, String challengeId, String emailCode, String newPassword, String confirmPassword) {
+    public void changePassword(AuthPrincipal session, String challengeId, String emailCode, String newPassword, String confirmPassword) {
         if (session == null || session.getUserId() == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "请先登录");
         }
@@ -198,7 +198,7 @@ public class AuthSecurityServiceImpl implements AuthSecurityService {
     }
 
     @Override
-    public AuthChallengeResponse sendBindEmailCode(UserSession session, String email, String currentPassword, String clientIp) {
+    public AuthChallengeResponse sendBindEmailCode(AuthPrincipal session, String email, String currentPassword, String clientIp) {
         if (session == null || session.getUserId() == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "请先登录");
         }
@@ -220,7 +220,7 @@ public class AuthSecurityServiceImpl implements AuthSecurityService {
 
     @Override
     @Transactional
-    public void confirmBindEmail(UserSession session, String challengeId, String email, String emailCode) {
+    public void confirmBindEmail(AuthPrincipal session, String challengeId, String email, String emailCode) {
         if (session == null || session.getUserId() == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "请先登录");
         }

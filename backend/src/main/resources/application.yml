@@ -113,10 +113,21 @@ auth:
 
 logging:
   level:
-    root: INFO
-    com.busgallery: DEBUG
-    org.springframework.web: DEBUG
-    org.mybatis: DEBUG
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.busgallery: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework.web: ${LOG_LEVEL_WEB:DEBUG}
+    org.mybatis: ${LOG_LEVEL_MYBATIS:DEBUG}
+  pattern:
+    console: '${LOG_PATTERN_CONSOLE:%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n}'
+    file: '${LOG_PATTERN_FILE:%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n}'
+  file:
+    name: ${LOG_FILE_NAME:/app/logs/bus-gallery-${LOG_TIME:000000}.log}
+  logback:
+    rollingpolicy:
+      max-file-size: ${LOG_MAX_FILE_SIZE:20MB}
+      max-history: ${LOG_MAX_HISTORY:14}
+      total-size-cap: ${LOG_TOTAL_SIZE_CAP:1GB}
+      clean-history-on-start: ${LOG_CLEAN_HISTORY_ON_START:false}
 
 busgallery:
   events:

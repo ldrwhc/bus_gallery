@@ -1,6 +1,6 @@
 package com.busgallery.busgallery.service;
 
-import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.dto.request.LoginRequest;
 import com.busgallery.busgallery.dto.request.RegisterRequest;
 import com.busgallery.busgallery.dto.response.LoginResponse;
@@ -35,5 +35,5 @@ public interface AuthService {
      * currentSession方法用于处理currentSession相关的业务逻辑。
      * @return 返回UserSession类型结果。
      */
-    UserSession currentSession();
+    AuthPrincipal currentSession();
 }

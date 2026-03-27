@@ -1,8 +1,8 @@
 package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.RequireLogin;
-import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.config.AuthSecurityProperties;
 import com.busgallery.busgallery.dto.request.EmailBindConfirmRequest;
 import com.busgallery.busgallery.dto.request.EmailBindSendCodeRequest;
@@ -103,7 +103,7 @@ public class AuthController {
     @RequireLogin
     public AuthChallengeResponse sendChangePasswordCode(@Valid @RequestBody PasswordChangeSendCodeRequest request,
                                                         HttpServletRequest httpRequest) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         String ip = RequestIpUtil.resolveClientIp(httpRequest);
         applySendCodeDailyLimit("change-password-send", ip, null, session.getUsername());
         return authSecurityService.sendPasswordChangeCode(session, request.getCurrentPassword(), ip);
@@ -112,7 +112,7 @@ public class AuthController {
     @PostMapping("/password/change/confirm")
     @RequireLogin
     public SimpleSuccessResponse confirmChangePassword(@Valid @RequestBody PasswordChangeConfirmRequest request) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         authSecurityService.changePassword(
                 session,
                 request.getChallengeId(),
@@ -147,7 +147,7 @@ public class AuthController {
     @RequireLogin
     public AuthChallengeResponse sendBindEmailCode(@Valid @RequestBody EmailBindSendCodeRequest request,
                                                    HttpServletRequest httpRequest) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         String ip = RequestIpUtil.resolveClientIp(httpRequest);
         applySendCodeDailyLimit("bind-email-send", ip, request.getEmail(), session.getUsername());
         return authSecurityService.sendBindEmailCode(session, request.getEmail(), request.getCurrentPassword(), ip);
@@ -156,7 +156,7 @@ public class AuthController {
     @PostMapping("/email/bind/confirm")
     @RequireLogin
     public SimpleSuccessResponse confirmBindEmail(@Valid @RequestBody EmailBindConfirmRequest request) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         authSecurityService.confirmBindEmail(session, request.getChallengeId(), request.getEmail(), request.getEmailCode());
         return SimpleSuccessResponse.ok("邮箱绑定成功");
     }

@@ -1,9 +1,9 @@
 package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserRole;
-import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.exception.BizException;
@@ -73,7 +73,7 @@ public class ImageController {
     public Image upload(@RequestPart("file") MultipartFile file,
                         @RequestParam(value = "uploadUser", required = false) String uploadUser,
                         HttpServletRequest httpRequest) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         uploadSecurityService.checkUploadQuotaAndRate(session, RequestIpUtil.resolveClientIp(httpRequest));
 
         Image metadata = new Image();
@@ -93,7 +93,7 @@ public class ImageController {
         if (image == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "图片不存在");
         }
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         assertImageWritePermission(session, image);
 
         image.setUploadUser(request.getUploadUser());
@@ -110,12 +110,12 @@ public class ImageController {
         if (image == null) {
             return;
         }
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         assertImageWritePermission(session, image);
         imageService.delete(id);
     }
 
-    private void assertImageWritePermission(UserSession session, Image image) {
+    private void assertImageWritePermission(AuthPrincipal session, Image image) {
         if (session.getRole() == UserRole.STATION) {
             return;
         }
@@ -143,7 +143,7 @@ public class ImageController {
         throw new BizException(ErrorCode.UNAUTHORIZED, "无权修改该图片");
     }
 
-    private boolean isRegionInReviewerScope(UserSession session, Long targetRegionId) {
+    private boolean isRegionInReviewerScope(AuthPrincipal session, Long targetRegionId) {
         if (targetRegionId == null || session.getReviewRegionId() == null) {
             return false;
         }

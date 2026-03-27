@@ -1,10 +1,10 @@
 package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.RoleGuard;
 import com.busgallery.busgallery.auth.UserRole;
-import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.dto.request.ReviewApproveRequest;
 import com.busgallery.busgallery.dto.request.ReviewRejectRequest;
 import com.busgallery.busgallery.dto.request.VehicleUpsertPayload;
@@ -35,7 +35,7 @@ public class ReviewController {
     @GetMapping("/inbox")
     @RequireLogin
     public List<SubmissionResponse> inbox() {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         return submissionService.listInbox(session).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -44,7 +44,7 @@ public class ReviewController {
     @GetMapping("/pending")
     @RequireLogin
     public List<SubmissionResponse> pending() {
-        UserSession session = RoleGuard.requireReviewerOrStation();
+        AuthPrincipal session = RoleGuard.requireReviewerOrStation();
         return submissionService.listPendingForReview(session).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -53,7 +53,7 @@ public class ReviewController {
     @PostMapping("/submissions/update")
     @RequireLogin
     public SubmissionResponse submitUpdate(@RequestBody UpdateSubmissionRequest request) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         if (request == null || request.getPayload() == null) {
             throw new BizException(ErrorCode.INVALID_PARAM, "Update payload is required");
         }
@@ -94,7 +94,7 @@ public class ReviewController {
     @RequireLogin
     public SubmissionResponse approve(@PathVariable Long id,
                                       @RequestBody(required = false) ReviewApproveRequest request) {
-        UserSession reviewer = RoleGuard.requireReviewerOrStation();
+        AuthPrincipal reviewer = RoleGuard.requireReviewerOrStation();
         VehicleSubmission submission = submissionService.approve(
                 reviewer,
                 id,
@@ -107,7 +107,7 @@ public class ReviewController {
     @RequireLogin
     public SubmissionResponse reject(@PathVariable Long id,
                                      @RequestBody ReviewRejectRequest request) {
-        UserSession reviewer = RoleGuard.requireReviewerOrStation();
+        AuthPrincipal reviewer = RoleGuard.requireReviewerOrStation();
         if (request == null || !StringUtils.hasText(request.getRejectReason())) {
             throw new BizException(ErrorCode.INVALID_PARAM, "Reject reason is required");
         }

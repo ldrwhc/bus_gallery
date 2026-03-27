@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <timestamp key="LOG_TIME" datePattern="HHmmss"/>
+
+    <springProperty scope="context" name="LOG_LEVEL_ROOT" source="LOG_LEVEL_ROOT" defaultValue="INFO"/>
+    <springProperty scope="context" name="LOG_LEVEL_APP" source="LOG_LEVEL_APP" defaultValue="DEBUG"/>
+    <springProperty scope="context" name="LOG_LEVEL_WEB" source="LOG_LEVEL_WEB" defaultValue="INFO"/>
+    <springProperty scope="context" name="LOG_LEVEL_MYBATIS" source="LOG_LEVEL_MYBATIS" defaultValue="DEBUG"/>
+
+    <springProperty scope="context" name="LOG_PATH" source="LOG_PATH" defaultValue="/app/logs"/>
+    <springProperty scope="context" name="LOG_FILE_PREFIX" source="LOG_FILE_PREFIX" defaultValue="bus-gallery"/>
+    <springProperty scope="context" name="LOG_PATTERN_CONSOLE" source="LOG_PATTERN_CONSOLE" defaultValue="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
+    <springProperty scope="context" name="LOG_PATTERN_FILE" source="LOG_PATTERN_FILE" defaultValue="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
+    <springProperty scope="context" name="LOG_MAX_FILE_SIZE" source="LOG_MAX_FILE_SIZE" defaultValue="20MB"/>
+    <springProperty scope="context" name="LOG_MAX_HISTORY" source="LOG_MAX_HISTORY" defaultValue="14"/>
+    <springProperty scope="context" name="LOG_TOTAL_SIZE_CAP" source="LOG_TOTAL_SIZE_CAP" defaultValue="1GB"/>
+    <springProperty scope="context" name="LOG_CLEAN_HISTORY_ON_START" source="LOG_CLEAN_HISTORY_ON_START" defaultValue="false"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN_CONSOLE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${LOG_FILE_PREFIX}-${LOG_TIME}.log</file>
+        <encoder>
+            <pattern>${LOG_PATTERN_FILE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/archive/${LOG_FILE_PREFIX}-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>${LOG_MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${LOG_MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${LOG_TOTAL_SIZE_CAP}</totalSizeCap>
+            <cleanHistoryOnStart>${LOG_CLEAN_HISTORY_ON_START}</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+
+    <logger name="com.busgallery" level="${LOG_LEVEL_APP}"/>
+    <logger name="org.springframework.web" level="${LOG_LEVEL_WEB}"/>
+    <logger name="org.mybatis" level="${LOG_LEVEL_MYBATIS}"/>
+
+    <root level="${LOG_LEVEL_ROOT}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

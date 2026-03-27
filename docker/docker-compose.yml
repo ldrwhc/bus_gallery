@@ -97,6 +97,7 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
+      TZ: Asia/Shanghai
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: ${DB_URL:-jdbc:mysql://mysql:3306/bus_gallery?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
       DB_USERNAME: ${DB_USERNAME:-root}
@@ -142,8 +143,20 @@ services:
       UPLOAD_SECURITY_USER_PER_DAY: ${UPLOAD_SECURITY_USER_PER_DAY:-120}
       UPLOAD_SECURITY_PENDING_PER_USER_MAX: ${UPLOAD_SECURITY_PENDING_PER_USER_MAX:-30}
       UPLOAD_SECURITY_PENDING_GLOBAL_MAX: ${UPLOAD_SECURITY_PENDING_GLOBAL_MAX:-5000}
+      LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-INFO}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-DEBUG}
+      LOG_LEVEL_WEB: ${LOG_LEVEL_WEB:-INFO}
+      LOG_LEVEL_MYBATIS: ${LOG_LEVEL_MYBATIS:-DEBUG}
+      LOG_MAX_FILE_SIZE: ${LOG_MAX_FILE_SIZE:-20MB}
+      LOG_MAX_HISTORY: ${LOG_MAX_HISTORY:-14}
+      LOG_TOTAL_SIZE_CAP: ${LOG_TOTAL_SIZE_CAP:-1GB}
+      LOG_CLEAN_HISTORY_ON_START: ${LOG_CLEAN_HISTORY_ON_START:-false}
+      LOG_PATTERN_CONSOLE: ${LOG_PATTERN_CONSOLE}
+      LOG_PATTERN_FILE: ${LOG_PATTERN_FILE}
     ports:
       - "8080:8080"
+    volumes:
+      - ../log:/app/logs
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

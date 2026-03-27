@@ -1,0 +1,3 @@
+﻿# Exclude imported group-buy project from VCS
+group-buy-market-master/
+log/*.log

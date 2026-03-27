@@ -1,9 +1,9 @@
 package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserRole;
-import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.dto.response.PageResponse;
 import com.busgallery.busgallery.entity.VehicleComment;
 import com.busgallery.busgallery.service.VehicleCommentService;
@@ -12,7 +12,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,12 +47,12 @@ public class CommentController {
     @RequireLogin
     public CommentResponse create(@PathVariable Long vehicleId,
                                   @Valid @RequestBody CommentCreateRequest request) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal principal = AuthContextHolder.requirePrincipal();
         VehicleComment saved = commentService.addComment(
                 vehicleId,
-                session.getUserId(),
-                session.getUsername(),
-                session.getDisplayName(),
+                principal.getUserId(),
+                principal.getUsername(),
+                principal.getDisplayName(),
                 request.getContent()
         );
         return CommentResponse.from(saved);
@@ -54,12 +61,12 @@ public class CommentController {
     @DeleteMapping("/{commentId}")
     @RequireLogin
     public void delete(@PathVariable Long vehicleId, @PathVariable Long commentId) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal principal = AuthContextHolder.requirePrincipal();
         commentService.deleteComment(
                 vehicleId,
                 commentId,
-                session.getUserId(),
-                session.getRole() == UserRole.STATION
+                principal.getUserId(),
+                principal.getRole() == UserRole.STATION
         );
     }
 
@@ -95,3 +102,4 @@ public class CommentController {
         }
     }
 }
+

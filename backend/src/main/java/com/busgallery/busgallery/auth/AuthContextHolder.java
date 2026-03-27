@@ -4,48 +4,37 @@ import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import lombok.experimental.UtilityClass;
 
-/**
- * AuthContextHolder类用于封装AuthContextHolder相关的领域职责（所在包：com.busgallery.busgallery.auth）。
- */
 @UtilityClass
 public class AuthContextHolder {
 
-    private static final ThreadLocal<UserSession> CONTEXT = new ThreadLocal<>();
+    private static final ThreadLocal<AuthPrincipal> CONTEXT = new ThreadLocal<>();
 
-    /**
-     * set方法用于处理set相关的业务逻辑。
-     * @param session session参数，详见调用方上下文。
-     * @return 无返回值。
-     */
-    public static void set(UserSession session) {
-        CONTEXT.set(session);
+    public static void set(AuthPrincipal principal) {
+        CONTEXT.set(principal);
     }
 
-    /**
-     * get方法用于处理get相关的业务逻辑。
-     * @return 返回UserSession类型结果。
-     */
-    public static UserSession get() {
+    public static AuthPrincipal get() {
         return CONTEXT.get();
     }
 
-    /**
-     * requireUser方法用于处理requireUser相关的业务逻辑。
-     * @return 返回UserSession类型结果。
-     */
-    public static UserSession requireUser() {
-        UserSession session = get();
-        if (session == null) {
-            throw new BizException(ErrorCode.UNAUTHORIZED, "请先登录");
-        }
-        return session;
+    public static AuthPrincipal getPrincipal() {
+        return CONTEXT.get();
     }
 
-    /**
-     * clear方法用于处理clear相关的业务逻辑。
-     * @return 无返回值。
-     */
+    public static AuthPrincipal requireUser() {
+        AuthPrincipal principal = get();
+        if (principal == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "请先登录");
+        }
+        return principal;
+    }
+
+    public static AuthPrincipal requirePrincipal() {
+        return requireUser();
+    }
+
     public static void clear() {
         CONTEXT.remove();
     }
 }
+

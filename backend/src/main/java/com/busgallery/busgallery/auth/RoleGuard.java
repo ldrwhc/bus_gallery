@@ -8,21 +8,21 @@ public final class RoleGuard {
     private RoleGuard() {
     }
 
-    public static UserSession requireSession() {
-        return AuthContextHolder.requireUser();
+    public static AuthPrincipal requireSession() {
+        return AuthContextHolder.requirePrincipal();
     }
 
-    public static UserSession requireStation() {
-        UserSession session = requireSession();
-        if (session.getRole() != UserRole.STATION) {
+    public static AuthPrincipal requireStation() {
+        AuthPrincipal session = requireSession();
+        if (!session.isStation()) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "Only station role can access this resource");
         }
         return session;
     }
 
-    public static UserSession requireReviewerOrStation() {
-        UserSession session = requireSession();
-        if (session.getRole() != UserRole.STATION && session.getRole() != UserRole.REVIEWER) {
+    public static AuthPrincipal requireReviewerOrStation() {
+        AuthPrincipal session = requireSession();
+        if (!session.isReviewerOrStation()) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "Review permission required");
         }
         return session;

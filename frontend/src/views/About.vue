@@ -997,7 +997,7 @@ npm run dev</code></pre></div>
       <article v-else-if="selectedPageId === 'm4'" class="page">
         <header><h2>模块4：安全与风控相关设计</h2></header>
         <section class="block"><h3>认证与授权</h3><ul>
-          <li>Redis Session Token（非 JWT），由 `AuthTokenInterceptor` 解析。</li>
+          <li>Redis Session Token（非 JWT），由 `AuthTokenInterceptor` 解析并映射为 `AuthPrincipal` 写入 `AuthContextHolder(ThreadLocal)`。</li>
           <li>`@RequireLogin` + `RoleGuard` 控制接口访问与角色权限。</li>
           <li>密码使用 `BCryptPasswordEncoder` 哈希存储。</li>
         </ul></section>
@@ -1175,7 +1175,7 @@ const flowRows = [
     frontend: 'Gallery 与 VehicleDetail 页面在初始化和筛选变更时把 regionId、companyId、brandId、modelId、keyword 与游标参数组装成请求并发到 /api/vehicles、/api/vehicles/{id}、/api/vehicles/plate/{plateNumber}，然后把返回数据渲染到列表和详情组件。',
     nginx: 'Nginx 从浏览器接收 /api 请求后先应用 api 级限流并补齐 X-Forwarded-* 头，再把请求转发到 backend:8080 对应控制器。',
     redis: 'Spring 读取车辆分页和详情前会先查 Redis 的车辆缓存键，命中则直接回包，未命中则等待 MySQL 结果回填缓存，并在写链路后通过版本键触发失效。',
-    spring: 'AuthTokenInterceptor 先解析会话上下文，随后 VehicleController 调用 VehicleService 与 ImageService 组装 DTO，再把结构化响应返回给前端。',
+    spring: 'AuthTokenInterceptor 先从 Redis 会话恢复并构造 AuthPrincipal（ThreadLocal 上下文），随后 VehicleController 调用 VehicleService 与 ImageService 组装 DTO，再把结构化响应返回给前端。',
     db: 'Service 层带着筛选条件查询 vehicle、vehicle_config、vehicle_image、image 等表并做关联映射，再把结果回传给 Spring 完成响应组装。',
     other: '图片元数据中的 objectName 会驱动 MinIO 读取对象字节流，最终通过后端返回浏览器完成图片渲染。'
   },
@@ -1518,7 +1518,7 @@ const termGlossary = [
 ];
 
 const redisKeyRows = [
-  { group: '会话', key: 'busgallery:sessions:{token}', value: 'UserSession JSON', ttl: 'auth.session.ttl-seconds (默认 86400s)', created: '登录成功 createSession', updated: '改昵称/角色时覆盖写；登出或强制下线删除', usage: '登录态校验、角色和审核地区读取' },
+  { group: '会话', key: 'busgallery:sessions:{token}', value: 'SessionPayload JSON（拦截器映射为 AuthPrincipal）', ttl: 'auth.session.ttl-seconds (默认 86400s)', created: '登录成功 createSession', updated: '改昵称/角色时覆盖写；登出或强制下线删除', usage: '登录态校验、角色和审核地区读取' },
   { group: '会话', key: 'busgallery:user:sessions:{userId}', value: 'Set<token>', ttl: '与会话同 TTL', created: '登录后绑定 token 到用户', updated: '登出 remove；改密 deleteAllSessionsByUserId 清空', usage: '按用户批量踢线、广播会话更新' },
   { group: '验证码', key: 'busgallery:auth:captcha:{scene}:{captchaId}', value: 'CaptchaPayload JSON', ttl: 'auth.security.captcha-ttl-seconds (默认 180s)', created: 'issueCaptcha 生成图形验证码', updated: '输错次数递增并覆盖写；成功或超次删除', usage: '登录/找回密码的人机验证' },
   { group: '风控', key: 'busgallery:auth:risk:{scope}:{dimension}:{sha256(identity)}', value: 'count(number)', ttl: 'login-fail 30m / forgot-req 15m', created: '失败登录或找回触发 incrementRisk', updated: '持续累加；登录成功删除 login-fail 风险键', usage: '达到阈值后强制要求验证码' },

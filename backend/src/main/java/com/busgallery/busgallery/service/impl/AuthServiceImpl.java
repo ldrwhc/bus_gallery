@@ -1,8 +1,8 @@
 package com.busgallery.busgallery.service.impl;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.UserRole;
-import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.auth.UserSessionService;
 import com.busgallery.busgallery.dto.request.LoginRequest;
 import com.busgallery.busgallery.dto.request.RegisterRequest;
@@ -86,8 +86,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserSession currentSession() {
-        return AuthContextHolder.get();
+    public AuthPrincipal currentSession() {
+        return AuthContextHolder.getPrincipal();
     }
 
     private String normalizeUsername(String username) {
@@ -104,4 +104,3 @@ public class AuthServiceImpl implements AuthService {
         return email.trim().toLowerCase();
     }
 }
-

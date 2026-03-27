@@ -1,9 +1,9 @@
 package com.busgallery.busgallery.controller;
 
 import com.busgallery.busgallery.auth.AuthContextHolder;
+import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserRole;
-import com.busgallery.busgallery.auth.UserSession;
 import com.busgallery.busgallery.dto.request.VehicleUpsertPayload;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.Vehicle;
@@ -60,7 +60,7 @@ public class UploadController {
                 file != null ? file.getOriginalFilename() : "null",
                 file != null ? file.getSize() : -1,
                 payload != null ? payload.getPlateNumber() : "null");
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         String clientIp = RequestIpUtil.resolveClientIp(httpRequest);
         uploadSecurityService.checkUploadQuotaAndRate(session, clientIp);
         return idempotencyService.runOnce(
@@ -77,7 +77,7 @@ public class UploadController {
         if (request == null) {
             throw new BizException(ErrorCode.INVALID_PARAM, "request body is required");
         }
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         String clientIp = RequestIpUtil.resolveClientIp(httpRequest);
         uploadSecurityService.checkUploadQuotaAndRate(session, clientIp);
         return chunkUploadService.init(
@@ -95,14 +95,14 @@ public class UploadController {
     public ChunkUploadService.ChunkProgress uploadChunkPart(@PathVariable String uploadId,
                                                             @RequestParam("index") int index,
                                                             @RequestPart("file") MultipartFile file) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         return chunkUploadService.uploadPart(uploadId, session.getUserId(), index, file);
     }
 
     @GetMapping("/chunk/{uploadId}/progress")
     @RequireLogin
     public ChunkUploadService.ChunkProgress chunkProgress(@PathVariable String uploadId) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         return chunkUploadService.progress(uploadId, session.getUserId());
     }
 
@@ -111,7 +111,7 @@ public class UploadController {
     public UploadResultResponse completeChunkUpload(@PathVariable String uploadId,
                                                     @RequestBody ChunkCompleteRequest request,
                                                     @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         VehicleUpsertPayload payload = requireChunkPayload(request);
         String effectiveIdempotencyKey = StringUtils.hasText(idempotencyKey)
                 ? idempotencyKey.trim()
@@ -129,11 +129,11 @@ public class UploadController {
     @DeleteMapping("/chunk/{uploadId}")
     @RequireLogin
     public void cancelChunkUpload(@PathVariable String uploadId) {
-        UserSession session = AuthContextHolder.requireUser();
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
         chunkUploadService.cancel(uploadId, session.getUserId());
     }
 
-    private UploadResultResponse handleUpload(MultipartFile file, VehicleUpsertPayload payload, UserSession session) {
+    private UploadResultResponse handleUpload(MultipartFile file, VehicleUpsertPayload payload, AuthPrincipal session) {
         payload.validate();
         Image metadata = new Image();
         metadata.setUploadUser(StringUtils.hasText(session.getDisplayName()) ? session.getDisplayName() : session.getUsername());
