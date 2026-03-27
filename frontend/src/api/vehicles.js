@@ -132,8 +132,25 @@ export const setFavorite = (vehicleId, liked) =>
 
 export const fetchFavoriteSummary = (vehicleId) => http.get(`/favorites/${vehicleId}/summary`);
 
-export const fetchFavorites = (userId) =>
-    http.get('/favorites', { params: userId ? { userId } : undefined });
+export const fetchFavorites = (payload = {}) => {
+    const params = typeof payload === 'object' && payload !== null ? payload : { userId: payload };
+    const page = Number(params.page) > 0 ? Number(params.page) : 1;
+    const size = Number(params.size) > 0 ? Number(params.size) : 12;
+    const query = {
+        page,
+        size,
+        ...(params.userId ? { userId: params.userId } : {})
+    };
+    return http.get('/favorites', { params: query }).then((response) => {
+        const records = normalizeRecords(response);
+        return {
+            records,
+            total: response?.total ?? records.length,
+            page: response?.page ?? page,
+            size: response?.size ?? size
+        };
+    });
+};
 
 export const fetchVehiclesByPlate = (plateNumber) =>
     http.get(`/vehicles/plate/${encodeURIComponent(plateNumber)}`);

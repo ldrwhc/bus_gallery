@@ -33,6 +33,18 @@
         ORDER BY created_at DESC
     </select>
 
+    <select id="selectByUserPage" resultMap="FavoriteResultMap">
+        SELECT id, vehicle_id, user_id, created_at
+        FROM vehicle_favorite
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countByUser" resultType="long">
+        SELECT COUNT(1) FROM vehicle_favorite WHERE user_id = #{userId}
+    </select>
+
     <select id="countByVehicle" resultType="long">
         SELECT COUNT(1) FROM vehicle_favorite WHERE vehicle_id = #{vehicleId}
     </select>

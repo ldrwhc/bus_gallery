@@ -116,6 +116,15 @@
         <section class="card">
             <header class="head">
                 <h2>{{ isSelf ? '我的喜爱' : '收藏' }}</h2>
+                <el-pagination
+                    v-if="favoritePagination.total > favoritePagination.size"
+                    layout="prev, pager, next"
+                    background
+                    :page-size="favoritePagination.size"
+                    :current-page="favoritePagination.page"
+                    :total="favoritePagination.total"
+                    @current-change="handleFavoritePageChange"
+                />
             </header>
             <div v-if="favoritesLoading || profileLoading" class="state">收藏加载中...</div>
             <div v-else-if="!favorites.length && isSelf" class="state">还没有收藏车辆</div>
@@ -325,6 +334,7 @@ const favorites = ref([]);
 const favoritesLoading = ref(false);
 const pendingImageIds = ref(new Set());
 const pagination = reactive({ page: 1, size: 12, total: 0 });
+const favoritePagination = reactive({ page: 1, size: 12, total: 0 });
 const avatarInitial = computed(() => (profile.value?.displayName || profile.value?.username || '?').slice(0, 1).toUpperCase());
 const isNormalUser = computed(() => store.state.auth.profile?.role === 'USER');
 const isSelf = computed(() => Number(store.state.auth.profile?.id || 0) === Number(profile.value?.id || 0));
@@ -523,8 +533,19 @@ const loadImages = async () => {
 const loadFavorites = async () => {
     favoritesLoading.value = true;
     try {
-        const list = await fetchFavorites(targetUserId.value);
-        favorites.value = Array.isArray(list) ? list : [];
+        const pageData = await fetchFavorites({
+            userId: targetUserId.value,
+            page: favoritePagination.page,
+            size: favoritePagination.size
+        });
+        favorites.value = Array.isArray(pageData?.records) ? pageData.records : [];
+        favoritePagination.total = Number(pageData?.total || 0);
+        favoritePagination.page = Number(pageData?.page || favoritePagination.page || 1);
+        favoritePagination.size = Number(pageData?.size || favoritePagination.size || 12);
+    } catch (error) {
+        ElMessage.error(error?.message || '加载收藏失败');
+        favorites.value = [];
+        favoritePagination.total = 0;
     } finally {
         favoritesLoading.value = false;
     }
@@ -554,6 +575,11 @@ const handlePageChange = (page) => {
     loadImages();
 };
 
+const handleFavoritePageChange = (page) => {
+    favoritePagination.page = page;
+    loadFavorites();
+};
+
 const openImage = async (image) => {
     if (!image?.vehicleId) return;
     activeVehicleId.value = image.vehicleId;
@@ -563,7 +589,7 @@ const openImage = async (image) => {
 const openFavorite = async (detail) => {
     if (!detail?.vehicle?.id) return;
     activeVehicleId.value = detail.vehicle.id;
-    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: detail.vehicle.id, force: true });
+    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: detail.vehicle.id });
 };
 
 const closeVehicleDetail = () => {
@@ -939,6 +965,7 @@ watch(
     () => route.params.userId,
     async () => {
         pagination.page = 1;
+        favoritePagination.page = 1;
         await loadProfile();
         await loadImages();
         await loadPendingInbox();

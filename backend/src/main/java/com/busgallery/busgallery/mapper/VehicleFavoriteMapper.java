@@ -14,6 +14,12 @@ public interface VehicleFavoriteMapper {
 
     List<VehicleFavorite> selectByUser(@Param("userId") Long userId);
 
+    List<VehicleFavorite> selectByUserPage(@Param("userId") Long userId,
+                                           @Param("offset") int offset,
+                                           @Param("size") int size);
+
+    long countByUser(@Param("userId") Long userId);
+
     long countByVehicle(@Param("vehicleId") Long vehicleId);
 
     int insert(VehicleFavorite favorite);

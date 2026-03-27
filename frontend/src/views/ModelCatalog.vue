@@ -80,7 +80,42 @@
                     <p class="subtitle">{{ modelDetail.brand?.name || brandNameMap[selectedModelId] || '品牌待补全' }}</p>
                 </div>
 
+                <section v-if="summaryLoading && !modelCompanySummaries.length" class="state state--loading">
+                    正在加载公司汇总...
+                </section>
+
+                <section v-else-if="!modelCompanySummaries.length" class="state state--empty">
+                    暂无公司汇总数据
+                </section>
+
+                <section v-else class="summary-grid">
+                    <article
+                        v-for="summary in modelCompanySummaries"
+                        :key="summary.companyId || summary.companyName"
+                        class="summary-card"
+                    >
+                        <div class="summary-card__meta">
+                            <p class="summary-card__title">{{ summary.companyName || '未命名公司' }}</p>
+                        </div>
+                        <button
+                            class="text-btn"
+                            type="button"
+                            @click="openCompanyVehicles(summary)"
+                        >
+                            查看该公司车辆
+                        </button>
+                    </article>
+                </section>
+
                 <div class="filter-grid">
+                    <div v-if="activeCompanyName" class="filter-line">
+                        <span class="filter-label">当前公司</span>
+                        <div class="chip-row">
+                            <button type="button" class="filter-chip active" @click="clearCompanyFocus">
+                                {{ activeCompanyName }} · 清除
+                            </button>
+                        </div>
+                    </div>
                     <div v-if="filterOptions.year.length" class="filter-line">
                         <span class="filter-label">生产年份</span>
                         <div class="chip-row">
@@ -126,11 +161,15 @@
                 </div>
 
                 <section v-if="detailLoading || vehiclesLoading" class="state state--loading">
-                    正在加载运营公司...
+                    正在加载车辆明细...
                 </section>
 
+                    <section v-else-if="!hasVehiclePayload" class="state state--empty">
+                        点击上方公司卡片后，再按需加载车辆明细
+                    </section>
+
                     <section v-else-if="!companyGroups.length" class="state state--empty">
-                        暂无车辆数据
+                        暂无符合筛选条件的车辆数据
                     </section>
 
                     <section v-else class="company-detail-grid">
@@ -308,9 +347,25 @@ const modelDetail = computed(() =>
     selectedModelId.value ? store.state.models.detailMap[selectedModelId.value] || null : null
 );
 
+const modelCompanySummaries = computed(() =>
+    selectedModelId.value
+        ? store.state.models.companySummariesByModel[selectedModelId.value] || []
+        : []
+);
+
 const modelVehicles = computed(() =>
     selectedModelId.value ? store.state.models.vehiclesByModel[selectedModelId.value] || [] : []
 );
+
+const hasVehiclePayload = computed(
+    () =>
+        Boolean(
+            selectedModelId.value &&
+                store.state.models.vehiclesFetchedAtMap?.[selectedModelId.value]
+        )
+);
+
+const activeCompanyId = ref(null);
 
 const detailLoading = computed(() =>
     selectedModelId.value ? store.state.models.detailLoadingMap[selectedModelId.value] : false
@@ -319,6 +374,18 @@ const detailLoading = computed(() =>
 const vehiclesLoading = computed(() =>
     selectedModelId.value ? store.state.models.vehiclesLoadingMap[selectedModelId.value] : false
 );
+
+const summaryLoading = computed(() =>
+    selectedModelId.value ? store.state.models.summaryLoadingMap[selectedModelId.value] : false
+);
+
+const activeCompanyName = computed(() => {
+    if (!activeCompanyId.value) return '';
+    const hit = modelCompanySummaries.value.find(
+        (summary) => Number(summary.companyId) === Number(activeCompanyId.value)
+    );
+    return hit?.companyName || '';
+});
 
 const placeholderLogo = placeholderBus;
 
@@ -485,12 +552,29 @@ const filteredCompanyGroups = computed(() =>
         const matchBadge = (selected, badges) =>
             !selected || badges.some((b) => b.label === selected);
         return (
+            (!activeCompanyId.value || Number(group.companyId) === Number(activeCompanyId.value)) &&
             matchBadge(filterSelection.year, group.info.badges.year) &&
             matchBadge(filterSelection.power, group.info.badges.power) &&
             matchBadge(filterSelection.fuel, group.info.badges.fuel)
         );
     })
 );
+
+const openCompanyVehicles = async (summary) => {
+    if (!selectedModelId.value || !summary?.companyId) return;
+    activeCompanyId.value = Number(summary.companyId);
+    try {
+        await store.dispatch('models/loadModelVehicles', {
+            modelId: selectedModelId.value
+        });
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+const clearCompanyFocus = () => {
+    activeCompanyId.value = null;
+};
 
 const clearModelFilter = () => {
     router.push({ name: 'ModelCatalog' });
@@ -499,15 +583,21 @@ const clearModelFilter = () => {
 watch(
     () => selectedModelId.value,
     (id) => {
-        if (!id) return;
-        store.dispatch('models/loadModelDetail', id);
-        store.dispatch('models/loadModelVehicles', { modelId: id });
+        filterSelection.year = '';
+        filterSelection.power = '';
+        filterSelection.fuel = '';
+        activeCompanyId.value = null;
+        if (!id) {
+            store.dispatch('models/loadModelCatalog');
+            return;
+        }
+        store.dispatch('models/loadModelDetail', { modelId: id });
+        store.dispatch('models/loadModelCompanySummaries', { modelId: id });
     },
     { immediate: true }
 );
 
 onMounted(() => {
-    store.dispatch('models/loadModelCatalog');
     store.dispatch('regions/loadRegions');
 });
 </script>
@@ -781,6 +871,29 @@ onMounted(() => {
     border-radius: 24px;
     padding: 24px;
     box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.summary-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px;
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.summary-card__title {
+    margin: 0;
+    font-weight: 600;
+    color: #0f172a;
 }
 
 .filter-grid {

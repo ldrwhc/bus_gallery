@@ -1,6 +1,7 @@
 package com.busgallery.busgallery.service.impl;
 
 import com.busgallery.busgallery.controller.VehicleController;
+import com.busgallery.busgallery.dto.response.PageResponse;
 import com.busgallery.busgallery.entity.User;
 import com.busgallery.busgallery.entity.VehicleFavorite;
 import com.busgallery.busgallery.exception.NotFoundException;
@@ -108,9 +109,12 @@ public class FavoriteServiceImpl implements FavoriteService {
     }
 
     @Override
-    public List<VehicleController.VehicleDetailResponse> listFavorites(Long userId) {
-        List<VehicleFavorite> favorites = favoriteMapper.selectByUser(userId);
-        return favorites.stream()
+    public PageResponse<VehicleController.VehicleDetailResponse> listFavorites(Long userId, int page, int size) {
+        int pageNo = Math.max(page, 1);
+        int pageSize = Math.max(size, 1);
+        int offset = (pageNo - 1) * pageSize;
+        List<VehicleFavorite> favorites = favoriteMapper.selectByUserPage(userId, offset, pageSize);
+        List<VehicleController.VehicleDetailResponse> records = favorites.stream()
                 .map(fav -> {
                     var vehicle = vehicleService.findById(fav.getVehicleId());
                     if (vehicle == null) return null;
@@ -120,6 +124,8 @@ public class FavoriteServiceImpl implements FavoriteService {
                 })
                 .filter(item -> item != null)
                 .collect(Collectors.toList());
+        long total = favoriteMapper.countByUser(userId);
+        return PageResponse.of(records, total, pageNo, pageSize);
     }
 
     private List<UserLike> buildTopUsers(Long vehicleId, Long currentUserId) {

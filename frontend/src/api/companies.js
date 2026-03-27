@@ -19,6 +19,12 @@ export const fetchCompanyVehicles = (companyId, params = {}) =>
     http.get(`/companies/${companyId}/vehicles`, { params });
 
 /**
+ * 公司下车型汇总（轻量）
+ */
+export const fetchCompanyModelSummaries = (companyId) =>
+    http.get(`/companies/${companyId}/model-summaries`);
+
+/**
  * 公司分类（含旗下车型）
  */
 export const fetchCompanyCatalog = () => http.get('/catalog/companies');

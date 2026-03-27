@@ -3,6 +3,7 @@ package com.busgallery.busgallery.controller;
 import com.busgallery.busgallery.auth.AuthContextHolder;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserSession;
+import com.busgallery.busgallery.dto.response.PageResponse;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.service.FavoriteService;
@@ -44,7 +45,11 @@ public class FavoriteController {
     }
 
     @GetMapping
-    public List<VehicleController.VehicleDetailResponse> listFavorites(@RequestParam(required = false) Long userId) {
+    public PageResponse<VehicleController.VehicleDetailResponse> listFavorites(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "12") int size
+    ) {
         Long target = userId;
         if (target == null) {
             // fallback to current user when authed
@@ -54,7 +59,7 @@ public class FavoriteController {
             throw new com.busgallery.busgallery.exception.BizException(
                     com.busgallery.busgallery.exception.ErrorCode.UNAUTHORIZED, "请先登录查看收藏");
         }
-        return favoriteService.listFavorites(target);
+        return favoriteService.listFavorites(target, page, size);
     }
 
     @Data

@@ -58,7 +58,7 @@
                 <div v-if="pagination.total > pageSize" class="pagination-wrap">
                     <el-pagination
                         background
-                        layout="prev, pager, next, jumper, total"
+                        layout="prev, pager, next, total"
                         :current-page="currentPage"
                         :page-size="pageSize"
                         :total="pagination.total"
@@ -78,7 +78,6 @@ import { computed, reactive, ref, watch, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import VehicleCard from '@/components/Gallery/VehicleCard.vue';
-import { fetchVehicleGallery } from '@/api/vehicles';
 
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
@@ -206,40 +205,10 @@ const activeVehicleLoading = computed(
 );
 const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
 
-const ensureCursorForPage = async (targetPage, filterPayload) => {
+const getCursorForPage = (targetPage) => {
     if (targetPage <= 1) {
         return { lastLaunch: null, lastId: null };
     }
-    if (cursorByPage.value[targetPage]) {
-        return cursorByPage.value[targetPage];
-    }
-
-    const knownPages = Object.keys(cursorByPage.value)
-        .map((num) => Number(num))
-        .filter((num) => Number.isInteger(num) && num >= 1 && num < targetPage)
-        .sort((a, b) => b - a);
-    let pageCursor = knownPages.length ? knownPages[0] : 1;
-    let cursor = cursorByPage.value[pageCursor] || { lastLaunch: null, lastId: null };
-
-    while (pageCursor < targetPage) {
-        const response = await fetchVehicleGallery({
-            size: PAGE_SIZE,
-            ...filterPayload,
-            ...(cursor?.lastLaunch ? { lastLaunch: cursor.lastLaunch } : {}),
-            ...(cursor?.lastId ? { lastId: cursor.lastId } : {})
-        });
-        const hasNextCursor = response?.nextLaunch != null || response?.nextId != null;
-        if (!hasNextCursor) {
-            return null;
-        }
-        cursor = {
-            lastLaunch: response?.nextLaunch || null,
-            lastId: response?.nextId || null
-        };
-        pageCursor += 1;
-        cursorByPage.value[pageCursor] = cursor;
-    }
-
     return cursorByPage.value[targetPage] || null;
 };
 
@@ -255,8 +224,7 @@ const loadGalleryByRoute = async (page, keyword) => {
     }
 
     const filterPayload = sanitizeFilters(filters);
-    const cursor =
-        normalizedPage > 1 ? await ensureCursorForPage(normalizedPage, filterPayload) : { lastLaunch: null, lastId: null };
+    const cursor = getCursorForPage(normalizedPage);
 
     if (token !== loadingToken.value) {
         return;
@@ -323,7 +291,14 @@ const handleResetFilters = () => {
 };
 
 const handlePageChange = (nextPage) => {
-    setRoutePage(nextPage, filters.keyword).catch((error) => {
+    const current = currentPage.value || 1;
+    let target = normalizePage(nextPage);
+    if (target > current + 1) {
+        target = current + 1;
+    } else if (target < current - 1) {
+        target = current - 1;
+    }
+    setRoutePage(target, filters.keyword).catch((error) => {
         console.error(error);
     });
 };
