@@ -1,0 +1,46 @@
+server:
+  port: ${SERVER_PORT:8093}
+
+spring:
+  application:
+    name: bus-gallery-bridge
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: ${BRIDGE_FEIGN_CONNECT_TIMEOUT:5000}
+            read-timeout: ${BRIDGE_FEIGN_READ_TIMEOUT:15000}
+
+bridge:
+  content-service-name: ${BRIDGE_CONTENT_SERVICE_NAME:bus-gallery}
+  trade-service-name: ${BRIDGE_TRADE_SERVICE_NAME:bus-gallery-group-buy}
+  content-service-base-url: ${BRIDGE_CONTENT_SERVICE_BASE_URL:http://bus-gallery}
+  gateway:
+    internal-secret: ${BRIDGE_GATEWAY_INTERNAL_SECRET:change-me-gateway-secret}
+    max-skew-seconds: ${BRIDGE_GATEWAY_MAX_SKEW_SECONDS:120}
+    internal-auth-header: ${BRIDGE_GATEWAY_INTERNAL_HEADER:X-Internal-Auth}
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.busgallery.bridge: ${LOG_LEVEL_APP:DEBUG}
+  pattern:
+    console: '${LOG_PATTERN_CONSOLE:%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n}'
+    file: '${LOG_PATTERN_FILE:%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n}'
+  file:
+    name: ${LOG_FILE_NAME:/app/logs/bridge-${LOG_TIME:000000}.log}
+  logback:
+    rollingpolicy:
+      max-file-size: ${LOG_MAX_FILE_SIZE:20MB}
+      max-history: ${LOG_MAX_HISTORY:14}
+      total-size-cap: ${LOG_TOTAL_SIZE_CAP:1GB}
+      clean-history-on-start: ${LOG_CLEAN_HISTORY_ON_START:false}

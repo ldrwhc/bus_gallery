@@ -16,6 +16,8 @@ public interface AuthSecurityService {
 
     AuthChallengeResponse sendPasswordChangeCode(AuthPrincipal session, String currentPassword, String clientIp);
 
+    void verifyCurrentPassword(AuthPrincipal session, String currentPassword);
+
     void changePassword(AuthPrincipal session, String challengeId, String emailCode, String newPassword, String confirmPassword);
 
     AuthChallengeResponse sendForgotPasswordCode(String usernameOrEmail, String clientIp);

@@ -12,6 +12,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
       - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init/trade_center.sql:/docker-entrypoint-initdb.d/trade_center.sql
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD:-123456}" ]
       interval: 5s
@@ -60,7 +61,7 @@ services:
     command: server /data --console-address ":9001"
 
   rabbitmq:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/rabbitmq:3.13.7
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/rabbitmq:3.13.7-management
     container_name: bus-gallery-rabbitmq
     restart: always
     environment:
@@ -77,6 +78,17 @@ services:
       retries: 5
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: bus-gallery-nacos
+    restart: always
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      NACOS_AUTH_ENABLE: "false"
+    ports:
+      - "8848:8848"
 
   backend:
     build:
@@ -96,6 +108,8 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
+      nacos:
+        condition: service_started
     environment:
       TZ: Asia/Shanghai
       SPRING_PROFILES_ACTIVE: prod
@@ -153,12 +167,151 @@ services:
       LOG_CLEAN_HISTORY_ON_START: ${LOG_CLEAN_HISTORY_ON_START:-false}
       LOG_PATTERN_CONSOLE: ${LOG_PATTERN_CONSOLE}
       LOG_PATTERN_FILE: ${LOG_PATTERN_FILE}
-    ports:
-      - "8080:8080"
+      AUTH_GATEWAY_TRUST_ONLY: ${AUTH_GATEWAY_TRUST_ONLY:-true}
+      AUTH_GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_AUTH_SECRET:-change-me-gateway-secret}
+      AUTH_GATEWAY_MAX_SKEW_SECONDS: ${AUTH_GATEWAY_MAX_SKEW_SECONDS:-120}
+      AUTH_GATEWAY_INTERNAL_HEADER: ${AUTH_GATEWAY_INTERNAL_HEADER:-X-Internal-Auth}
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-true}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
+      NACOS_NAMESPACE: ${NACOS_NAMESPACE:-public}
+      NACOS_GROUP: ${NACOS_GROUP:-DEFAULT_GROUP}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
     volumes:
-      - ../log:/app/logs
+      - ../log/backend:/app/logs
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  group:
+    build:
+      context: ../
+      dockerfile: group/Dockerfile
+    image: bus-gallery-group:latest
+    container_name: bus-gallery-group
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+    environment:
+      TZ: Asia/Shanghai
+      TRADE_DB_URL: ${TRADE_DB_URL:-jdbc:mysql://mysql:3306/trade_center?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+      TRADE_DB_USERNAME: ${TRADE_DB_USERNAME:-root}
+      TRADE_DB_PASSWORD: ${TRADE_DB_PASSWORD:-123456}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-12345678}
+      REDIS_DATABASE: ${REDIS_DATABASE:-0}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      GROUP_AUTH_SESSION_KEY_PREFIX: ${GROUP_AUTH_SESSION_KEY_PREFIX:-busgallery:sessions:}
+      GROUP_TRADE_MQ_EXCHANGE: ${GROUP_TRADE_MQ_EXCHANGE:-group.trade.exchange}
+      GROUP_TRADE_ORDER_LOCKED_ROUTING_KEY: ${GROUP_TRADE_ORDER_LOCKED_ROUTING_KEY:-trade.order.locked}
+      GROUP_TRADE_ORDER_SETTLED_ROUTING_KEY: ${GROUP_TRADE_ORDER_SETTLED_ROUTING_KEY:-trade.order.settled}
+      GROUP_TRADE_ORDER_REFUNDED_ROUTING_KEY: ${GROUP_TRADE_ORDER_REFUNDED_ROUTING_KEY:-trade.order.refunded}
+      GROUP_TRADE_OUTBOX_RELAY_BATCH_SIZE: ${GROUP_TRADE_OUTBOX_RELAY_BATCH_SIZE:-100}
+      GROUP_TRADE_OUTBOX_RELAY_DELAY_MS: ${GROUP_TRADE_OUTBOX_RELAY_DELAY_MS:-2000}
+      GROUP_TRADE_OUTBOX_RETRY_DELAY_SECONDS: ${GROUP_TRADE_OUTBOX_RETRY_DELAY_SECONDS:-60}
+      GROUP_AUTH_GATEWAY_TRUST_ONLY: ${GROUP_AUTH_GATEWAY_TRUST_ONLY:-true}
+      GROUP_AUTH_GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_AUTH_SECRET:-change-me-gateway-secret}
+      GROUP_AUTH_GATEWAY_MAX_SKEW_SECONDS: ${GROUP_AUTH_GATEWAY_MAX_SKEW_SECONDS:-120}
+      GROUP_AUTH_GATEWAY_INTERNAL_HEADER: ${GROUP_AUTH_GATEWAY_INTERNAL_HEADER:-X-Internal-Auth}
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-true}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
+      NACOS_NAMESPACE: ${NACOS_NAMESPACE:-public}
+      NACOS_GROUP: ${NACOS_GROUP:-DEFAULT_GROUP}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      LOG_LEVEL_ROOT: ${GROUP_LOG_LEVEL_ROOT:-INFO}
+      LOG_LEVEL_APP: ${GROUP_LOG_LEVEL_APP:-DEBUG}
+      LOG_MAX_FILE_SIZE: ${GROUP_LOG_MAX_FILE_SIZE:-20MB}
+      LOG_MAX_HISTORY: ${GROUP_LOG_MAX_HISTORY:-14}
+      LOG_TOTAL_SIZE_CAP: ${GROUP_LOG_TOTAL_SIZE_CAP:-1GB}
+      LOG_CLEAN_HISTORY_ON_START: ${GROUP_LOG_CLEAN_HISTORY_ON_START:-false}
+    volumes:
+      - ../log/group:/app/logs
+
+  bridge:
+    build:
+      context: ../
+      dockerfile: bridge/Dockerfile
+    image: bus-gallery-bridge:latest
+    container_name: bus-gallery-bridge
+    restart: always
+    depends_on:
+      - backend
+      - group
+      - nacos
+    environment:
+      TZ: Asia/Shanghai
+      SERVER_PORT: 8093
+      BRIDGE_CONTENT_SERVICE_NAME: ${BRIDGE_CONTENT_SERVICE_NAME:-bus-gallery}
+      BRIDGE_TRADE_SERVICE_NAME: ${BRIDGE_TRADE_SERVICE_NAME:-bus-gallery-group-buy}
+      BRIDGE_CONTENT_SERVICE_BASE_URL: ${BRIDGE_CONTENT_SERVICE_BASE_URL:-http://bus-gallery}
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-true}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
+      NACOS_NAMESPACE: ${NACOS_NAMESPACE:-public}
+      NACOS_GROUP: ${NACOS_GROUP:-DEFAULT_GROUP}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      BRIDGE_GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_AUTH_SECRET:-change-me-gateway-secret}
+      BRIDGE_GATEWAY_MAX_SKEW_SECONDS: ${BRIDGE_GATEWAY_MAX_SKEW_SECONDS:-120}
+      BRIDGE_GATEWAY_INTERNAL_HEADER: ${BRIDGE_GATEWAY_INTERNAL_HEADER:-X-Internal-Auth}
+      LOG_LEVEL_ROOT: ${BRIDGE_LOG_LEVEL_ROOT:-INFO}
+      LOG_LEVEL_APP: ${BRIDGE_LOG_LEVEL_APP:-DEBUG}
+      LOG_MAX_FILE_SIZE: ${BRIDGE_LOG_MAX_FILE_SIZE:-20MB}
+      LOG_MAX_HISTORY: ${BRIDGE_LOG_MAX_HISTORY:-14}
+      LOG_TOTAL_SIZE_CAP: ${BRIDGE_LOG_TOTAL_SIZE_CAP:-1GB}
+      LOG_CLEAN_HISTORY_ON_START: ${BRIDGE_LOG_CLEAN_HISTORY_ON_START:-false}
+    volumes:
+      - ../log/bridge:/app/logs
+
+  gateway:
+    build:
+      context: ../
+      dockerfile: gateway/Dockerfile
+    image: bus-gallery-gateway:latest
+    container_name: bus-gallery-gateway
+    restart: always
+    depends_on:
+      - backend
+      - group
+      - bridge
+      - redis
+      - nacos
+    environment:
+      TZ: Asia/Shanghai
+      SERVER_PORT: 8094
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-12345678}
+      REDIS_DATABASE: ${REDIS_DATABASE:-0}
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-true}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
+      NACOS_NAMESPACE: ${NACOS_NAMESPACE:-public}
+      NACOS_GROUP: ${NACOS_GROUP:-DEFAULT_GROUP}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      GATEWAY_AUTH_ENABLED: ${GATEWAY_AUTH_ENABLED:-true}
+      GATEWAY_AUTH_SESSION_KEY_PREFIX: ${GATEWAY_AUTH_SESSION_KEY_PREFIX:-busgallery:sessions:}
+      GATEWAY_INTERNAL_AUTH_SECRET: ${GATEWAY_INTERNAL_AUTH_SECRET:-change-me-gateway-secret}
+      GATEWAY_INTERNAL_AUTH_HEADER: ${GATEWAY_INTERNAL_AUTH_HEADER:-X-Internal-Auth}
+      LOG_LEVEL_ROOT: ${GATEWAY_LOG_LEVEL_ROOT:-INFO}
+      LOG_LEVEL_APP: ${GATEWAY_LOG_LEVEL_APP:-DEBUG}
+      LOG_MAX_FILE_SIZE: ${GATEWAY_LOG_MAX_FILE_SIZE:-20MB}
+      LOG_MAX_HISTORY: ${GATEWAY_LOG_MAX_HISTORY:-14}
+      LOG_TOTAL_SIZE_CAP: ${GATEWAY_LOG_TOTAL_SIZE_CAP:-1GB}
+      LOG_CLEAN_HISTORY_ON_START: ${GATEWAY_LOG_CLEAN_HISTORY_ON_START:-false}
+    volumes:
+      - ../log/gateway:/app/logs
 
   frontend:
     build:
@@ -169,7 +322,7 @@ services:
     container_name: bus-gallery-frontend
     restart: always
     depends_on:
-      - backend
+      - gateway
     ports:
       - "80:80"
 

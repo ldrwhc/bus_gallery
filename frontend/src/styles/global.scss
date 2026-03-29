@@ -2,6 +2,10 @@
     --bg-body: #f5f6fb;
 }
 
+html {
+    scrollbar-gutter: stable;
+}
+
 *,
 *::before,
 *::after {

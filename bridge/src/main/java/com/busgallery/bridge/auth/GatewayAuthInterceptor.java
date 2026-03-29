@@ -1,0 +1,186 @@
+package com.busgallery.bridge.auth;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+
+/**
+ * Bridge auth interceptor: only trusts gateway internal auth headers.
+ */
+@Component
+@RequiredArgsConstructor
+public class GatewayAuthInterceptor implements HandlerInterceptor {
+
+    private static final String HMAC_ALGO = "HmacSHA256";
+    private static final String HDR_INTERNAL_AUTH = "X-Internal-Auth";
+    private static final String HDR_USER_ID = "X-User-Id";
+    private static final String HDR_USERNAME = "X-Username";
+    private static final String HDR_DISPLAY_NAME = "X-Display-Name";
+    private static final String HDR_ROLE = "X-Role";
+    private static final String HDR_REVIEW_REGION = "X-Review-Region";
+    private static final String HDR_AUTH_TS = "X-Auth-Ts";
+    private static final String HDR_AUTH_SIGNATURE = "X-Auth-Signature";
+
+    @Value("${bridge.gateway.internal-secret:change-me-gateway-secret}")
+    private String gatewayInternalSecret;
+
+    @Value("${bridge.gateway.max-skew-seconds:120}")
+    private long gatewayAuthMaxSkewSeconds;
+
+    @Value("${bridge.gateway.internal-auth-header:X-Internal-Auth}")
+    private String gatewayInternalHeader;
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        try {
+            AuthPrincipal principal = resolveGatewayPrincipal(request);
+            if (principal != null) {
+                AuthContextHolder.set(principal);
+            }
+            if (handler instanceof HandlerMethod method) {
+                RequireLogin requireLogin = findRequireLogin(method);
+                if (requireLogin != null && AuthContextHolder.getPrincipal() == null) {
+                    throw new IllegalStateException("login required");
+                }
+            }
+            return true;
+        } catch (Exception ex) {
+            AuthContextHolder.clear();
+            throw ex;
+        }
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        AuthContextHolder.clear();
+    }
+
+    private RequireLogin findRequireLogin(HandlerMethod method) {
+        RequireLogin methodAnno = method.getMethodAnnotation(RequireLogin.class);
+        if (methodAnno != null) {
+            return methodAnno;
+        }
+        return method.getBeanType().getAnnotation(RequireLogin.class);
+    }
+
+    private AuthPrincipal resolveGatewayPrincipal(HttpServletRequest request) {
+        String marker = request.getHeader(StringUtils.hasText(gatewayInternalHeader) ? gatewayInternalHeader : HDR_INTERNAL_AUTH);
+        if (!StringUtils.hasText(marker)) {
+            marker = request.getHeader(HDR_INTERNAL_AUTH);
+        }
+        if (!StringUtils.hasText(marker)) {
+            return null;
+        }
+        if (!"1".equals(marker.trim())) {
+            throw new IllegalStateException("invalid gateway auth marker");
+        }
+
+        String userIdText = request.getHeader(HDR_USER_ID);
+        String roleText = request.getHeader(HDR_ROLE);
+        String username = trimToEmpty(request.getHeader(HDR_USERNAME));
+        String displayName = trimToEmpty(request.getHeader(HDR_DISPLAY_NAME));
+        String reviewRegionText = trimToEmpty(request.getHeader(HDR_REVIEW_REGION));
+        String tsText = request.getHeader(HDR_AUTH_TS);
+        String signature = request.getHeader(HDR_AUTH_SIGNATURE);
+
+        if (!StringUtils.hasText(userIdText)
+                || !StringUtils.hasText(roleText)
+                || !StringUtils.hasText(tsText)
+                || !StringUtils.hasText(signature)) {
+            throw new IllegalStateException("missing gateway auth headers");
+        }
+
+        long userId = parseLongOrThrow(userIdText, "invalid gateway user id");
+        long ts = parseLongOrThrow(tsText, "invalid gateway auth timestamp");
+        long now = Instant.now().getEpochSecond();
+        if (Math.abs(now - ts) > Math.max(30L, gatewayAuthMaxSkewSeconds)) {
+            throw new IllegalStateException("gateway auth header expired");
+        }
+
+        String normalizedRole = roleText.trim().toUpperCase();
+        String signatureText = signature.trim();
+        if (!verifySignature(userId, username, displayName, normalizedRole, reviewRegionText, ts, signatureText)) {
+            throw new IllegalStateException("gateway auth signature mismatch");
+        }
+
+        Long reviewRegionId = null;
+        if (StringUtils.hasText(reviewRegionText)) {
+            reviewRegionId = parseLongOrThrow(reviewRegionText, "invalid review region id");
+        }
+
+        return AuthPrincipal.builder()
+                .userId(userId)
+                .username(username)
+                .displayName(displayName)
+                .role(normalizedRole)
+                .reviewRegionId(reviewRegionId)
+                .build();
+    }
+
+    private long parseLongOrThrow(String value, String message) {
+        try {
+            return Long.parseLong(value.trim());
+        } catch (Exception ex) {
+            throw new IllegalStateException(message);
+        }
+    }
+
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String signHex(String secret, String payload) {
+        if (!StringUtils.hasText(secret)) {
+            throw new IllegalStateException("gateway secret is not configured");
+        }
+        try {
+            Mac mac = Mac.getInstance(HMAC_ALGO);
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGO));
+            byte[] hash = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("gateway signature verify failed", ex);
+        }
+    }
+
+    private boolean verifySignature(long userId,
+                                    String username,
+                                    String displayName,
+                                    String normalizedRole,
+                                    String reviewRegionText,
+                                    long ts,
+                                    String signature) {
+        String v2Base = String.join("|",
+                String.valueOf(userId),
+                normalizedRole,
+                reviewRegionText,
+                String.valueOf(ts));
+        String v2Expected = signHex(gatewayInternalSecret, v2Base);
+        if (v2Expected.equalsIgnoreCase(signature)) {
+            return true;
+        }
+        String legacyBase = String.join("|",
+                String.valueOf(userId),
+                username,
+                displayName,
+                normalizedRole,
+                reviewRegionText,
+                String.valueOf(ts));
+        String legacyExpected = signHex(gatewayInternalSecret, legacyBase);
+        return legacyExpected.equalsIgnoreCase(signature);
+    }
+}

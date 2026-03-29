@@ -1275,12 +1275,14 @@ const flowTitleMap = Object.fromEntries(flowRows.map((x) => [x.id, x.title]));
 const deployConfigs = [
   { key: 'DB_URL / DB_USERNAME / DB_PASSWORD', file: 'docker/.env', how: '将 DB_URL 指向 mysql:3306（容器）或 localhost:13306（本地），并替换账号密码', recommend: 'DB_URL=jdbc:mysql://mysql:3306/bus_gallery...; DB_USERNAME=root', effect: '后端数据库连接可用且时区一致' },
   { key: 'REDIS_HOST / REDIS_PORT / REDIS_PASSWORD', file: 'docker/.env + application.yml + compose', how: 'docker 环境用 redis:6379，本地环境改 localhost:6379，密码三处保持一致', recommend: 'REDIS_HOST=redis; REDIS_PORT=6379; REDIS_PASSWORD=12~16位强密码', effect: '会话、限流、缓存键读写正常' },
+  { key: 'NACOS_SERVER_ADDR / NACOS_NAMESPACE / NACOS_GROUP', file: 'docker/.env + application.yml + compose', how: '所有后端统一接入 nacos:8848，并保持 namespace/group 一致', recommend: 'NACOS_SERVER_ADDR=nacos:8848; NACOS_NAMESPACE=public; NACOS_GROUP=DEFAULT_GROUP', effect: 'gateway 路由与 bridge Feign 可通过注册中心发现 backend/group' },
+  { key: 'BRIDGE_CONTENT_SERVICE_NAME / BRIDGE_TRADE_SERVICE_NAME', file: 'docker/.env + bridge application.yml', how: 'bridge 不再写死 URL，改为按服务名调用', recommend: 'BRIDGE_CONTENT_SERVICE_NAME=bus-gallery; BRIDGE_TRADE_SERVICE_NAME=bus-gallery-group-buy', effect: 'bridge 通过 OpenFeign + Nacos 发现下游实例' },
   { key: 'MINIO_ENDPOINT / MINIO_CDN_HOST / MINIO_BUCKET', file: 'docker/.env + application.yml', how: 'MINIO_ENDPOINT 固定 http://minio:9000，MINIO_CDN_HOST 改公网域名或反向代理地址', recommend: 'MINIO_CDN_HOST=https://img.example.com/bus-gallery; MINIO_BUCKET=bus-gallery', effect: '图片生成 URL 可被前端直接访问' },
   { key: 'AUTH_SECURITY_* / AUTH_RATE_*', file: 'docker/.env + application.yml', how: '按用户规模调验证码阈值和发送频率，防止误伤正常用户', recommend: 'CAPTCHA_TTL=180; LOGIN_CAPTCHA_FAILURE_THRESHOLD=5; SEND_CODE_IP_PER_DAY=200', effect: '认证安全与体验平衡' },
   { key: 'UPLOAD_SECURITY_*', file: 'docker/.env + application.yml', how: '按业务图片规格调整大小、像素和频率阈值', recommend: 'MAX_FILE_BYTES=15728640; USER_PER_MINUTE=20; GLOBAL_PER_MINUTE=300', effect: '上传链路稳定并降低恶意请求' },
   { key: 'IMAGE_ACCESS_UPLOAD_* / IMAGE_ACCESS_THUMBNAIL_WATERMARK_*', file: 'docker/.env + application.yml', how: '上传阶段同时产出缩略图和受控高清图；缩略图用于普通浏览，受控高清图用于详情/审核', recommend: 'UPLOAD_WATERMARK_ENABLED=true; UPLOAD_JPEG_QUALITY=0.8; UPLOAD_MAX_SIDE=2560; THUMBNAIL_WATERMARK_ENABLED=true', effect: '既控制带宽又避免详情展示原图泄露' },
   { key: 'IMAGE_DISPLAY_BACKFILL_*', file: 'docker/.env + application.yml', how: '历史数据补齐受控高清图：按开关和 limit 分批回填，必要时可 force-regenerate 重算', recommend: 'IMAGE_DISPLAY_BACKFILL_ENABLED=true; LIMIT=200 先试跑，再 LIMIT=0 全量', effect: '清理旧数据“详情回退缩略图/原图”的风险' },
-  { key: 'limit_req / client_max_body_size / timeout', file: 'docker/nginx/default.conf', how: '根据并发和图片体积调整限流 burst、body 大小和超时', recommend: 'client_max_body_size 50M; proxy_read_timeout 300s', effect: '网关限流更稳，上传超时/413 更少' }
+  { key: 'limit_req / client_max_body_size / timeout', file: 'docker/nginx/default.conf', how: '根据并发和图片体积调整限流 burst、body 大小和超时；/api 必须转发到 gateway', recommend: 'client_max_body_size 50M; proxy_read_timeout 300s; proxy_pass http://gateway:8094', effect: '网关限流更稳，上传超时/413 更少，且后端入口统一' }
 ];
 
 const envConfigExample = `# docker/.env
@@ -1294,6 +1296,15 @@ MINIO_ROOT_USER=admin
 MINIO_ROOT_PASSWORD=ChangeMe_Minio_123
 MINIO_BUCKET=bus-gallery
 MINIO_CDN_HOST=http://localhost/bus-gallery
+
+NACOS_DISCOVERY_ENABLED=true
+NACOS_SERVER_ADDR=nacos:8848
+NACOS_NAMESPACE=public
+NACOS_GROUP=DEFAULT_GROUP
+NACOS_USERNAME=nacos
+NACOS_PASSWORD=nacos
+BRIDGE_CONTENT_SERVICE_NAME=bus-gallery
+BRIDGE_TRADE_SERVICE_NAME=bus-gallery-group-buy
 
 AUTH_SECURITY_CAPTCHA_ENABLED=true
 AUTH_SECURITY_CAPTCHA_TTL_SECONDS=180
@@ -1316,51 +1327,40 @@ IMAGE_DISPLAY_BACKFILL_FORCE_REGENERATE=false`;
 
 const appConfigExample = `# backend/src/main/resources/application.yml
 spring:
+  application:
+    name: bus-gallery
+  cloud:
+    nacos:
+      discovery:
+        enabled: \${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: \${NACOS_SERVER_ADDR:nacos:8848}
+        namespace: \${NACOS_NAMESPACE:public}
+        group: \${NACOS_GROUP:DEFAULT_GROUP}
   datasource:
     url: \${DB_URL:jdbc:mysql://localhost:3306/bus_gallery?...}
     username: \${DB_USERNAME:root}
     password: \${DB_PASSWORD:123456}
-    hikari:
-      maximum-pool-size: 30
-      minimum-idle: 10
   data:
     redis:
       host: \${REDIS_HOST:redis}
       port: \${REDIS_PORT:6379}
       password: \${REDIS_PASSWORD:12345678}
 
-minio:
-  endpoint: \${MINIO_ENDPOINT:http://minio:9000}
-  bucket: \${MINIO_BUCKET:bus-gallery}
-  cdn-host: \${MINIO_CDN_HOST:}
+# gateway/src/main/resources/application.yml
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: bridge-route
+          uri: lb://bus-gallery-bridge
+        - id: content-route
+          uri: lb://bus-gallery
 
-auth:
-  session:
-    ttl-seconds: \${AUTH_SESSION_TTL_SECONDS:86400}
-  security:
-    captcha-ttl-seconds: \${AUTH_SECURITY_CAPTCHA_TTL_SECONDS:180}
-    login-captcha-failure-threshold: \${AUTH_SECURITY_LOGIN_CAPTCHA_FAILURE_THRESHOLD:5}
-
-busgallery:
-  cache:
-    vehicles:
-      page-ttl-seconds: 30
-  upload-security:
-    max-file-bytes: \${UPLOAD_SECURITY_MAX_FILE_BYTES:15728640}
-    upload-user-per-minute: \${UPLOAD_SECURITY_USER_PER_MINUTE:20}
-  image-access:
-    token-secret: \${IMAGE_ACCESS_TOKEN_SECRET:change-me-image-access-secret}
-    full-ttl-seconds: \${IMAGE_ACCESS_FULL_TTL_SECONDS:300}
-    thumbnail-watermark-enabled: \${IMAGE_ACCESS_THUMBNAIL_WATERMARK_ENABLED:true}
-    thumbnail-watermark-text: \${IMAGE_ACCESS_THUMBNAIL_WATERMARK_TEXT:BUS GALLERY}
-    upload-watermark-enabled: \${IMAGE_ACCESS_UPLOAD_WATERMARK_ENABLED:true}
-    upload-watermark-text: \${IMAGE_ACCESS_UPLOAD_WATERMARK_TEXT:BUS GALLERY}
-    upload-jpeg-quality: \${IMAGE_ACCESS_UPLOAD_JPEG_QUALITY:0.8}
-    upload-max-side: \${IMAGE_ACCESS_UPLOAD_MAX_SIDE:2560}
-  image-display-backfill:
-    enabled: \${IMAGE_DISPLAY_BACKFILL_ENABLED:false}
-    limit: \${IMAGE_DISPLAY_BACKFILL_LIMIT:0}
-    force-regenerate: \${IMAGE_DISPLAY_BACKFILL_FORCE_REGENERATE:false}`;
+# bridge/src/main/resources/application.yml
+bridge:
+  content-service-name: \${BRIDGE_CONTENT_SERVICE_NAME:bus-gallery}
+  trade-service-name: \${BRIDGE_TRADE_SERVICE_NAME:bus-gallery-group-buy}
+  content-service-base-url: \${BRIDGE_CONTENT_SERVICE_BASE_URL:http://bus-gallery}`;
 
 const nginxConfigExample = `# docker/nginx/default.conf
 limit_req_zone $binary_remote_addr zone=auth_ip:10m rate=12r/s;
@@ -1370,28 +1370,28 @@ limit_req_zone $binary_remote_addr zone=api_ip:10m rate=25r/s;
 server {
   listen 80;
   client_max_body_size 50M;
-  client_body_timeout 300s;
 
   location /api/upload {
     limit_req zone=upload_ip burst=12 nodelay;
     proxy_read_timeout 300s;
-    proxy_send_timeout 300s;
-    proxy_pass http://backend:8080;
+    proxy_pass http://gateway:8094;
   }
 
   location /api/auth/ {
     limit_req zone=auth_ip burst=30 nodelay;
-    proxy_pass http://backend:8080;
+    proxy_pass http://gateway:8094;
   }
 
   location /api/ {
     limit_req zone=api_ip burst=40 nodelay;
-    proxy_pass http://backend:8080;
+    proxy_pass http://gateway:8094;
   }
 }`;
 const apiConfigEntries = [
   { topic: '认证会话', file: 'backend/src/main/resources/application.yml', keys: 'auth.session.ttl-seconds, auth.security.*', effect: '控制 token 与验证码策略' },
   { topic: '网关限流', file: 'docker/nginx/default.conf', keys: 'limit_req_zone, limit_req', effect: '控制 auth/upload/api 入口限流' },
+  { topic: '服务发现', file: 'backend/bridge/group/gateway application.yml', keys: 'spring.cloud.nacos.discovery.*', effect: '统一注册与发现，替代写死容器地址' },
+  { topic: 'Bridge 调用', file: 'bridge/src/main/resources/application.yml', keys: 'bridge.content-service-name, bridge.trade-service-name', effect: 'OpenFeign 按服务名调用内容域与交易域' },
   { topic: 'Redis 连接', file: 'docker/.env + application.yml', keys: 'REDIS_HOST/PORT/PASSWORD', effect: '会话、幂等、缓存、限流能力' },
   { topic: '上传安全', file: 'application.yml', keys: 'busgallery.upload-security.*', effect: '文件尺寸、像素、频率阈值' },
   { topic: '图片签名+水印压缩', file: 'application.yml', keys: 'busgallery.image-access.token-secret, *.upload-*, *.thumbnail-watermark-*', effect: '控制访问签名、上传自动水印和压缩策略' }
@@ -1436,7 +1436,7 @@ const interactionComponentRows = [
 ];
 
 const middlewarePages = [
-  { pageId: 'm3-nginx', name: 'Nginx', intro: '统一入口网关，负责反向代理、限流、静态与对象代理。', role: '将 /api 请求转发到 backend，将 /bus-gallery 路径代理到 MinIO。', io: [{ input: 'HTTP 请求', process: 'location 匹配 + limit_req + proxy_pass', output: 'backend 响应或 429' }, { input: '/bus-gallery/*', process: '代理到 minio:9000', output: '对象流' }], configs: [{ key: 'limit_req_zone / limit_req', file: 'docker/nginx/default.conf', effect: '分层限流' }, { key: 'client_max_body_size 50M', file: 'docker/nginx/default.conf', effect: '上传体积上限' }, { key: 'proxy_read_timeout 300s', file: 'docker/nginx/default.conf', effect: '长请求超时控制' }], workflows: [{ flow: 'WF-03', input: '/api/auth/*', process: '认证接口限流+转发', output: '认证响应' }, { flow: 'WF-05', input: '/api/upload', process: '上传转发', output: '上传链路执行' }, { flow: 'WF-08', input: '/api/images/access/{token}', process: '先后端验签', output: '图片流' }] },
+  { pageId: 'm3-nginx', name: 'Nginx', intro: '统一入口网关，负责反向代理、限流、静态与对象代理。', role: '将 /api 请求统一转发到 gateway，再由 gateway 基于 Nacos 路由到 backend/bridge；将 /bus-gallery 路径代理到 MinIO。', io: [{ input: 'HTTP 请求', process: 'location 匹配 + limit_req + proxy_pass', output: 'gateway 响应或 429' }, { input: '/bus-gallery/*', process: '代理到 minio:9000', output: '对象流' }], configs: [{ key: 'limit_req_zone / limit_req', file: 'docker/nginx/default.conf', effect: '分层限流' }, { key: 'client_max_body_size 50M', file: 'docker/nginx/default.conf', effect: '上传体积上限' }, { key: 'proxy_read_timeout 300s', file: 'docker/nginx/default.conf', effect: '长请求超时控制' }], workflows: [{ flow: 'WF-03', input: '/api/auth/*', process: '认证接口限流+转发', output: '认证响应' }, { flow: 'WF-05', input: '/api/upload', process: '上传转发', output: '上传链路执行' }, { flow: 'WF-08', input: '/api/images/access/{token}', process: '先后端验签', output: '图片流' }] },
   { pageId: 'm3-redis', name: 'Redis', intro: '会话、限流、验证码、幂等、分页缓存、车牌快照与防击穿都依赖 Redis。', role: '读链路负责缓存与热点兜底，写链路负责版本推进、快照删键和幂等控制，是全站一致性最敏感的中间件之一。', io: [{ input: 'token/captcha/challenge/identity', process: '读写 key + TTL + 递增', output: '会话状态/限流判定' }, { input: 'plate 快照查询', process: 'latest/stale/lock 协同 + 主动删键', output: '命中或回源快照' }, { input: 'Idempotency-Key', process: 'setIfAbsent 防重复', output: '允许或拒绝提交' }], configs: [{ key: 'spring.data.redis.*', file: 'backend/src/main/resources/application.yml', effect: '连接参数' }, { key: 'appendonly yes', file: 'docker/redis/redis.conf', effect: 'AOF 持久化' }, { key: 'auth.session.ttl-seconds', file: 'application.yml', effect: '会话 TTL' }, { key: 'busgallery.cache.*', file: 'application.yml', effect: '业务缓存 TTL' }], workflows: [{ flow: 'WF-03', input: '登录与验证码请求', process: 'session/captcha/risk key 管理', output: '认证状态' }, { flow: 'WF-05', input: '上传请求', process: '限流+幂等', output: '允许上传或拒绝' }, { flow: 'WF-06', input: '审核页修改/删除车辆', process: '分页版本推进 + 快照删键', output: '其他页面回源最新数据' }, { flow: 'WF-09', input: '快照请求', process: '防击穿与缓存复用', output: '快照结果' }] },
   { pageId: 'm3-mysql', name: 'MySQL', intro: '承载用户、车辆、图片、评论、收藏、审核等核心持久化数据。', role: '通过 MyBatis/JPA 执行查询和事务写入。', io: [{ input: '业务请求参数', process: 'SQL 查询/更新', output: '实体与结果集' }, { input: '审核与后台写操作', process: '事务更新多表', output: '一致落库' }], configs: [{ key: 'spring.datasource.*', file: 'application.yml', effect: '连接地址和凭证' }, { key: 'spring.datasource.hikari.*', file: 'application.yml', effect: '连接池并发能力' }, { key: 'docker/init/init.sql', file: 'docker/init/init.sql', effect: '初始化表结构' }], workflows: [{ flow: 'WF-01', input: '车辆筛选条件', process: 'vehicle 相关表查询', output: '列表与详情' }, { flow: 'WF-06', input: '审核动作', process: 'submission 状态更新', output: '审核结果' }, { flow: 'WF-07', input: '后台 CRUD', process: '主数据维护', output: '最新主数据' }] },
   { pageId: 'm3-spring', name: 'Spring', intro: '鉴权拦截、控制器路由、服务层事务、异常处理均在 Spring 层。', role: 'WebMvcConfig 注入 AuthTokenInterceptor 到 /api/**，RoleGuard 做权限裁剪。', io: [{ input: 'HTTP 请求', process: 'Interceptor -> Controller -> Service -> Mapper', output: '统一响应' }, { input: 'Authorization/token', process: '会话解析并写入上下文', output: '用户上下文或 401' }], configs: [{ key: 'WebMvcConfig.addInterceptors', file: 'backend/config/WebMvcConfig.java', effect: '统一鉴权入口' }, { key: '@RequireLogin + RoleGuard', file: 'controller/auth', effect: '角色权限控制' }, { key: '@Transactional', file: 'service/controller', effect: '关键写链路事务一致性' }], workflows: [{ flow: 'WF-03', input: '认证请求', process: '认证/风控/会话签发', output: 'token' }, { flow: 'WF-05', input: '上传请求', process: '安全校验 + 幂等 + 水印压缩 + 业务写入', output: '上传结果' }, { flow: 'WF-10', input: '/api/metrics/db', process: '聚合慢 SQL 指标', output: '监控数据' }] },
@@ -5515,3 +5515,4 @@ th {
   overflow: hidden;
 }
 </style>
+

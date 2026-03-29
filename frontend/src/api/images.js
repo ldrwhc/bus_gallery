@@ -58,3 +58,6 @@ export const uploadImage = (payload = {}) => {
 
 export const fetchLatestImages = (params = {}) =>
     http.get('/images/latest', { params });
+
+export const fetchImageDetail = (imageId) =>
+    http.get(`/images/${imageId}`);

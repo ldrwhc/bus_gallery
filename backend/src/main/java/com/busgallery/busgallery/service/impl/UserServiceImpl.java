@@ -221,6 +221,7 @@ public class UserServiceImpl implements UserService {
                 .bio(user.getBio())
                 .emailMasked(maskEmail(user.getEmail()))
                 .emailVerified(user.getEmailVerifiedAt() != null)
+                .balanceCents(user.getBalanceCents() == null ? 0L : user.getBalanceCents())
                 .role(user.getRole())
                 .reviewRegionId(user.getReviewRegionId())
                 .uploadsCount(uploadsCount)

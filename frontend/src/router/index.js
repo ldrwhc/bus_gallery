@@ -60,6 +60,24 @@ const router = createRouter({
             meta: { title: '上传图片', requiresAuth: true }
         },
         {
+            path: '/group-buy',
+            name: 'GroupBuyMarket',
+            component: () => import('@/views/GroupBuyMarket.vue'),
+            meta: { title: '拼团交易台', requiresAuth: true }
+        },
+        {
+            path: '/group-buy/goods',
+            name: 'GroupGoodsDetail',
+            component: () => import('@/views/GroupGoodsDetail.vue'),
+            meta: { title: '拼团商品详情', requiresAuth: true }
+        },
+        {
+            path: '/trade/download',
+            name: 'TradeDownload',
+            component: () => import('@/views/TradeDownload.vue'),
+            meta: { title: '交易下载', requiresAuth: true }
+        },
+        {
             path: '/review',
             name: 'ReviewCenter',
             component: () => import('@/views/ReviewCenter.vue'),
@@ -97,7 +115,7 @@ const router = createRouter({
                 }
                 const id = store.state.auth.profile?.id;
                 if (id && to.params.userId !== id) {
-                    return { name: 'UserProfile', params: { userId: id } };
+                    return { name: 'UserProfile', params: { userId: id }, query: to.query };
                 }
                 return true;
             }

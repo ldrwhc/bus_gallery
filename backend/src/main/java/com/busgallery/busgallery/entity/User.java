@@ -35,6 +35,9 @@ public class User {
     @Column(length = 512)
     private String bio;
 
+    @Column(name = "balance_cents", nullable = false)
+    private Long balanceCents = 0L;
+
     @Column(length = 128, unique = true)
     private String email;
 

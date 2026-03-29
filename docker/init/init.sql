@@ -166,6 +166,7 @@ CREATE TABLE `app_user` (
   `display_name`    VARCHAR(128)    NOT NULL COMMENT '灞曠ず鍚嶇О',
   `avatar_url`      VARCHAR(512)    DEFAULT NULL COMMENT '澶村儚',
   `bio`             VARCHAR(512)    DEFAULT NULL COMMENT '涓汉绠€浠?,
+  `balance_cents`   BIGINT          NOT NULL DEFAULT 0 COMMENT '余额（分）',
   `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

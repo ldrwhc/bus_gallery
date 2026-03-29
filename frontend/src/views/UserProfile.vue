@@ -56,7 +56,9 @@
                         <p class="muted">累计上传：{{ profile.uploadsCount || 0 }} 张</p>
                     </div>
                 </div>
-                <el-button v-if="isSelf" class="upload-cta" type="primary" @click="goUpload">继续上传</el-button>
+                <el-button v-if="isSelf" class="upload-cta" type="primary" @click="openPurchaseIncentives">
+                    查看购买记录
+                </el-button>
             </div>
         </section>
 
@@ -78,6 +80,11 @@
                     <el-button size="small" type="primary" :disabled="!profile.emailVerified" @click="openPasswordDialog">
                         修改密码
                     </el-button>
+                </div>
+                <div class="security-item security-item--wallet">
+                    <p class="muted">钱包</p>
+                    <strong class="security-wallet-amount">{{ walletBalanceText }}</strong>
+                    <span class="security-wallet-tip">可用于直接下单和拼团支付</span>
                 </div>
             </div>
         </section>
@@ -146,6 +153,18 @@
             :detail="activeVehicleDetail"
             :loading="detailLoading"
             @close="closeVehicleDetail"
+        />
+
+        <TradeRecordsDialog
+            v-if="isSelf"
+            v-model="tradeRecordsVisible"
+            :records="tradeRecords"
+            :loading="tradeRecordsLoading"
+            :canceling-ids="cancelingTradeRecordIds"
+            :page-size="30"
+            @refresh="loadTradeRecords"
+            @cancel-group="cancelTradeRecord"
+            @download="openTradeDownload"
         />
 
         <el-dialog v-model="editVisible" title="修改图片关联车辆信息" width="900px" destroy-on-close>
@@ -305,6 +324,7 @@ import { fetchUserImages, fetchUserProfile, updateMyDisplayName } from '@/api/us
 import { fetchFavorites } from '@/api/vehicles';
 import { fetchReviewInbox, submitVehicleUpdateReview } from '@/api/reviews';
 import { updateVehicle } from '@/api/vehicles';
+import { fetchPortalRecords, refundTradeBridgeOrder } from '@/api/tradeBridge';
 import {
     confirmBindEmail,
     confirmPasswordChange,
@@ -321,6 +341,7 @@ import {
 } from '@/utils/region';
 
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
+const TradeRecordsDialog = defineAsyncComponent(() => import('@/components/Trade/TradeRecordsDialog.vue'));
 const route = useRoute();
 const router = useRouter();
 const store = useStore();
@@ -332,6 +353,10 @@ const images = ref([]);
 const imagesLoading = ref(false);
 const favorites = ref([]);
 const favoritesLoading = ref(false);
+const tradeRecords = ref([]);
+const tradeRecordsLoading = ref(false);
+const tradeRecordsVisible = ref(false);
+const cancelingTradeRecordIds = ref(new Set());
 const pendingImageIds = ref(new Set());
 const pagination = reactive({ page: 1, size: 12, total: 0 });
 const favoritePagination = reactive({ page: 1, size: 12, total: 0 });
@@ -456,6 +481,7 @@ const canSendPasswordCode = computed(() =>
     Boolean(passwordForm.currentPassword)
 );
 const passwordCodeText = computed(() => (passwordCountdown.value > 0 ? `${passwordCountdown.value}s 后重发` : '发送验证码'));
+const walletBalanceText = computed(() => `¥${(Number(profile.value?.balanceCents || 0) / 100).toFixed(2)}`);
 const showEditMotorField = computed(() => isElectricFuel(editForm.config.fuelType));
 const showEditEngineField = computed(() => isCombustionFuel(editForm.config.fuelType));
 
@@ -551,6 +577,23 @@ const loadFavorites = async () => {
     }
 };
 
+const loadTradeRecords = async () => {
+    if (!isSelf.value) {
+        tradeRecords.value = [];
+        return;
+    }
+    tradeRecordsLoading.value = true;
+    try {
+        const list = await fetchPortalRecords(600);
+        tradeRecords.value = Array.isArray(list) ? list : [];
+    } catch (error) {
+        tradeRecords.value = [];
+        ElMessage.error(error?.message || '加载购买记录失败');
+    } finally {
+        tradeRecordsLoading.value = false;
+    }
+};
+
 const loadPendingInbox = async () => {
     if (!isSelf.value) {
         pendingImageIds.value = new Set();
@@ -596,7 +639,61 @@ const closeVehicleDetail = () => {
     activeVehicleId.value = null;
 };
 
+const openPurchaseIncentives = async () => {
+    tradeRecordsVisible.value = true;
+    if (!tradeRecords.value.length) {
+        await loadTradeRecords();
+    }
+};
+
 const goUpload = () => router.push({ name: 'Upload' });
+
+const canCancelGroupRecord = (record) =>
+    Number(record?.orderMode || 0) !== 2 &&
+    Number(record?.tradeStatus || 0) === 0 &&
+    !record?.canDownload &&
+    Boolean(record?.outTradeNo);
+
+const cancelTradeRecord = async (record) => {
+    if (!canCancelGroupRecord(record)) {
+        ElMessage.warning('当前记录不可取消');
+        return;
+    }
+    const key = String(record.recordId || record.outTradeNo || '');
+    if (cancelingTradeRecordIds.value.has(key)) return;
+    const next = new Set(cancelingTradeRecordIds.value);
+    next.add(key);
+    cancelingTradeRecordIds.value = next;
+    try {
+        await refundTradeBridgeOrder({
+            outTradeNo: String(record.outTradeNo),
+            source: 'profile',
+            channel: 'web'
+        });
+        ElMessage.success('取消拼团成功，金额已原路退回');
+        await Promise.all([
+            store.dispatch('auth/fetchProfile').catch(() => {}),
+            loadProfile(),
+            loadTradeRecords()
+        ]);
+    } catch (error) {
+        ElMessage.error(error?.message || '取消拼团失败');
+    } finally {
+        const release = new Set(cancelingTradeRecordIds.value);
+        release.delete(key);
+        cancelingTradeRecordIds.value = release;
+    }
+};
+
+const openTradeDownload = (record) => {
+    if (record?.recordId) {
+        router.push({ name: 'TradeDownload', query: { recordId: record.recordId } });
+        return;
+    }
+    if (record?.downloadUrl) {
+        window.open(record.downloadUrl, '_blank', 'noopener');
+    }
+};
 
 const isImagePendingReview = (image) => pendingImageIds.value.has(Number(image?.id || 0));
 const resolveEditButtonText = (image) => {
@@ -970,8 +1067,22 @@ watch(
         await loadImages();
         await loadPendingInbox();
         await loadFavorites();
+        await loadTradeRecords();
     },
     { immediate: true }
+);
+
+watch(
+    () => isSelf.value,
+    async (val) => {
+        if (!val) {
+            tradeRecordsVisible.value = false;
+            tradeRecords.value = [];
+            cancelingTradeRecordIds.value = new Set();
+            return;
+        }
+        await loadTradeRecords();
+    }
 );
 
 onMounted(() => {
@@ -1050,6 +1161,9 @@ onBeforeUnmount(() => {
 .security-item > p { grid-area: title; margin: 0; }
 .security-item > strong { grid-area: status; min-width: 0; }
 .security-item > .el-button { grid-area: action; justify-self: end; align-self: center; padding: 7px 12px; min-height: 34px; font-size: 12px; line-height: 1.2; max-width: 100%; }
+.security-item--wallet { grid-template-columns: 1fr; grid-template-areas: "title" "status" "tip"; }
+.security-wallet-amount { color: #0f172a; font-size: 1.15rem; line-height: 1.2; }
+.security-wallet-tip { grid-area: tip; color: #64748b; font-size: 12px; line-height: 1.4; }
 .inline-code { display: grid; grid-template-columns: 1fr auto; gap: 10px; width: 100%; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
 .item { background: #f8fafc; border-radius: 14px; padding: 10px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2); }
@@ -1106,3 +1220,4 @@ onBeforeUnmount(() => {
     }
 }
 </style>
+

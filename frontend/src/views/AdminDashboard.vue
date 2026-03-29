@@ -269,6 +269,50 @@
             <section class="card">
                 <header class="row-between">
                     <div>
+                        <h2>拼团参数设置</h2>
+                        <p class="muted">按图片维度配置原图价格、拼团折扣、成团人数和成团时限。</p>
+                    </div>
+                    <div class="toolbar-actions">
+                        <span class="muted">已勾选 {{ selectedGroupParamGoodsIds.length }} 条</span>
+                        <el-button :loading="groupParamsLoading" @click="loadGroupParams">刷新配置</el-button>
+                    </div>
+                </header>
+                <div v-if="groupParamsLoading" class="state">正在加载拼团配置...</div>
+                <div v-else-if="!groupParamRows.length" class="state">暂无可配置的图片商品</div>
+                <el-table v-else :data="groupParamRows" stripe @selection-change="handleGroupParamSelectionChange">
+                    <el-table-column type="selection" width="48" />
+                    <el-table-column prop="imageId" label="图片ID" width="120" />
+                    <el-table-column prop="imageName" label="图片名(车牌)" min-width="180" />
+                    <el-table-column prop="goodsId" label="goodsId" min-width="140" />
+                    <el-table-column label="价格" min-width="210">
+                        <template #default="{ row }">
+                            <div>{{ formatCents(row.originalPriceCents) }} / {{ formatCents(row.groupPriceCents) }}</div>
+                            <div class="muted">折扣 {{ Number(row.discountRate || 0).toFixed(2) }} 折</div>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="成团条件" min-width="190">
+                        <template #default="{ row }">
+                            <div>{{ row.targetCount || '-' }} 人成团</div>
+                            <div class="muted">{{ row.validMinutes || '-' }} 分钟</div>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="状态" min-width="150">
+                        <template #default="{ row }">
+                            <div>{{ labelGoodsStatus(row.goodsStatus) }}</div>
+                            <div class="muted">{{ labelActivityStatus(row.activityStatus) }}</div>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="140" fixed="right">
+                        <template #default="{ row }">
+                            <el-button size="small" type="primary" @click="openGroupParamEditor(row)">展开设置</el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </section>
+
+            <section class="card">
+                <header class="row-between">
+                    <div>
                         <h2>评论管理</h2>
                         <p class="muted">站长可删除任意评论；评论作者也可在前台详情页删除自己的评论。</p>
                     </div>
@@ -384,6 +428,78 @@
                 <el-button type="primary" :loading="modelEditor.saving" @click="saveModel">保存</el-button>
             </template>
         </el-dialog>
+
+        <el-dialog v-model="groupParamEditor.visible" title="拼团参数设置" width="640px" destroy-on-close>
+            <el-form label-position="top">
+                <el-form-item label="图片ID">
+                    <el-input :model-value="groupParamEditor.imageId" disabled />
+                </el-form-item>
+                <el-form-item label="图片名(车牌)">
+                    <el-input :model-value="groupParamEditor.imageName" disabled />
+                </el-form-item>
+                <el-row :gutter="12">
+                    <el-col :span="12">
+                        <el-form-item label="原图价格(元)">
+                            <el-input v-model="groupParamEditor.originalPriceYuan" placeholder="例如 99.00" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="拼团折扣(几折)">
+                            <el-input v-model="groupParamEditor.discountRate" placeholder="例如 8.5" />
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="12">
+                        <el-form-item label="成团人数">
+                            <el-input-number v-model="groupParamEditor.targetCount" :min="2" :max="99" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="成团时间(分钟)">
+                            <el-input-number v-model="groupParamEditor.validMinutes" :min="5" :max="10080" />
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="12">
+                        <el-form-item label="可用库存">
+                            <el-input-number v-model="groupParamEditor.stockAvailable" :min="0" :max="1000000" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="活动剩余天数(可选重置)">
+                            <el-input-number v-model="groupParamEditor.activityDays" :min="1" :max="3650" />
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="12">
+                        <el-form-item label="商品状态">
+                            <el-select v-model="groupParamEditor.goodsStatus">
+                                <el-option :value="0" label="下线" />
+                                <el-option :value="1" label="上线" />
+                                <el-option :value="2" label="冻结" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="活动状态">
+                            <el-select v-model="groupParamEditor.activityStatus">
+                                <el-option :value="0" label="草稿" />
+                                <el-option :value="1" label="启用" />
+                                <el-option :value="2" label="结束" />
+                                <el-option :value="3" label="关闭" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+            </el-form>
+            <template #footer>
+                <el-button @click="groupParamEditor.visible = false">取消</el-button>
+                <el-button type="primary" :loading="groupParamEditor.saving" @click="saveGroupParam">保存</el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -391,6 +507,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import http from '@/api/axiosInstance';
 import {
     batchDeleteAdminBrands,
     batchDeleteAdminComments,
@@ -422,6 +539,9 @@ import {
     updateAdminUserRole
 } from '@/api/admin';
 
+const fetchAdminGroupParams = () => http.get('/admin/group/params');
+const updateAdminGroupParam = (goodsId, payload) => http.put(`/admin/group/params/${goodsId}`, payload);
+
 const store = useStore();
 
 const refreshing = ref(false);
@@ -439,6 +559,24 @@ const commentAdmin = reactive({
     size: 20,
     total: 0,
     records: []
+});
+const groupParamsLoading = ref(false);
+const groupParamRows = ref([]);
+const selectedGroupParamGoodsIds = ref([]);
+const groupParamEditor = reactive({
+    visible: false,
+    saving: false,
+    goodsId: '',
+    imageId: null,
+    imageName: '',
+    originalPriceYuan: '',
+    discountRate: '',
+    targetCount: 3,
+    validMinutes: 1440,
+    stockAvailable: 9999,
+    goodsStatus: 1,
+    activityStatus: 1,
+    activityDays: 365
 });
 
 const overview = reactive({
@@ -616,6 +754,16 @@ const loadModelTable = async () => {
     modelRows.value = Array.isArray(list) ? list : [];
     selectedModelIds.value = [];
 };
+const loadGroupParams = async () => {
+    groupParamsLoading.value = true;
+    try {
+        const list = await fetchAdminGroupParams();
+        groupParamRows.value = Array.isArray(list) ? list : [];
+        selectedGroupParamGoodsIds.value = [];
+    } finally {
+        groupParamsLoading.value = false;
+    }
+};
 const loadAdminComments = async (page = commentAdmin.page) => {
     commentAdmin.loading = true;
     try {
@@ -655,6 +803,7 @@ const reloadAll = async () => {
             loadCompanyTable(),
             loadBrandTable(),
             loadModelTable(),
+            loadGroupParams(),
             loadAdminComments(commentAdmin.page),
             activeTab.value === 'images' ? loadSuspectImages() : Promise.resolve()
         ]);
@@ -721,6 +870,75 @@ const handleSuspectSelectionChange = (rows) => {
 };
 const handleCommentSelectionChange = (rows) => {
     selectedCommentIds.value = pickIds(rows);
+};
+const handleGroupParamSelectionChange = (rows) => {
+    selectedGroupParamGoodsIds.value = (Array.isArray(rows) ? rows : [])
+        .map((row) => String(row?.goodsId || '').trim())
+        .filter((id) => Boolean(id));
+};
+
+const formatCents = (value) => `¥${(Number(value || 0) / 100).toFixed(2)}`;
+const labelGoodsStatus = (status) => {
+    if (Number(status) === 0) return '下线';
+    if (Number(status) === 2) return '冻结';
+    return '上线';
+};
+const labelActivityStatus = (status) => {
+    if (Number(status) === 0) return '草稿';
+    if (Number(status) === 2) return '结束';
+    if (Number(status) === 3) return '关闭';
+    return '启用';
+};
+
+const openGroupParamEditor = (row) => {
+    if (!row?.goodsId) return;
+    groupParamEditor.visible = true;
+    groupParamEditor.goodsId = String(row.goodsId);
+    groupParamEditor.imageId = row.imageId ?? null;
+    groupParamEditor.imageName = row.imageName || '';
+    groupParamEditor.originalPriceYuan = (Number(row.originalPriceCents || 0) / 100).toFixed(2);
+    groupParamEditor.discountRate = Number(row.discountRate || 0).toFixed(2);
+    groupParamEditor.targetCount = Number(row.targetCount || 3);
+    groupParamEditor.validMinutes = Number(row.validMinutes || 1440);
+    groupParamEditor.stockAvailable = Number(row.stockAvailable || 0);
+    groupParamEditor.goodsStatus = Number(row.goodsStatus ?? 1);
+    groupParamEditor.activityStatus = Number(row.activityStatus ?? 1);
+    groupParamEditor.activityDays = 365;
+};
+
+const saveGroupParam = async () => {
+    if (!groupParamEditor.goodsId) {
+        ElMessage.warning('缺少 goodsId');
+        return;
+    }
+    if (!(Number(groupParamEditor.originalPriceYuan) > 0)) {
+        ElMessage.warning('原图价格必须大于 0');
+        return;
+    }
+    if (!(Number(groupParamEditor.discountRate) > 0) || Number(groupParamEditor.discountRate) > 10) {
+        ElMessage.warning('拼团折扣请填 0~10 之间，例如 8.5');
+        return;
+    }
+    groupParamEditor.saving = true;
+    try {
+        await updateAdminGroupParam(groupParamEditor.goodsId, {
+            originalPriceYuan: Number(groupParamEditor.originalPriceYuan),
+            discountRate: Number(groupParamEditor.discountRate),
+            targetCount: Number(groupParamEditor.targetCount || 3),
+            validMinutes: Number(groupParamEditor.validMinutes || 1440),
+            stockAvailable: Number(groupParamEditor.stockAvailable || 0),
+            goodsStatus: Number(groupParamEditor.goodsStatus || 1),
+            activityStatus: Number(groupParamEditor.activityStatus || 1),
+            activityDays: Number(groupParamEditor.activityDays || 365)
+        });
+        groupParamEditor.visible = false;
+        await loadGroupParams();
+        ElMessage.success('拼团参数更新成功');
+    } catch (error) {
+        ElMessage.error(error?.message || '拼团参数更新失败');
+    } finally {
+        groupParamEditor.saving = false;
+    }
 };
 
 const saveRegion = async () => {

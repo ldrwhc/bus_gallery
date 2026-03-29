@@ -33,7 +33,7 @@
 
                 <div class="header-actions">
                     <template v-if="isAuthenticated">
-                        <div class="info-wrap">
+                        <div ref="inboxWrapRef" class="info-wrap">
                             <button class="info-btn" type="button" aria-label="消息通知" @click="toggleInbox">
                                 <svg viewBox="0 0 24 24">
                                     <path d="M12 3a6 6 0 0 0-6 6v3.8l-1.6 2.7a1 1 0 0 0 .86 1.5h13.48a1 1 0 0 0 .86-1.5L18 12.8V9a6 6 0 0 0-6-6z" fill="none" stroke="currentColor" stroke-width="1.8" />
@@ -147,6 +147,7 @@ import { useStore } from 'vuex';
 import logoUrl from '@/assets/images/logo.svg?url';
 import { NAV_LINKS } from '@/utils/constants';
 import { fetchReviewInbox } from '@/api/reviews';
+import { fetchPortalMessages } from '@/api/tradeBridge';
 
 const emit = defineEmits(['toggle-search']);
 
@@ -170,6 +171,7 @@ const navOpen = ref(false);
 const inboxVisible = ref(false);
 const inboxLoading = ref(false);
 const inboxItems = ref([]);
+const inboxWrapRef = ref(null);
 const dismissedInboxIds = ref(new Set());
 const seenInboxIds = ref(new Set());
 let inboxTimer = null;
@@ -190,10 +192,7 @@ const inboxCount = computed(() =>
     visibleInboxItems.value.filter((item) => !seenInboxIds.value.has(String(item.id || ''))).length
 );
 const inboxTitle = computed(() => {
-    if (role.value === 'REVIEWER' || role.value === 'STATION') {
-        return '待审核消息';
-    }
-    return '审核通知';
+    return '消息';
 });
 
 const toggleNav = () => {
@@ -207,8 +206,30 @@ const loadInbox = async () => {
     }
     inboxLoading.value = true;
     try {
-        const list = await fetchReviewInbox();
-        inboxItems.value = Array.isArray(list) ? list : [];
+        const tasks = [];
+        if (role.value === 'REVIEWER' || role.value === 'STATION' || role.value === 'USER') {
+            tasks.push(fetchReviewInbox().catch(() => []));
+        } else {
+            tasks.push(Promise.resolve([]));
+        }
+        tasks.push(fetchPortalMessages(20).catch(() => []));
+        const [reviewList, tradeList] = await Promise.all(tasks);
+
+        const normalizedReview = (Array.isArray(reviewList) ? reviewList : []).map((item) => ({
+            ...item,
+            source: 'review',
+            id: item.id != null ? `review-${item.id}` : `review-${Math.random()}`
+        }));
+        const normalizedTrade = (Array.isArray(tradeList) ? tradeList : []).map((item) => ({
+            ...item,
+            source: 'trade',
+            id: item.messageId ? `trade-${item.messageId}` : `trade-${Math.random()}`
+        }));
+        inboxItems.value = [...normalizedTrade, ...normalizedReview].sort((a, b) => {
+            const aTime = new Date(a.createdAt || a.reviewedAt || a.created_at || 0).getTime();
+            const bTime = new Date(b.createdAt || b.reviewedAt || b.created_at || 0).getTime();
+            return bTime - aTime;
+        });
         if (inboxVisible.value) {
             markInboxSeen(inboxItems.value);
         }
@@ -313,6 +334,23 @@ const handleVisibilityChange = () => {
     startInboxPolling();
 };
 
+const handleDocumentPointerDown = (event) => {
+    if (!inboxVisible.value) return;
+    const target = event?.target;
+    if (!target) return;
+    const wrap = inboxWrapRef.value;
+    if (wrap && !wrap.contains(target)) {
+        inboxVisible.value = false;
+    }
+};
+
+const handleEscapeClose = (event) => {
+    if (!inboxVisible.value) return;
+    if (event?.key === 'Escape') {
+        inboxVisible.value = false;
+    }
+};
+
 const toggleInbox = async () => {
     inboxVisible.value = !inboxVisible.value;
     if (inboxVisible.value) {
@@ -322,6 +360,13 @@ const toggleInbox = async () => {
 };
 
 const resolveItemStatus = (item = {}) => {
+    if (item.source === 'trade') {
+        if (item.messageType === 'DIRECT_SUCCESS') return '下单成功';
+        if (item.messageType === 'GROUP_SUCCESS') return '拼团成功';
+        if (item.messageType === 'GROUP_FAILED') return '拼团失败';
+        if (item.messageType === 'GROUP_WAIT') return '拼团中';
+        return '交易消息';
+    }
     const status = item.status || '';
     if (status === 'PENDING') return '待审核';
     if (status === 'APPROVED') return '已通过';
@@ -330,6 +375,10 @@ const resolveItemStatus = (item = {}) => {
 };
 
 const resolveItemText = (item = {}) => {
+    if (item.source === 'trade') {
+        if (item.content) return item.content;
+        return item.title || '交易状态更新';
+    }
     if (item.status === 'REJECTED') {
         return item.rejectReason || '审核未通过';
     }
@@ -341,8 +390,13 @@ const resolveItemText = (item = {}) => {
 
 const openInboxItem = (item = {}) => {
     inboxVisible.value = false;
+    if (item.source === 'trade') {
+        router.push({ name: 'Account', query: { tab: 'trade', at: Date.now() } });
+        return;
+    }
     if (role.value === 'REVIEWER' || role.value === 'STATION') {
-        const query = item.id ? { submissionId: item.id, at: Date.now() } : { at: Date.now() };
+        const rawId = String(item.id || '').replace(/^review-/, '');
+        const query = rawId ? { submissionId: rawId, at: Date.now() } : { at: Date.now() };
         router.push({ name: 'ReviewCenter', query });
         return;
     }
@@ -396,12 +450,16 @@ const handleLogout = async () => {
 onMounted(() => {
     if (typeof document !== 'undefined') {
         document.addEventListener('visibilitychange', handleVisibilityChange);
+        document.addEventListener('pointerdown', handleDocumentPointerDown);
+        document.addEventListener('keydown', handleEscapeClose);
     }
 });
 
 onBeforeUnmount(() => {
     if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        document.removeEventListener('pointerdown', handleDocumentPointerDown);
+        document.removeEventListener('keydown', handleEscapeClose);
     }
     stopInboxPolling();
 });
@@ -614,6 +672,7 @@ onBeforeUnmount(() => {
     width: 320px;
     max-height: 420px;
     overflow-y: auto;
+    overflow-x: hidden;
     border-radius: 14px;
     border: 1px solid #e2e8f0;
     background: #fff;
@@ -664,10 +723,13 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: stretch;
     margin-bottom: 8px;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .inbox-item__main {
     flex: 1;
+    min-width: 0;
     border: none;
     background: transparent;
     padding: 8px 10px;
@@ -699,11 +761,17 @@ onBeforeUnmount(() => {
 .inbox-item__status {
     font-size: 0.78rem;
     color: #1d4ed8;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .inbox-item__text {
     font-size: 0.84rem;
     color: #334155;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .ghost-btn,

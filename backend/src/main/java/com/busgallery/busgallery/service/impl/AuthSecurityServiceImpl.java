@@ -130,6 +130,20 @@ public class AuthSecurityServiceImpl implements AuthSecurityService {
     }
 
     @Override
+    public void verifyCurrentPassword(AuthPrincipal session, String currentPassword) {
+        if (session == null || session.getUserId() == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED, "Please login first");
+        }
+        User user = userService.findById(session.getUserId());
+        if (user == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "User not found");
+        }
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "Current password is invalid");
+        }
+    }
+
+    @Override
     @Transactional
     public void changePassword(AuthPrincipal session, String challengeId, String emailCode, String newPassword, String confirmPassword) {
         if (session == null || session.getUserId() == null) {

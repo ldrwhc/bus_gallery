@@ -17,6 +17,7 @@ public class UserProfileResponse {
     private String bio;
     private String emailMasked;
     private boolean emailVerified;
+    private long balanceCents;
     private UserRole role;
     private Long reviewRegionId;
     private long uploadsCount;

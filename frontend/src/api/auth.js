@@ -13,6 +13,8 @@ export const sendRegisterEmailCode = (payload) => http.post('/auth/register/send
 
 export const sendPasswordChangeEmailCode = (payload) => http.post('/auth/password/change/send-email-code', payload);
 
+export const verifyPassword = (payload) => http.post('/auth/password/verify', payload);
+
 export const confirmPasswordChange = (payload) => http.post('/auth/password/change/confirm', payload);
 
 export const sendForgotPasswordEmailCode = (payload) => http.post('/auth/password/forgot/send-email-code', payload);

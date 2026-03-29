@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS `app_user` (
     `display_name`    VARCHAR(128)    NOT NULL COMMENT 'display name',
     `avatar_url`      VARCHAR(512)    DEFAULT NULL COMMENT 'avatar url',
     `bio`             VARCHAR(512)    DEFAULT NULL COMMENT 'bio',
+    `balance_cents`   BIGINT          NOT NULL DEFAULT 0 COMMENT 'balance in cents',
     `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -65,6 +66,24 @@ SET @ddl_user_email := IF(
     );
 
 PREPARE stmt FROM @ddl_user_email;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @user_balance_cents_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'app_user'
+      AND COLUMN_NAME = 'balance_cents'
+);
+
+SET @ddl_user_balance_cents := IF(
+        @user_balance_cents_exists = 0,
+        'ALTER TABLE `app_user` ADD COLUMN `balance_cents` BIGINT NOT NULL DEFAULT 0 AFTER `bio`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_user_balance_cents;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 

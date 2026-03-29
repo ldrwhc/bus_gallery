@@ -1,3 +1,4 @@
 #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
-#Wed Mar 25 19:33:18 CST 2026
+#Sat Mar 28 16:37:33 CST 2026
 byte-buddy-1.14.13.pom>nexus-aliyun=
+byte-buddy-1.14.13.jar>nexus-aliyun=

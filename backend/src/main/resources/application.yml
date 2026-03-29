@@ -4,6 +4,15 @@
 spring:
   application:
     name: bus-gallery
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${DB_URL:jdbc:mysql://localhost:3306/bus_gallery?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
@@ -83,6 +92,11 @@ minio:
 auth:
   session:
     ttl-seconds: ${AUTH_SESSION_TTL_SECONDS:86400}
+  gateway:
+    trust-only: ${AUTH_GATEWAY_TRUST_ONLY:true}
+    internal-secret: ${AUTH_GATEWAY_INTERNAL_SECRET:change-me-gateway-secret}
+    max-skew-seconds: ${AUTH_GATEWAY_MAX_SKEW_SECONDS:120}
+    internal-auth-header: ${AUTH_GATEWAY_INTERNAL_HEADER:X-Internal-Auth}
   security:
     code-length: ${AUTH_SECURITY_CODE_LENGTH:6}
     otp-ttl-seconds: ${AUTH_SECURITY_OTP_TTL_SECONDS:300}
@@ -130,6 +144,13 @@ logging:
       clean-history-on-start: ${LOG_CLEAN_HISTORY_ON_START:false}
 
 busgallery:
+  trade-bridge:
+    default-original-price-cents: ${TRADE_BRIDGE_DEFAULT_ORIGINAL_PRICE_CENTS:19900}
+    default-group-price-cents: ${TRADE_BRIDGE_DEFAULT_GROUP_PRICE_CENTS:14900}
+    default-stock: ${TRADE_BRIDGE_DEFAULT_STOCK:9999}
+    default-target-count: ${TRADE_BRIDGE_DEFAULT_TARGET_COUNT:3}
+    default-valid-minutes: ${TRADE_BRIDGE_DEFAULT_VALID_MINUTES:1440}
+    default-activity-days: ${TRADE_BRIDGE_DEFAULT_ACTIVITY_DAYS:365}
   events:
     exchange: ${BUSGALLERY_EVENTS_EXCHANGE:busgallery.events.exchange}
     dlx-exchange: ${BUSGALLERY_EVENTS_DLX_EXCHANGE:busgallery.events.dlx}

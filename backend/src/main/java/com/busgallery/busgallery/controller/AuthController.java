@@ -12,6 +12,7 @@ import com.busgallery.busgallery.dto.request.ForgotPasswordVerifyCodeRequest;
 import com.busgallery.busgallery.dto.request.LoginRequest;
 import com.busgallery.busgallery.dto.request.PasswordChangeConfirmRequest;
 import com.busgallery.busgallery.dto.request.PasswordChangeSendCodeRequest;
+import com.busgallery.busgallery.dto.request.PasswordVerifyRequest;
 import com.busgallery.busgallery.dto.request.RegisterRequest;
 import com.busgallery.busgallery.dto.request.RegisterSendCodeRequest;
 import com.busgallery.busgallery.dto.response.AuthChallengeResponse;
@@ -107,6 +108,14 @@ public class AuthController {
         String ip = RequestIpUtil.resolveClientIp(httpRequest);
         applySendCodeDailyLimit("change-password-send", ip, null, session.getUsername());
         return authSecurityService.sendPasswordChangeCode(session, request.getCurrentPassword(), ip);
+    }
+
+    @PostMapping("/password/verify")
+    @RequireLogin
+    public SimpleSuccessResponse verifyPassword(@Valid @RequestBody PasswordVerifyRequest request) {
+        AuthPrincipal session = AuthContextHolder.requirePrincipal();
+        authSecurityService.verifyCurrentPassword(session, request.getCurrentPassword());
+        return SimpleSuccessResponse.ok("password verified");
     }
 
     @PostMapping("/password/change/confirm")

@@ -9,9 +9,11 @@ import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.repository.VehicleSubmissionRepository;
 import com.busgallery.busgallery.service.RegionService;
 import com.busgallery.busgallery.service.SubmissionService;
+import com.busgallery.busgallery.service.TradeBridgeService;
 import com.busgallery.busgallery.service.VehicleService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -30,11 +32,13 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SubmissionServiceImpl implements SubmissionService {
 
     private final VehicleSubmissionRepository submissionRepository;
     private final VehicleService vehicleService;
     private final RegionService regionService;
+    private final TradeBridgeService tradeBridgeService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -131,10 +135,11 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new BizException(ErrorCode.INVALID_PARAM, "Submission payload is missing");
         }
 
+        Long effectiveVehicleId;
         if (submission.getActionType() == SubmissionActionType.CREATE) {
             ensureCreatePayloadImages(payload, submission.getImageId());
             payload.validate();
-            vehicleService.create(
+            Vehicle created = vehicleService.create(
                     payload.toVehicle(),
                     payload.toVehicleConfig(),
                     payload.getImageIds(),
@@ -145,6 +150,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                     payload.getRegionProvince(),
                     payload.getRegionCity()
             );
+            effectiveVehicleId = created != null ? created.getId() : null;
         } else {
             Long vehicleId = submission.getVehicleId() != null ? submission.getVehicleId() : payload.getVehicleId();
             if (vehicleId == null) {
@@ -165,7 +171,10 @@ public class SubmissionServiceImpl implements SubmissionService {
                     payload.getRegionProvince(),
                     payload.getRegionCity()
             );
+            effectiveVehicleId = vehicleId;
         }
+
+        syncTradeBindingsQuietly(effectiveVehicleId, payload, submission);
 
         submission.setStatus(SubmissionStatus.APPROVED);
         submission.setReviewerId(reviewer.getUserId());
@@ -176,6 +185,24 @@ public class SubmissionServiceImpl implements SubmissionService {
         submission.setRejectReason(null);
         submission.setReviewPayload(writePayload(payload));
         return submissionRepository.save(submission);
+    }
+
+    private void syncTradeBindingsQuietly(Long vehicleId, VehicleUpsertPayload payload, VehicleSubmission submission) {
+        Set<Long> imageIds = new HashSet<>();
+        if (payload != null && payload.getImageIds() != null) {
+            imageIds.addAll(payload.getImageIds());
+        }
+        if (submission != null && submission.getImageId() != null) {
+            imageIds.add(submission.getImageId());
+        }
+        imageIds.removeIf(Objects::isNull);
+        for (Long imageId : imageIds) {
+            try {
+                tradeBridgeService.resolveOrCreateByImageId(imageId, vehicleId);
+            } catch (Exception ex) {
+                log.warn("Skip trade binding sync for imageId={}, vehicleId={}: {}", imageId, vehicleId, ex.getMessage());
+            }
+        }
     }
 
     @Override

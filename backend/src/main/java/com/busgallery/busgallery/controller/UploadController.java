@@ -14,6 +14,7 @@ import com.busgallery.busgallery.service.ChunkUploadService;
 import com.busgallery.busgallery.service.IdempotencyService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.SubmissionService;
+import com.busgallery.busgallery.service.TradeBridgeService;
 import com.busgallery.busgallery.service.UploadSecurityService;
 import com.busgallery.busgallery.service.VehicleService;
 import com.busgallery.busgallery.util.RequestIpUtil;
@@ -42,6 +43,7 @@ public class UploadController {
     private final VehicleService vehicleService;
     private final ImageService imageService;
     private final SubmissionService submissionService;
+    private final TradeBridgeService tradeBridgeService;
     private final IdempotencyService idempotencyService;
     private final UploadSecurityService uploadSecurityService;
     private final ChunkUploadService chunkUploadService;
@@ -162,6 +164,13 @@ public class UploadController {
                 payload.getRegionProvince(),
                 payload.getRegionCity()
         );
+
+        try {
+            tradeBridgeService.resolveOrCreateByImageId(image.getId(), saved.getId());
+        } catch (Exception ex) {
+            log.warn("Failed to sync trade binding for direct upload imageId={}, vehicleId={}: {}",
+                    image.getId(), saved.getId(), ex.getMessage());
+        }
 
         Vehicle detailVehicle = vehicleService.findById(saved.getId());
         var detailConfig = vehicleService.findConfigByVehicleId(saved.getId());

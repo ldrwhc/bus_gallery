@@ -74,6 +74,17 @@
                             </div>
                         </div>
 
+                        <GroupBuyBridgeCard
+                            class="trade-bridge-card"
+                            :context="tradeBridgeContext"
+                            :market-config="tradeMarketConfig"
+                            :active-teams="tradeActiveTeams"
+                            :loading="tradeLoading"
+                            @buy="handleTradeBuy"
+                            @group-buy="handleTradeGroupBuy"
+                            @join-team="handleTradeJoinTeam"
+                        />
+
                         <div class="info-section" v-if="vehicleInfoCards.length">
                             <h3>车辆信息</h3>
                             <div class="info-grid">
@@ -219,6 +230,67 @@
                 </div>
             </div>
         </div>
+        <el-dialog
+            v-model="directCheckoutVisible"
+            title="订单结算确认"
+            width="520px"
+            append-to-body
+            destroy-on-close
+        >
+            <div class="direct-checkout-panel">
+                <p>购买方式：<strong>直接下单</strong></p>
+                <p>支付金额：<strong>{{ centsToYuan(directPayCents) }}</strong></p>
+                <p>当前余额：<strong>{{ centsToYuan(balanceCents) }}</strong></p>
+
+                <div class="direct-payment-options">
+                    <button
+                        v-for="option in directPaymentOptions"
+                        :key="option.value"
+                        type="button"
+                        class="direct-payment-option"
+                        :class="{ active: directPaymentMethod === option.value, disabled: !option.available }"
+                        @click="selectDirectPaymentMethod(option)"
+                    >
+                        <span>{{ option.label }}</span>
+                        <small>{{ option.desc }}</small>
+                    </button>
+                </div>
+
+                <el-alert
+                    v-if="directPaymentMethod !== 'BALANCE'"
+                    type="warning"
+                    show-icon
+                    :closable="false"
+                    title="支付宝/微信暂未接入，请使用余额支付"
+                />
+                <el-alert
+                    v-else-if="!directHasSufficientBalance"
+                    type="warning"
+                    show-icon
+                    :closable="false"
+                    title="余额不足，请充值后再试"
+                />
+
+                <el-input
+                    v-model="directPayPassword"
+                    type="password"
+                    show-password
+                    maxlength="64"
+                    placeholder="请输入登录密码进行支付验证"
+                />
+            </div>
+            <template #footer>
+                <el-button @click="directCheckoutVisible = false">取消</el-button>
+                <el-button
+                    type="primary"
+                    :loading="directSubmitting"
+                    :disabled="!directReadyToSubmit"
+                    @click="submitDirectCheckout"
+                >
+                    确认支付
+                </el-button>
+            </template>
+        </el-dialog>
     </teleport>
     <teleport to="body">
         <transition name="fade">
@@ -248,10 +320,19 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import ImageCarousel from './ImageCarousel.vue';
+import GroupBuyBridgeCard from '@/components/Trade/GroupBuyBridgeCard.vue';
 import { fetchFavoriteSummary, setFavorite } from '@/api/vehicles';
+import {
+    directBuyCheckout,
+    fetchPortalActiveTeams,
+    fetchTradeBridgeConfig,
+    resolveTradeBindingByImage
+} from '@/api/tradeBridge';
+import { verifyPassword } from '@/api/auth';
 import { CONFIG_INFO_FIELDS, VEHICLE_INFO_FIELDS } from '@/utils/constants';
 import { formatBoolean, formatFuelType, formatYearMonth } from '@/utils/formatters';
 import { isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
@@ -270,11 +351,13 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+const router = useRouter();
 const store = useStore();
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
 const currentUser = computed(() => store.state.auth.profile);
 const currentUserId = computed(() => currentUser.value?.id || currentUser.value?.userId || null);
 const currentUserRole = computed(() => currentUser.value?.role || '');
+const balanceCents = computed(() => Number(currentUser.value?.balanceCents || 0));
 
 const BODY_LOCK_CLASS = 'vehicle-detail-modal-open';
 const toggleBodyScroll = (shouldLock) => {
@@ -318,6 +401,67 @@ const vehicle = computed(() => variants.value[currentVariantIndex.value]?.vehicl
 const config = computed(
     () => variants.value[currentVariantIndex.value]?.vehicleConfig || props.detail?.vehicleConfig || {}
 );
+const tradeResolved = reactive({
+    goodsId: null,
+    activityId: null
+});
+const tradeMarketConfig = ref(null);
+const tradeActiveTeams = ref([]);
+const tradeLoading = ref(false);
+const directCheckoutVisible = ref(false);
+const directPaymentMethod = ref('BALANCE');
+const directPayPassword = ref('');
+const directSubmitting = ref(false);
+const directPaymentOptions = [
+    { value: 'ALIPAY', label: '支付宝', desc: '扫码支付', available: false },
+    { value: 'WECHAT', label: '微信支付', desc: '扫码支付', available: false },
+    { value: 'BALANCE', label: '余额支付', desc: '即时扣款', available: true }
+];
+const directPayCents = computed(() => Number(tradeMarketConfig.value?.originalPriceCents || 0));
+const directHasSufficientBalance = computed(() => balanceCents.value >= directPayCents.value);
+const directReadyToSubmit = computed(() => {
+    if (!tradeBridgeContext.value?.goodsId || !tradeBridgeContext.value?.activityId) return false;
+    if (directPaymentMethod.value !== 'BALANCE') return false;
+    if (!directHasSufficientBalance.value) return false;
+    if (!directPayPassword.value.trim()) return false;
+    if (directSubmitting.value) return false;
+    return true;
+});
+
+const tradeBridgeContext = computed(() => {
+    const currentImage = images.value[currentImageIndex.value] || images.value[0] || null;
+    const currentVehicle = vehicle.value;
+    const modelId = currentVehicle?.model?.id || config.value?.modelId || null;
+    const brandId = currentVehicle?.model?.brandId || config.value?.brandId || null;
+    const candidateGoodsId =
+        tradeResolved.goodsId ||
+        currentImage?.goodsId ||
+        currentImage?.tradeGoodsId ||
+        currentVehicle?.goodsId ||
+        currentVehicle?.tradeGoodsId ||
+        null;
+    const candidateActivityId =
+        tradeResolved.activityId ||
+        currentImage?.activityId ||
+        currentImage?.tradeActivityId ||
+        currentVehicle?.activityId ||
+        currentVehicle?.tradeActivityId ||
+        null;
+
+    return {
+        vehicleId: currentVehicle?.id || null,
+        plateNumber: currentVehicle?.plateNumber || '',
+        imageId: currentImage?.id || null,
+        goodsId: candidateGoodsId,
+        activityId: candidateActivityId,
+        source: 'content',
+        channel: 'web',
+        meta: {
+            modelId,
+            brandId
+        }
+    };
+});
 
 const resetFocus = () => {
     let targetVariant = 0;
@@ -346,7 +490,90 @@ const resetFocus = () => {
 watch(
     () => [props.detail, props.initialImageId],
     () => {
+        tradeResolved.goodsId = null;
+        tradeResolved.activityId = null;
+        tradeMarketConfig.value = null;
+        tradeActiveTeams.value = [];
         resetFocus();
+    }
+);
+
+const loadTradeSnapshot = async () => {
+    if (!props.visible) return;
+    const imageId = tradeBridgeContext.value?.imageId;
+    const vehicleId = tradeBridgeContext.value?.vehicleId;
+    if (!imageId) {
+        tradeResolved.goodsId = null;
+        tradeResolved.activityId = null;
+        tradeMarketConfig.value = null;
+        tradeActiveTeams.value = [];
+        return;
+    }
+    tradeLoading.value = true;
+    try {
+        let goodsId = tradeBridgeContext.value?.goodsId ? String(tradeBridgeContext.value.goodsId) : null;
+        let activityId = tradeBridgeContext.value?.activityId ? String(tradeBridgeContext.value.activityId) : null;
+
+        if ((!goodsId || !activityId) && isAuthenticated.value) {
+            const binding = await resolveTradeBindingByImage(
+                Number(imageId),
+                vehicleId ? { vehicleId: Number(vehicleId) } : {}
+            );
+            goodsId = binding?.goodsId ? String(binding.goodsId) : goodsId;
+            activityId = binding?.activityId ? String(binding.activityId) : activityId;
+            if (binding) {
+                tradeMarketConfig.value = {
+                    goodsId: binding.goodsId,
+                    activityId: binding.activityId,
+                    goodsTitle: binding.goodsTitle,
+                    originalPriceCents: binding.originalPriceCents,
+                    groupPriceCents: binding.groupPriceCents,
+                    targetCount: binding.targetCount,
+                    validMinutes: binding.validMinutes,
+                    activeTeamCount: binding.activeTeamCount
+                };
+            }
+        }
+
+        if (goodsId) {
+            const configResp = await fetchTradeBridgeConfig({ goodsId });
+            if (configResp) {
+                tradeMarketConfig.value = configResp;
+                activityId = configResp.activityId ? String(configResp.activityId) : activityId;
+            }
+        }
+
+        tradeResolved.goodsId = goodsId;
+        tradeResolved.activityId = activityId;
+
+        if (activityId) {
+            const teams = await fetchPortalActiveTeams(Number(activityId), 5);
+            tradeActiveTeams.value = Array.isArray(teams) ? teams : [];
+        } else {
+            tradeActiveTeams.value = [];
+        }
+    } catch (error) {
+        tradeActiveTeams.value = [];
+    } finally {
+        tradeLoading.value = false;
+    }
+};
+
+watch(
+    () => [props.visible, tradeBridgeContext.value?.imageId, tradeBridgeContext.value?.vehicleId],
+    ([visible]) => {
+        if (!visible) return;
+        loadTradeSnapshot();
+    },
+    { immediate: true }
+);
+
+watch(
+    () => isAuthenticated.value,
+    (val) => {
+        if (val && props.visible) {
+            loadTradeSnapshot();
+        }
     }
 );
 
@@ -535,6 +762,107 @@ async function toggleFavoriteAction() {
 
     scheduleLikeSync(id);
 }
+
+const buildTradeActionPayload = (mode, teamId) => ({
+    mode,
+    ...tradeBridgeContext.value,
+    teamId: teamId || null,
+    userId: currentUserId.value
+});
+
+const centsToYuan = (cents) => `${(Number(cents || 0) / 100).toFixed(2)} 元`;
+
+const selectDirectPaymentMethod = (option) => {
+    if (!option.available) {
+        ElMessage.info(`${option.label}暂未接入，请使用余额支付`);
+        return;
+    }
+    directPaymentMethod.value = option.value;
+};
+
+const openDirectCheckoutDialog = () => {
+    if (!isAuthenticated.value) {
+        ElMessage.info('请先登录后再下单');
+        router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } });
+        return;
+    }
+    const goodsId = tradeBridgeContext.value?.goodsId;
+    const activityId = tradeBridgeContext.value?.activityId;
+    if (!goodsId || !activityId) {
+        ElMessage.warning('当前图片还未绑定交易信息');
+        return;
+    }
+    directPaymentMethod.value = 'BALANCE';
+    directPayPassword.value = '';
+    directCheckoutVisible.value = true;
+};
+
+const submitDirectCheckout = async () => {
+    if (!directReadyToSubmit.value) {
+        ElMessage.warning('请先完成支付方式和密码校验');
+        return;
+    }
+    directSubmitting.value = true;
+    try {
+        await verifyPassword({ currentPassword: directPayPassword.value.trim() });
+        const payload = {
+            goodsId: String(tradeBridgeContext.value.goodsId),
+            activityId: Number(tradeBridgeContext.value.activityId),
+            source: 'content',
+            channel: 'balance'
+        };
+        const result = await directBuyCheckout(payload);
+        directCheckoutVisible.value = false;
+        directPayPassword.value = '';
+        await store.dispatch('auth/fetchProfile').catch(() => {});
+        await loadTradeSnapshot();
+        if (result?.canDownload && result?.recordId) {
+            ElMessage.success('支付成功，可在“查看购买记录”中下载原图');
+            return;
+        }
+        ElMessage.success(result?.message || '支付成功');
+    } catch (error) {
+        ElMessage.error(error?.message || '支付失败');
+    } finally {
+        directSubmitting.value = false;
+    }
+};
+
+const openGroupTradePage = (mode, teamId) => {
+    const payload = buildTradeActionPayload(mode, teamId);
+    if (!payload.imageId) {
+        ElMessage.warning('当前图片还未绑定交易信息');
+        return;
+    }
+    const query = {
+        action: mode,
+        autoCheckout: mode === 'direct-buy' || Boolean(teamId) ? '1' : undefined,
+        vehicleId: payload.vehicleId ? String(payload.vehicleId) : undefined,
+        imageId: payload.imageId ? String(payload.imageId) : undefined,
+        plateNumber: payload.plateNumber || undefined,
+        goodsId: payload.goodsId ? String(payload.goodsId) : undefined,
+        activityId: payload.activityId ? String(payload.activityId) : undefined,
+        teamId: payload.teamId ? String(payload.teamId) : undefined,
+        source: payload.source || 'content',
+        channel: payload.channel || 'web'
+    };
+    router.push({ name: 'GroupBuyMarket', query });
+    emit('close');
+};
+
+const handleTradeBuy = () => {
+    openDirectCheckoutDialog();
+};
+
+const handleTradeGroupBuy = () => {
+    const preferredTeamId = tradeActiveTeams.value?.[0]?.teamId || '';
+    openGroupTradePage('group-buy', preferredTeamId);
+};
+
+const handleTradeJoinTeam = (teamId) => {
+    openGroupTradePage('group-buy', teamId);
+};
+
 const exifVisible = ref(false);
 
 const COMMENT_PAGE_SIZE = 50;
@@ -690,10 +1018,22 @@ watch(
         }
         if (!val) {
             exifVisible.value = false;
+            directCheckoutVisible.value = false;
+            directPayPassword.value = '';
             stopCommentPolling();
         }
     },
     { immediate: true }
+);
+
+watch(
+    () => directCheckoutVisible.value,
+    (val) => {
+        if (!val) {
+            directPayPassword.value = '';
+            directPaymentMethod.value = 'BALANCE';
+        }
+    }
 );
 
 watch(
@@ -980,7 +1320,7 @@ const handleClose = () => {
 }
 
 .modal {
-    width: min(95%, 1240px);
+    width: min(95%, 1340px);
     background: rgba(255, 255, 255, 0.98);
     border-radius: 28px;
     padding: 24px;
@@ -1311,6 +1651,58 @@ const handleClose = () => {
     right: 20px;
 }
 
+.trade-bridge-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 14px 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.direct-checkout-panel {
+    display: grid;
+    gap: 12px;
+}
+
+.direct-checkout-panel p {
+    margin: 0;
+    color: #334155;
+}
+
+.direct-payment-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.direct-payment-option {
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 8px;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    display: grid;
+    gap: 2px;
+}
+
+.direct-payment-option span {
+    font-weight: 600;
+    color: #111827;
+}
+
+.direct-payment-option small {
+    color: #6b7280;
+}
+
+.direct-payment-option.active {
+    border-color: #1d4ed8;
+    background: #eff6ff;
+}
+
+.direct-payment-option.disabled {
+    opacity: 0.6;
+}
+
 .info-section h3 {
     margin-bottom: 10px;
     color: #0f172a;
@@ -1462,6 +1854,10 @@ const handleClose = () => {
     .modal__body {
         overflow: visible;
         padding-right: 0;
+    }
+
+    .direct-payment-options {
+        grid-template-columns: 1fr;
     }
 
     .close-btn--modal {
