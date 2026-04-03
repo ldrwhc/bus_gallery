@@ -110,7 +110,8 @@ CREATE TABLE `trade_order_team` (
   UNIQUE KEY `uk_trade_order_team_team_id` (`team_id`),
   KEY `idx_trade_order_team_activity_status` (`activity_id`, `status`),
   KEY `idx_trade_order_team_goods_status` (`goods_id`, `status`),
-  KEY `idx_trade_order_team_valid_end` (`valid_end_time`)
+  KEY `idx_trade_order_team_valid_end` (`valid_end_time`),
+  KEY `idx_team_status_end_team` (`status`, `valid_end_time`, `team_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='team order';
 
 -- user-level order table
@@ -146,6 +147,7 @@ CREATE TABLE `trade_order_item` (
   UNIQUE KEY `uk_trade_order_item_biz_id` (`biz_id`),
   KEY `idx_trade_order_item_user_status` (`user_id`, `status`),
   KEY `idx_trade_order_item_team_status` (`team_id`, `status`),
+  KEY `idx_item_team_status_mode` (`team_id`, `status`, `order_mode`),
   KEY `idx_trade_order_item_activity_status` (`activity_id`, `status`),
   KEY `idx_trade_order_item_goods_status` (`goods_id`, `status`),
   KEY `idx_trade_order_item_created_at` (`created_at`)
@@ -222,6 +224,7 @@ CREATE TABLE `trade_user_record` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_trade_user_record_record_id` (`record_id`),
   UNIQUE KEY `uk_trade_user_record_order_id` (`order_id`),
+  KEY `idx_record_mode_status_user_record_team` (`order_mode`, `trade_status`, `app_user_id`, `record_id`, `team_id`),
   KEY `idx_trade_user_record_user_created` (`app_user_id`, `created_at`),
   KEY `idx_trade_user_record_goods` (`goods_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='user trade record';

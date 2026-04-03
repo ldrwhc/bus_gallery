@@ -12,9 +12,14 @@ import java.time.LocalDateTime;
 @Builder
 public class PortalTeamSummaryResponse {
     private String teamId;
+    private Long activityId;
+    private String goodsId;
+    private Long imageId;
+    private Long vehicleId;
+    private String title;
+    private String coverUrl;
     private int targetCount;
     private int completeCount;
     private int lockCount;
     private LocalDateTime validEndTime;
 }
-

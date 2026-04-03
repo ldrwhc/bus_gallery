@@ -1,6 +1,6 @@
 ﻿<template>
     <div class="group-market-page">
-        <section class="card hero-card">
+        <section class="hero-card">
             <div class="hero-main">
                 <p class="eyebrow">Group Buy</p>
                 <h1>拼团大厅</h1>
@@ -15,26 +15,25 @@
                 <h2>正在拼团</h2>
                 <el-button text :loading="loadingTeams" @click="loadActiveTeams">刷新</el-button>
             </header>
-            <div v-if="!contextReady" class="state">
-                当前未绑定商品信息，可在“我的拼团进度”中点击继续拼团，或从图片详情进入。
+            <div v-if="loadingTeams && !activeTeamRows.length" class="state">正在加载拼团列表...</div>
+            <div v-else-if="!activeTeamRows.length" class="state">
+                {{ contextReady ? '当前没有进行中的拼团，请稍后刷新。' : '当前未绑定商品信息，可在“我的拼团进度”中点击继续拼团，或从图片详情进入。' }}
             </div>
-            <template v-else>
-                <div v-if="loadingTeams" class="state">正在加载拼团列表...</div>
-                <div v-else-if="!activeTeams.length" class="state">当前没有进行中的拼团，请稍后刷新。</div>
-                <div v-else class="team-list">
-                    <article v-for="team in activeTeams" :key="team.teamId" class="team-row">
-                        <div>
-                            <p class="team-title">团号 {{ team.teamId }}</p>
-                            <p class="team-meta">进度 {{ team.completeCount }}/{{ team.targetCount }} 人</p>
-                        </div>
-                        <div class="team-actions">
-                            <span class="countdown">{{ formatCountdown(team.validEndTime) }}</span>
-                            <el-button text size="small" @click="openGoodsDetail(team)">商品详情</el-button>
-                            <el-button size="small" @click="openCheckout('group-buy', team.teamId)">加入拼团</el-button>
-                        </div>
-                    </article>
-                </div>
-            </template>
+            <div v-else class="team-list">
+                <article v-for="team in activeTeamRows" :key="team.teamId" class="team-row">
+                    <div>
+                        <p class="team-title">团号 {{ team.teamId }}</p>
+                        <p class="team-meta">进度 {{ team.completeCount }}/{{ team.targetCount || '-' }} 人</p>
+                    </div>
+                    <div class="team-actions">
+                        <span class="countdown">{{ formatCountdown(team.validEndTime) }}</span>
+                        <el-button text size="small" @click="openGoodsDetail(team)">商品详情</el-button>
+                        <el-button size="small" :disabled="isTeamOrderBlocked(team)" @click="openTeamCheckout(team)">
+                            {{ resolveTeamActionText(team) }}
+                        </el-button>
+                    </div>
+                </article>
+            </div>
         </section>
 
         <section class="card">
@@ -44,20 +43,20 @@
             </header>
             <div v-if="loadingMyGroups" class="state">正在加载我的拼团记录...</div>
             <div v-else-if="!myPendingGroups.length" class="state">
-                暂无待成团记录。你也可以从图片详情页进入本页面并参与拼团。
+                暂无可继续的拼团记录。你也可以从图片详情页进入本页面并参与拼团。
             </div>
             <div v-else class="my-group-list">
                 <article v-for="record in myPendingGroups" :key="record.recordId" class="my-group-row">
                     <div>
                         <p class="team-title">{{ record.title || '图片商品' }}</p>
                         <p class="team-meta">
-                            团号 {{ record.teamId }} · 当前 {{ record.completeCount || 0 }}/{{ record.targetCount || '-' }} 人 · {{ centsToYuan(record.payPriceCents) }}
+                            团号 {{ record.teamId }} · 当前 {{ record.completeCount || 0 }}/{{ record.targetCount || '-' }} 人 · {{ centsToYuan(record.payPriceCents) }} · {{ resolvePendingStatusText(record) }}
                         </p>
                     </div>
                     <div class="team-actions">
                         <span class="countdown">{{ formatCountdown(record.validEndTime) }}</span>
-                        <el-button size="small" @click="openCheckout('group-buy', record.teamId, record)">
-                            继续拼团
+                        <el-button v-if="canContinueGroupRecord(record)" size="small" @click="handleRecordPrimaryAction(record)">
+                            {{ resolveRecordPrimaryActionText(record) }}
                         </el-button>
                         <el-button
                             size="small"
@@ -158,11 +157,12 @@ import { verifyPassword } from '@/api/auth';
 const route = useRoute();
 const router = useRouter();
 const store = useStore();
-const MARKET_CONTEXT_CACHE_KEY = 'busGallery:group-market-context';
+const MARKET_CONTEXT_CACHE_KEY_PREFIX = 'busGallery:group-market-context';
 const ACTIVE_TEAM_LIMIT = 100;
 
 const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
 const profile = computed(() => store.state.auth.profile || null);
+const currentUserId = computed(() => String(profile.value?.id || 'guest'));
 const balanceCents = computed(() => Number(profile.value?.balanceCents || 0));
 
 const pageContext = reactive({
@@ -193,6 +193,7 @@ const paymentMethod = ref('BALANCE');
 const checkoutResult = ref(null);
 const lastAutoCheckoutKey = ref('');
 const cancelingRecordIds = ref(new Set());
+const userScopeVersion = ref(0);
 
 const nowTimestamp = ref(Date.now());
 let timer = null;
@@ -227,9 +228,115 @@ const centsToYuan = (cents) => `${(Number(cents || 0) / 100).toFixed(2)} 元`;
 
 const parseDateMs = (value) => {
     if (!value) return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (Array.isArray(value)) {
+        const year = Number(value[0] || 0);
+        const month = Number(value[1] || 0);
+        const day = Number(value[2] || 0);
+        const hour = Number(value[3] || 0);
+        const minute = Number(value[4] || 0);
+        const second = Number(value[5] || 0);
+        if (year > 0 && month > 0 && day > 0) {
+            const dt = new Date(year, Math.max(0, month - 1), day, hour, minute, second);
+            const ts = dt.getTime();
+            return Number.isFinite(ts) ? ts : 0;
+        }
+        return 0;
+    }
     const t = Date.parse(value);
     return Number.isFinite(t) ? t : 0;
 };
+
+const isTrueLike = (value) => value === true || value === 1 || value === '1' || value === 'true';
+
+const isGroupRecordWaiting = (record) =>
+    Number(record?.orderMode || 0) !== 2 &&
+    Number(record?.tradeStatus || 0) === 0 &&
+    !isTrueLike(record?.canDownload);
+
+const canContinueGroupRecord = (record) =>
+    Number(record?.orderMode || 0) !== 2 &&
+    !isTrueLike(record?.canDownload) &&
+    [0, 2].includes(Number(record?.tradeStatus || 0)) &&
+    Boolean(record?.goodsId || record?.imageId);
+
+const isPendingTradeRecord = (record) =>
+    Boolean(
+        record &&
+        (
+            record?.recordId ||
+            record?.outTradeNo ||
+            record?.tradeStatus !== undefined ||
+            record?.orderMode !== undefined
+        )
+    );
+
+const findSelfWaitingRecord = (goodsId = '', activityId = '') => {
+    const targetGoodsId = String(goodsId || '');
+    const targetActivityId = String(activityId || '');
+    return myPendingGroups.value.find(
+        (record) => {
+            if (!isGroupRecordWaiting(record)) return false;
+            const recordGoodsId = String(record?.goodsId || '');
+            const recordActivityId = String(record?.activityId || '');
+            if (targetGoodsId && recordGoodsId !== targetGoodsId) return false;
+            if (targetActivityId && recordActivityId !== targetActivityId) return false;
+            return Boolean(targetGoodsId || targetActivityId);
+        }
+    ) || null;
+};
+
+const hasSelfQueueForTarget = (goodsId = '', activityId = '') =>
+    Boolean(findSelfWaitingRecord(goodsId, activityId));
+
+const isTeamStillActive = (team) => {
+    const targetCount = Number(team?.targetCount || 0);
+    const completeCount = Number(team?.completeCount || 0);
+    if (targetCount > 0 && completeCount >= targetCount) {
+        return false;
+    }
+    const endMs = parseDateMs(team?.validEndTime);
+    if (endMs > 0 && endMs <= nowTimestamp.value) {
+        return false;
+    }
+    return true;
+};
+
+const activeTeamRows = computed(() => {
+    const teamMap = new Map();
+    const upsertTeam = (raw, pendingRecord = null) => {
+        if (!isTeamStillActive(raw)) return;
+        const teamId = String(raw?.teamId || '');
+        if (!teamId) return;
+        const exists = teamMap.get(teamId) || null;
+        teamMap.set(teamId, {
+            teamId,
+            targetCount: Number(raw?.targetCount || exists?.targetCount || 0),
+            completeCount: Number(raw?.completeCount || exists?.completeCount || 0),
+            validEndTime: raw?.validEndTime || exists?.validEndTime || null,
+            title: raw?.title || exists?.title || '',
+            goodsId: String(raw?.goodsId || exists?.goodsId || form.goodsId || ''),
+            activityId: String(raw?.activityId || exists?.activityId || form.activityId || ''),
+            imageId: String(raw?.imageId || exists?.imageId || pageContext.imageId || ''),
+            vehicleId: String(raw?.vehicleId || exists?.vehicleId || pageContext.vehicleId || ''),
+            pendingRecord: pendingRecord || exists?.pendingRecord || null
+        });
+    };
+
+    activeTeams.value.forEach((team) => upsertTeam(team));
+
+    myPendingGroups.value
+        .filter((record) => isGroupRecordWaiting(record))
+        .forEach((record) => {
+            const endMs = parseDateMs(record?.validEndTime);
+            if (endMs > 0 && endMs <= nowTimestamp.value) {
+                return;
+            }
+            upsertTeam(record, record);
+        });
+
+    return Array.from(teamMap.values());
+});
 
 const formatCountdown = (endTime) => {
     const endMs = parseDateMs(endTime);
@@ -245,10 +352,33 @@ const formatCountdown = (endTime) => {
     return `剩余 ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
+const bumpUserScopeVersion = () => {
+    userScopeVersion.value += 1;
+    return userScopeVersion.value;
+};
+
+const isSameUserScope = (scopeUserId, scopeVersion) =>
+    scopeUserId === currentUserId.value && scopeVersion === userScopeVersion.value;
+
+const resolveMarketContextCacheKey = () => `${MARKET_CONTEXT_CACHE_KEY_PREFIX}:${currentUserId.value}`;
+
+const resetUserScopedState = () => {
+    bumpUserScopeVersion();
+    myPendingGroups.value = [];
+    activeTeams.value = [];
+    loadingMyGroups.value = false;
+    loadingTeams.value = false;
+    selectedTeamId.value = '';
+    checkoutVisible.value = false;
+    checkoutResult.value = null;
+    lastAutoCheckoutKey.value = '';
+    cancelingRecordIds.value = new Set();
+};
+
 const loadCachedMarketContext = () => {
     if (typeof window === 'undefined') return null;
     try {
-        const raw = window.localStorage.getItem(MARKET_CONTEXT_CACHE_KEY);
+        const raw = window.localStorage.getItem(resolveMarketContextCacheKey());
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         return parsed && typeof parsed === 'object' ? parsed : null;
@@ -267,7 +397,7 @@ const saveCachedMarketContext = () => {
         imageId: String(pageContext.imageId || ''),
         vehicleId: String(pageContext.vehicleId || '')
     };
-    window.localStorage.setItem(MARKET_CONTEXT_CACHE_KEY, JSON.stringify(payload));
+    window.localStorage.setItem(resolveMarketContextCacheKey(), JSON.stringify(payload));
 };
 
 const syncFromRoute = () => {
@@ -345,22 +475,30 @@ const loadBindingAndConfig = async () => {
 };
 
 const loadActiveTeams = async () => {
-    if (!form.activityId) {
-        activeTeams.value = [];
-        return;
-    }
+    const scopeUserId = currentUserId.value;
+    const scopeVersion = userScopeVersion.value;
     loadingTeams.value = true;
     try {
-        const list = await fetchPortalActiveTeams(Number(form.activityId), ACTIVE_TEAM_LIMIT);
+        const list = await fetchPortalActiveTeams(null, ACTIVE_TEAM_LIMIT);
+        if (!isSameUserScope(scopeUserId, scopeVersion)) {
+            return;
+        }
         activeTeams.value = Array.isArray(list) ? list : [];
     } catch (error) {
+        if (!isSameUserScope(scopeUserId, scopeVersion)) {
+            return;
+        }
         activeTeams.value = [];
     } finally {
-        loadingTeams.value = false;
+        if (isSameUserScope(scopeUserId, scopeVersion)) {
+            loadingTeams.value = false;
+        }
     }
 };
 
 const loadMyPendingGroups = async () => {
+    const scopeUserId = currentUserId.value;
+    const scopeVersion = userScopeVersion.value;
     if (!isAuthenticated.value) {
         myPendingGroups.value = [];
         return;
@@ -368,10 +506,11 @@ const loadMyPendingGroups = async () => {
     loadingMyGroups.value = true;
     try {
         const records = await fetchPortalRecords(200);
+        if (!isSameUserScope(scopeUserId, scopeVersion)) {
+            return;
+        }
         const list = Array.isArray(records) ? records : [];
-        const pending = list.filter(
-            (item) => Number(item?.orderMode || 0) !== 2 && !item?.canDownload && Number(item?.tradeStatus || 0) === 0
-        );
+        const pending = list.filter((item) => canContinueGroupRecord(item));
 
         const configCache = new Map();
         const activityTeamsCache = new Map();
@@ -402,7 +541,7 @@ const loadMyPendingGroups = async () => {
                 let validEndTime = null;
                 let completeCount = Number(item?.completeCount || 0);
                 let targetCount = Number(item?.targetCount || config?.targetCount || marketConfig.value?.targetCount || 0);
-                const activityId = Number(config?.activityId || 0);
+                const activityId = Number(item?.activityId || config?.activityId || 0);
                 if (item?.teamId && activityId > 0) {
                     const teams = await ensureActivityTeams(activityId);
                     const hit = teams.find((team) => String(team?.teamId || '') === String(item.teamId || ''));
@@ -423,6 +562,8 @@ const loadMyPendingGroups = async () => {
                 }
                 return {
                     ...item,
+                    goodsId: String(item?.goodsId || ''),
+                    activityId: activityId > 0 ? String(activityId) : '',
                     validEndTime,
                     completeCount,
                     targetCount
@@ -430,35 +571,57 @@ const loadMyPendingGroups = async () => {
             })
         );
 
+        if (!isSameUserScope(scopeUserId, scopeVersion)) {
+            return;
+        }
         myPendingGroups.value = rows;
 
-        if (!contextReady.value) {
-            const preferred = rows.find((item) => item?.goodsId) || null;
-            if (preferred?.goodsId) {
-                form.goodsId = String(preferred.goodsId);
-                if (!pageContext.imageId && preferred.imageId) {
-                    pageContext.imageId = String(preferred.imageId);
+        const selectedRecord = selectedTeamId.value
+            ? rows.find((item) => String(item?.teamId || '') === String(selectedTeamId.value || ''))
+            : null;
+        const preferred = selectedRecord || rows.find((item) => item?.goodsId) || null;
+        const shouldAdoptPreferredContext = Boolean(
+            preferred?.goodsId &&
+            (
+                !contextReady.value ||
+                (
+                    selectedRecord &&
+                    String(form.goodsId || '') !== String(selectedRecord.goodsId || '')
+                )
+            )
+        );
+        if (shouldAdoptPreferredContext) {
+            form.goodsId = String(preferred.goodsId);
+            if (!pageContext.imageId && preferred.imageId) {
+                pageContext.imageId = String(preferred.imageId);
+            }
+            if (!pageContext.vehicleId && preferred.vehicleId) {
+                pageContext.vehicleId = String(preferred.vehicleId);
+            }
+            if (preferred.teamId) {
+                selectedTeamId.value = String(preferred.teamId);
+            }
+            const config = await ensureConfig(preferred.goodsId);
+            if (!isSameUserScope(scopeUserId, scopeVersion)) {
+                return;
+            }
+            if (config) {
+                marketConfig.value = config;
+                if (config.activityId) {
+                    form.activityId = String(config.activityId);
                 }
-                if (!pageContext.vehicleId && preferred.vehicleId) {
-                    pageContext.vehicleId = String(preferred.vehicleId);
-                }
-                if (preferred.teamId) {
-                    selectedTeamId.value = String(preferred.teamId);
-                }
-                const config = await ensureConfig(preferred.goodsId);
-                if (config) {
-                    marketConfig.value = config;
-                    if (config.activityId) {
-                        form.activityId = String(config.activityId);
-                    }
-                    saveCachedMarketContext();
-                }
+                saveCachedMarketContext();
             }
         }
     } catch (error) {
+        if (!isSameUserScope(scopeUserId, scopeVersion)) {
+            return;
+        }
         myPendingGroups.value = [];
     } finally {
-        loadingMyGroups.value = false;
+        if (isSameUserScope(scopeUserId, scopeVersion)) {
+            loadingMyGroups.value = false;
+        }
     }
 };
 
@@ -470,16 +633,55 @@ const selectPaymentMethod = (option) => {
     paymentMethod.value = option.value;
 };
 
+const resolvePendingStatusText = (record) => {
+    const status = Number(record?.tradeStatus || 0);
+    if (status === 2) return '拼团失败（可重新拼团）';
+    if (status === 1) return '拼团成功';
+    return '拼团进行中';
+};
+
+const isTeamOrderBlocked = (team) => {
+    const teamRecord = team?.pendingRecord || null;
+    if (teamRecord && isGroupRecordWaiting(teamRecord)) {
+        return true;
+    }
+    return false;
+};
+
+const resolveTeamActionText = (team) => (isTeamOrderBlocked(team) ? '已在队列' : '加入拼团');
+
+const resolveRecordPrimaryActionText = (record) =>
+    Number(record?.tradeStatus || 0) === 2 ? '重新拼团' : '查看队伍';
+
 const openCheckout = async (mode, teamId = '', record = null) => {
     if (!isAuthenticated.value) {
         router.push({ name: 'Login', query: { redirect: route.fullPath } });
         return;
     }
 
-    if (record?.goodsId && (!form.goodsId || !form.activityId)) {
-        form.goodsId = String(record.goodsId || form.goodsId || '');
-        if (record.activityId) {
-            form.activityId = String(record.activityId);
+    const recordGoodsId = String(record?.goodsId || '');
+    const recordActivityId = String(record?.activityId || '');
+    const shouldSyncRecordContext = Boolean(
+        recordGoodsId &&
+        (
+            !form.goodsId ||
+            !form.activityId ||
+            String(form.goodsId || '') !== recordGoodsId ||
+            (recordActivityId && String(form.activityId || '') !== recordActivityId)
+        )
+    );
+    if (shouldSyncRecordContext) {
+        form.goodsId = recordGoodsId;
+        if (recordActivityId) form.activityId = recordActivityId;
+        if (record?.imageId) pageContext.imageId = String(record.imageId);
+        if (record?.vehicleId) pageContext.vehicleId = String(record.vehicleId);
+        saveCachedMarketContext();
+        await loadBindingAndConfig();
+    }
+    if (!recordGoodsId && record?.imageId && !contextReady.value) {
+        pageContext.imageId = String(record.imageId);
+        if (record?.vehicleId) {
+            pageContext.vehicleId = String(record.vehicleId);
         }
         await loadBindingAndConfig();
     }
@@ -494,6 +696,11 @@ const openCheckout = async (mode, teamId = '', record = null) => {
     paymentMethod.value = 'BALANCE';
     payPassword.value = '';
     checkoutVisible.value = true;
+};
+
+const openTeamCheckout = async (team) => {
+    const teamRecord = team?.pendingRecord || team || null;
+    await continueGroup(teamRecord);
 };
 
 const consumeAutoCheckoutQuery = () => {
@@ -511,13 +718,27 @@ const resolveGoodsImageId = (team = null) => {
 };
 
 const openGoodsDetail = (team = null) => {
-    if (!contextReady.value) {
+    const teamRecord = team?.pendingRecord || team || null;
+    const targetGoodsId = String(teamRecord?.goodsId || form.goodsId || '');
+    const targetActivityId = String(teamRecord?.activityId || form.activityId || '');
+    if (!targetGoodsId && !targetActivityId && !contextReady.value) {
         ElMessage.warning('当前无可查看的商品信息');
         return;
     }
-    const imageId = resolveGoodsImageId(team);
-    const targetGoodsId = String(team?.goodsId || form.goodsId || '');
-    const targetActivityId = String(team?.activityId || form.activityId || '');
+    if (targetGoodsId) {
+        form.goodsId = targetGoodsId;
+    }
+    if (targetActivityId) {
+        form.activityId = targetActivityId;
+    }
+    if (teamRecord?.imageId) {
+        pageContext.imageId = String(teamRecord.imageId);
+    }
+    if (teamRecord?.vehicleId) {
+        pageContext.vehicleId = String(teamRecord.vehicleId);
+    }
+    saveCachedMarketContext();
+    const imageId = resolveGoodsImageId(teamRecord);
     router.push({
         name: 'GroupGoodsDetail',
         query: {
@@ -529,11 +750,67 @@ const openGoodsDetail = (team = null) => {
     });
 };
 
+const resolveContinueTeamId = async (record) => {
+    const preferredTeamId = String(record?.teamId || '');
+    const activityId = Number(record?.activityId || form.activityId || 0);
+    if (activityId <= 0) {
+        if (Number(record?.tradeStatus || 0) === 2 && preferredTeamId) {
+            ElMessage.info('原拼团队伍已结束，将发起新的拼团');
+            return '';
+        }
+        return preferredTeamId;
+    }
+    let teams = [];
+    try {
+        const list = await fetchPortalActiveTeams(activityId, ACTIVE_TEAM_LIMIT);
+        teams = Array.isArray(list) ? list : [];
+    } catch (error) {
+        teams = [];
+    }
+    if (!teams.length) {
+        if (preferredTeamId) {
+            ElMessage.info('原拼团队伍已结束，将发起新的拼团');
+        }
+        return '';
+    }
+    if (preferredTeamId) {
+        const current = teams.find((team) => String(team?.teamId || '') === preferredTeamId);
+        if (current) return preferredTeamId;
+        ElMessage.info('原拼团队伍已不可加入，已切换到同活动其他进行中队伍');
+    }
+    return String(teams[0]?.teamId || '');
+};
+
+const continueGroup = async (record) => {
+    if (!record) {
+        await openCheckout('group-buy');
+        return;
+    }
+    if (isPendingTradeRecord(record) && isGroupRecordWaiting(record)) {
+        ElMessage.info('你已在该商品拼团队列中，无需重复下单');
+        openGoodsDetail(record);
+        return;
+    }
+    if (isPendingTradeRecord(record) && !canContinueGroupRecord(record)) {
+        ElMessage.warning('当前记录不可继续拼团');
+        return;
+    }
+    const nextTeamId = await resolveContinueTeamId(record);
+    await openCheckout('group-buy', nextTeamId, record);
+};
+
+const handleRecordPrimaryAction = async (record) => {
+    if (isPendingTradeRecord(record) && isGroupRecordWaiting(record)) {
+        ElMessage.info('你已在该商品拼团队列中，无需重复下单');
+        openGoodsDetail(record);
+        return;
+    }
+    await continueGroup(record);
+};
+
 const canCancelGroupRecord = (record) =>
     Boolean(record?.outTradeNo) &&
-    Number(record?.orderMode || 0) !== 2 &&
-    Number(record?.tradeStatus || 0) === 0 &&
-    !record?.canDownload;
+    isGroupRecordWaiting(record);
 
 const cancelGroupRecord = async (record) => {
     if (!canCancelGroupRecord(record)) {
@@ -641,10 +918,27 @@ watch(
     () => isAuthenticated.value,
     async (val) => {
         if (!val) {
-            myPendingGroups.value = [];
+            resetUserScopedState();
             return;
         }
         await ensureProfile();
+        await loadMyPendingGroups();
+        await loadActiveTeams();
+        await tryAutoOpenCheckoutFromRoute();
+    }
+);
+
+watch(
+    () => profile.value?.id,
+    async (nextId, prevId) => {
+        const nextUser = String(nextId || '');
+        const prevUser = String(prevId || '');
+        if (!isAuthenticated.value || !nextUser || nextUser === prevUser) {
+            return;
+        }
+        resetUserScopedState();
+        syncFromRoute();
+        await loadBindingAndConfig();
         await loadMyPendingGroups();
         await loadActiveTeams();
         await tryAutoOpenCheckoutFromRoute();
@@ -669,7 +963,7 @@ onBeforeUnmount(() => {
     padding: 24px 12px 48px;
     background: #f1f5f9;
     display: grid;
-    gap: 14px;
+    gap: 4px;
 }
 
 .card {
@@ -683,11 +977,22 @@ onBeforeUnmount(() => {
 }
 
 .hero-card {
-    display: block;
+    width: min(980px, 100%);
+    margin: 0 auto;
+    padding: 0 2px 1px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.hero-main {
+    min-height: 0;
+    display: grid;
+    gap: 0;
 }
 
 .hero-main h1 {
-    margin: 4px 0;
+    margin: 0;
     color: #0f172a;
 }
 
@@ -699,9 +1004,10 @@ onBeforeUnmount(() => {
 }
 
 .desc {
-    margin: 0;
+    margin: 2px 0 0;
     color: #475569;
     font-size: 14px;
+    line-height: 1.35;
 }
 
 .section-head {
@@ -837,3 +1143,4 @@ onBeforeUnmount(() => {
     }
 }
 </style>
+

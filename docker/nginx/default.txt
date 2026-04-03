@@ -1,0 +1,115 @@
+﻿limit_req_zone $binary_remote_addr zone=auth_ip:10m rate=12r/s;
+limit_req_zone $server_name zone=auth_global:10m rate=120r/s;
+limit_req_zone $binary_remote_addr zone=upload_ip:10m rate=6r/s;
+limit_req_zone $server_name zone=upload_global:10m rate=40r/s;
+limit_req_zone $binary_remote_addr zone=api_ip:10m rate=25r/s;
+limit_req_zone $server_name zone=api_global:10m rate=180r/s;
+limit_req_zone $binary_remote_addr zone=image_access_ip:10m rate=80r/s;
+limit_req_zone $server_name zone=image_access_global:10m rate=800r/s;
+
+server {
+    listen 80;
+    server_name localhost;
+    client_max_body_size 50M;
+    client_body_timeout 300s;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/upload {
+        limit_req zone=upload_ip burst=12 nodelay;
+        limit_req zone=upload_global burst=80 nodelay;
+        limit_req_status 429;
+        proxy_request_buffering off;
+        proxy_pass http://gateway:8094;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /api/auth/ {
+        limit_req zone=auth_ip burst=30 nodelay;
+        limit_req zone=auth_global burst=220 nodelay;
+        limit_req_status 429;
+        proxy_pass http://gateway:8094;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /api/images/access/ {
+        limit_req zone=image_access_ip burst=240;
+        limit_req zone=image_access_global burst=1200;
+        limit_req_status 429;
+        proxy_pass http://gateway:8094;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /api/v1/group/ {
+        limit_req zone=api_ip burst=40 nodelay;
+        limit_req zone=api_global burst=240 nodelay;
+        limit_req_status 429;
+        proxy_pass http://gateway:8094;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /api/bridge/ {
+        limit_req zone=api_ip burst=40 nodelay;
+        limit_req zone=api_global burst=240 nodelay;
+        limit_req_status 429;
+        proxy_pass http://gateway:8094;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location /api/ {
+        limit_req zone=api_ip burst=40 nodelay;
+        limit_req zone=api_global burst=240 nodelay;
+        limit_req_status 429;
+        proxy_pass http://gateway:8094;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+}
+

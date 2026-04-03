@@ -1268,6 +1268,16 @@ const flowRows = [
     spring: 'DbMetricsController 从慢 SQL 采样组件汇总统计并输出 total/slow/samples 结构。',
     db: '采样器读取 SQL 执行记录并按慢查询阈值统计命中数量后返回给 Controller。',
     other: '监控 JSON 可被外部观测平台再次采集并驱动告警。'
+  },
+  {
+    id: 'WF-11',
+    title: '拼团交易链路',
+    frontend: 'GroupBuyMarket.vue 汇总“正在拼团 + 我的拼团进度”，当当前商品拼团队列已包含自己时禁用下单按钮并提示，避免重复支付。',
+    nginx: 'Nginx 把 /api/bridge/* 交易请求统一转发到 gateway，再由 gateway 路由到 bridge 和 group。',
+    redis: '交易展示读取记录与队列状态时会依赖会话键，核心防重规则不依赖缓存，直接以后端数据库判定为准。',
+    spring: 'Bridge 负责协议收口；group 的 TradePortalService.groupCheckout 在锁单前执行“同 goodsId+activityId 是否已在队列”硬校验，命中直接返回 A0409。',
+    db: 'trade_center 通过 trade_order_item + trade_order_team 联表判断用户是否已在进行中队列（status=GROUPING 且未过期）。',
+    other: '前端拦截 + 后端硬校验双保险，防止绕过前端导致重复下单。'
   }
 ];
 const flowTitleMap = Object.fromEntries(flowRows.map((x) => [x.id, x.title]));
@@ -1432,6 +1442,13 @@ const interactionComponentRows = [
     api: 'DELETE /api/admin/comments/{commentId}',
     backend: 'AdminController -> VehicleCommentServiceImpl(复用前台删除逻辑)',
     note: '后台治理与前台删除共用服务，缓存失效策略一致。'
+  },
+  {
+    front: 'views/GroupBuyMarket.vue',
+    action: '拼团下单防重复',
+    api: 'POST /api/bridge/portal/group-buy',
+    backend: 'GroupBuyMarket -> bridge -> TradePortalService.groupCheckout',
+    note: '同商品拼团队列中若已包含当前用户，前端按钮禁用并提示；后端再做硬校验并返回 A0409。'
   }
 ];
 
@@ -1450,7 +1467,8 @@ const middlewareEvents = [
   { trigger: '评论发布/删除/收藏切换', exec: 'Nginx -> Spring -> MySQL -> Redis -> RabbitMQ(异步副作用)', action: '主事务先落库并更新缓存；comment.created / favorite.toggled 通过 afterCommit 发布到业务队列，副作用 best-effort 执行。', flow: 'WF-04', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-mysql', 'm3-redis', 'm3-rabbitmq'] },
   { trigger: '提交上传', exec: 'Nginx -> Spring -> Redis -> MinIO -> MySQL', action: '上传安全检查、幂等、防刷后，生成缩略图 + 受控高清图（强水印）并与原始对象一起落库', flow: 'WF-05', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-redis', 'm3-minio', 'm3-mysql'] },
   { trigger: '审核操作', exec: 'Nginx -> Spring -> MySQL -> Redis', action: '角色校验、状态更新、缓存失效', flow: 'WF-06', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-mysql', 'm3-redis'] },
-  { trigger: '访问签名图片', exec: 'Nginx -> Spring -> MinIO', action: '验签与过期校验后返回对象流', flow: 'WF-08', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-minio'] }
+  { trigger: '访问签名图片', exec: 'Nginx -> Spring -> MinIO', action: '验签与过期校验后返回对象流', flow: 'WF-08', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-minio'] },
+  { trigger: '拼团下单', exec: 'Nginx -> Gateway -> Bridge -> Group -> MySQL.trade_center', action: 'groupCheckout 在锁单前校验同 goodsId+activityId 是否已在队列，命中则拒绝重复下单（A0409）', flow: 'WF-11', middlewarePages: ['m3-nginx', 'm3-spring', 'm3-mysql'] }
 ];
 const module5InterviewQa = [
   { id: 1, q: '这个系统的 SLO 是什么？', a: '当前版本重点监控上传成功率、鉴权成功率和核心查询延迟，工程目标是先保证核心接口稳定可用，再按压测结果逐步收紧到可量化 SLO（如上传成功率 > 99%、核心 GET 接口 P95 < 300ms）。' },
@@ -1482,7 +1500,8 @@ const module5InterviewQa = [
   { id: 27, q: '文档和代码怎么防漂移？', a: '现在文档集中在 About.vue，维护成本较低但仍是人工同步。建议增加 API 扫描/契约校验，自动比对路由与文档条目。' },
   { id: 28, q: '安全防护做了哪些、还缺什么？', a: '已做登录鉴权、角色控制、限流、上传安全校验、签名访问。还可加强 WAF 规则、依赖漏洞扫描和审计日志完整性。' },
   { id: 29, q: '配置和密钥管理有什么要求？', a: '本地可用 .env，生产必须走密钥管理系统并做分环境隔离，禁止明文默认密钥。密钥变更要支持平滑切换和回滚。' },
-  { id: 30, q: '现在如果上线，最担心什么？', a: '最担心三点：上传高峰下图片处理耗时、跨依赖双写一致性、权限边界回归覆盖不够。优先补压测、补偿任务和权限自动化回归。' }
+  { id: 30, q: '现在如果上线，最担心什么？', a: '最担心三点：上传高峰下图片处理耗时、跨依赖双写一致性、权限边界回归覆盖不够。优先补压测、补偿任务和权限自动化回归。' },
+  { id: 31, q: '为什么拼团页禁止“队列里已有自己”时再次下单？', a: '同一用户在同一商品活动下重复支付会造成订单与队列语义冲突。当前实现是前端先禁用并提示，后端在 groupCheckout 再次硬校验（A0409），避免绕过前端造成重复下单。' }
 ];
 
 const docsMainRef = ref(null);

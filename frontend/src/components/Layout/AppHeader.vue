@@ -374,8 +374,28 @@ const resolveItemStatus = (item = {}) => {
     return '通知';
 };
 
+const resolveGroupFailReasonText = (content = '') => {
+    const text = String(content || '');
+    if (text.includes('timeout_not_grouped')) {
+        return '失败原因：拼团超时未成团。系统已自动取消拼团并将金额原路退回到钱包。';
+    }
+    if (text.includes('team_closed')) {
+        return '失败原因：拼团队伍已关闭。系统已按规则处理并退款。';
+    }
+    if (text.includes('team_condition_not_met')) {
+        return '失败原因：拼团队伍未满足成团条件。系统已自动取消拼团并退款。';
+    }
+    if (text.includes('team_not_found')) {
+        return '失败原因：拼团队伍不存在或已解散。系统已按规则处理并退款。';
+    }
+    return text;
+};
+
 const resolveItemText = (item = {}) => {
     if (item.source === 'trade') {
+        if (item.messageType === 'GROUP_FAILED' && item.content) {
+            return resolveGroupFailReasonText(item.content);
+        }
         if (item.content) return item.content;
         return item.title || '交易状态更新';
     }

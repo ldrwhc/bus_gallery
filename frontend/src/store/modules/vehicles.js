@@ -7,6 +7,7 @@ import {
     trackVehicleView
 } from '@/api/vehicles';
 import { fetchSnapshotByPlate } from '@/api/snapshots';
+import http from '@/api/axiosInstance';
 
 const defaultFilters = () => ({
     regionId: null,
@@ -45,6 +46,9 @@ const detailSnapshotCache = new Map();
 const detailSnapshotPendingMap = new Map();
 
 const normalizePlate = (plate) => String(plate || '').replace(/\s+/g, '').trim();
+const isCanceledError = (error) =>
+    error?.name === 'CanceledError' || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED';
+const unwrapData = (payload) => payload?.data ?? payload ?? null;
 
 const state = () => ({
     gallery: [],
@@ -199,7 +203,7 @@ const mutations = {
 
 const actions = {
     async loadVehicleGallery({ state, commit }, params = {}) {
-        const { page: pageParam, size: sizeParam, ...filterOverrides } = params;
+        const { page: pageParam, size: sizeParam, signal, ...filterOverrides } = params;
         const page = pageParam ?? state.pagination.page ?? 1;
         const size = sizeParam ?? state.pagination.size ?? 12;
         const filters = { ...state.filters, ...filterOverrides };
@@ -207,11 +211,25 @@ const actions = {
         commit('SET_GALLERY_LOADING', true);
         commit('SET_GALLERY_ERROR', null);
         try {
-            const response = await fetchVehicleGallery({
+            const query = {
                 page,
                 size,
                 ...sanitizeParams(filters)
-            });
+            };
+            const response = signal
+                ? await http.get('/vehicles', { params: query, signal }).then((payload) => {
+                    const body = unwrapData(payload);
+                    const records = parseList(body);
+                    return {
+                        records,
+                        total: body?.total ?? body?.pagination?.total ?? body?.meta?.total ?? 0,
+                        page: body?.page ?? query.page ?? 1,
+                        size: body?.size ?? query.size ?? 12,
+                        nextLaunch: body?.nextLaunch ?? null,
+                        nextId: body?.nextId ?? null
+                    };
+                })
+                : await fetchVehicleGallery(query);
             const list = parseList(response);
             const total =
                 response?.total ??
@@ -229,6 +247,16 @@ const actions = {
                 nextId: response?.nextId ?? null
             };
         } catch (error) {
+            if (isCanceledError(error)) {
+                return {
+                    records: state.gallery || [],
+                    total: state.pagination?.total ?? 0,
+                    page,
+                    size,
+                    nextLaunch: null,
+                    nextId: null
+                };
+            }
             commit('SET_GALLERY_ERROR', error.message || '加载车辆图库失败');
             throw error;
         } finally {
@@ -246,9 +274,11 @@ const actions = {
     async loadVehicleDetail({ state, commit }, payload) {
         const vehicleId = typeof payload === 'object' && payload !== null ? payload.vehicleId : payload;
         const force = typeof payload === 'object' && payload !== null ? Boolean(payload.force) : false;
+        const signal = typeof payload === 'object' && payload !== null ? payload.signal : null;
         const plateFromPayload =
             typeof payload === 'object' && payload !== null ? (payload.plateNumber || '').trim() : '';
         if (!vehicleId) return null;
+        if (signal?.aborted) return state.detailMap[vehicleId] || null;
 
         const now = Date.now();
         const lastTracked = state.viewTrackMap[vehicleId] || 0;
@@ -277,6 +307,7 @@ const actions = {
             const applySnapshotByPlate = async (plate) => {
                 const normalizedPlate = normalizePlate(plate);
                 if (!normalizedPlate) return false;
+                if (signal?.aborted) return false;
 
                 const applySnapshot = (snapshot) => {
                     if (!snapshot || !Array.isArray(snapshot.variants) || !snapshot.variants.length) {
@@ -304,6 +335,19 @@ const actions = {
                 }
                 if (cached) {
                     detailSnapshotCache.delete(normalizedPlate);
+                }
+
+                if (signal) {
+                    const snapshot = await http
+                        .get(`/snapshots/plate/${encodeURIComponent(normalizedPlate)}`, { signal })
+                        .then(unwrapData)
+                        .catch((error) => {
+                            if (isCanceledError(error)) {
+                                throw error;
+                            }
+                            return null;
+                        });
+                    return applySnapshot(snapshot);
                 }
 
                 let pending = detailSnapshotPendingMap.get(normalizedPlate);
@@ -336,20 +380,40 @@ const actions = {
             const plate = findPlateByVehicleId();
             const hasSnapshot = await applySnapshotByPlate(plate);
             if (hasSnapshot) return state.detailMap[vehicleId] || null;
+            if (signal?.aborted) return state.detailMap[vehicleId] || null;
 
-            const detail = await fetchVehicleGalleryDetail(vehicleId);
+            const detail = signal
+                ? await http.get(`/vehicles/${vehicleId}`, { signal }).then((payload) => {
+                    const body = unwrapData(payload);
+                    return body?.vehicle
+                        ? body
+                        : {
+                            vehicle: body,
+                            vehicleConfig: null,
+                            images: []
+                        };
+                })
+                : await fetchVehicleGalleryDetail(vehicleId);
             const detailPlate = detail?.vehicle?.plateNumber;
             const snapshotApplied = await applySnapshotByPlate(detailPlate);
             if (!snapshotApplied) {
                 commit('SET_VEHICLE_DETAIL', { vehicleId, detail });
             }
             return state.detailMap[vehicleId] || detail;
+        } catch (error) {
+            if (isCanceledError(error)) {
+                return state.detailMap[vehicleId] || null;
+            }
+            throw error;
         } finally {
             commit('SET_DETAIL_LOADING', { vehicleId, loading: false });
         }
     },
-    async loadVehicleComments({ state, commit }, { vehicleId, page = 1, size = 50, force = false } = {}) {
+    async loadVehicleComments({ state, commit }, { vehicleId, page = 1, size = 50, force = false, signal = null } = {}) {
         if (!vehicleId) return { records: [], total: 0 };
+        if (signal?.aborted) {
+            return state.commentCache[vehicleId] || { records: [], total: 0 };
+        }
         const cached = state.commentCache[vehicleId];
         const now = Date.now();
         const isFresh =
@@ -371,12 +435,20 @@ const actions = {
         commit('SET_COMMENT_ERROR', { vehicleId, error: null });
         commit('SET_COMMENT_LAST_FETCH', { vehicleId, ts: now });
         try {
-            const resp = await fetchVehicleComments(vehicleId, { page, size });
+            const resp = signal
+                ? await http.get(`/vehicles/${vehicleId}/comments`, {
+                    params: { page, size },
+                    signal
+                }).then(unwrapData)
+                : await fetchVehicleComments(vehicleId, { page, size });
             const records = resp?.records || resp?.items || resp?.data || resp || [];
             const total = resp?.total ?? records.length ?? 0;
             commit('SET_COMMENT_CACHE', { vehicleId, page, size, records, total, fetchedAt: now });
             return state.commentCache[vehicleId];
         } catch (error) {
+            if (isCanceledError(error)) {
+                return cached || { records: [], total: 0 };
+            }
             commit('SET_COMMENT_ERROR', { vehicleId, error: error?.message || '加载评论失败' });
             if (cached) return cached;
             throw error;

@@ -26,7 +26,8 @@ CREATE TABLE `company` (
   `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_company_name` (`name`)
+  UNIQUE KEY `uk_company_name` (`name`),
+  KEY `idx_company_region_name` (`region_id`, `name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='瀹㈣繍/鍏氦鍏徃';
 
 -- 鍦板尯
@@ -38,7 +39,8 @@ CREATE TABLE `region` (
   `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_region_name` (`name`)
+  UNIQUE KEY `uk_region_name` (`name`),
+  KEY `idx_region_parent_name` (`parent_id`, `name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鍦板尯淇℃伅';
 
 -- 杞﹀瀷
@@ -53,6 +55,7 @@ CREATE TABLE `model` (
   `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_model_brand` (`brand_id`),
+  KEY `idx_model_brand_name` (`brand_id`, `name`),
   CONSTRAINT `fk_model_brand` FOREIGN KEY (`brand_id`) REFERENCES `brand` (`id`)
     ON DELETE RESTRICT
     ON UPDATE CASCADE
@@ -138,7 +141,8 @@ CREATE TABLE `image` (
   `created_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_image_object` (`object_name`),
-  KEY `idx_image_uploader` (`uploader_id`)
+  KEY `idx_image_uploader` (`uploader_id`),
+  KEY `idx_image_uploader_created_id` (`uploader_id`, `created_at`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鍥剧墖鏂囦欢淇℃伅';
 
 -- 杞﹁締涓庡浘鐗囧叧鑱?

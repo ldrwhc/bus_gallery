@@ -14,42 +14,44 @@
                 <el-button text :loading="loading" @click="emit('refresh')">刷新</el-button>
             </div>
 
-            <div v-if="loading" class="state">购买记录加载中...</div>
-            <div v-else-if="!records.length" class="state">暂无拼团或交易记录</div>
-            <div v-else class="trade-record-list">
-                <article
-                    v-for="record in pagedRecords"
-                    :key="record.recordId || record.orderId || record.outTradeNo"
-                    class="trade-record-row"
-                >
-                    <div class="trade-record-main">
-                        <p class="trade-record-title">{{ record.title || '图片交易' }}</p>
-                        <p class="muted">
-                            {{ resolveTradeMode(record) }} · {{ resolveTradeStatus(record) }} · {{ formatTradePrice(record.payPriceCents) }}
-                        </p>
-                        <p class="muted">{{ formatTradeTime(record.createdAt) }}</p>
-                    </div>
-                    <div class="trade-record-actions">
-                        <el-button
-                            v-if="canContinueGroup(record)"
-                            :loading="cancelingIds.has(String(record.recordId || record.outTradeNo || ''))"
-                            size="small"
-                            type="danger"
-                            plain
-                            @click="emit('cancel-group', record)"
-                        >
-                            取消拼团
-                        </el-button>
-                        <el-button
-                            v-if="record.canDownload"
-                            type="primary"
-                            size="small"
-                            @click="emit('download', record)"
-                        >
-                            下载原图
-                        </el-button>
-                    </div>
-                </article>
+            <div class="trade-record-scroll">
+                <div v-if="loading" class="state">购买记录加载中...</div>
+                <div v-else-if="!records.length" class="state">暂无拼团或交易记录</div>
+                <div v-else class="trade-record-list">
+                    <article
+                        v-for="record in pagedRecords"
+                        :key="record.recordId || record.orderId || record.outTradeNo"
+                        class="trade-record-row"
+                    >
+                        <div class="trade-record-main">
+                            <p class="trade-record-title">{{ record.title || '图片交易' }}</p>
+                            <p class="muted">
+                                {{ resolveTradeMode(record) }} · {{ resolveTradeStatus(record) }} · {{ formatTradePrice(record.payPriceCents) }}
+                            </p>
+                            <p class="muted">{{ formatTradeTime(record.createdAt) }}</p>
+                        </div>
+                        <div class="trade-record-actions">
+                            <el-button
+                                v-if="canContinueGroup(record)"
+                                :loading="cancelingIds.has(String(record.recordId || record.outTradeNo || ''))"
+                                size="small"
+                                type="danger"
+                                plain
+                                @click="emit('cancel-group', record)"
+                            >
+                                取消拼团
+                            </el-button>
+                            <el-button
+                                v-if="record.canDownload"
+                                type="primary"
+                                size="small"
+                                @click="emit('download', record)"
+                            >
+                                下载原图
+                            </el-button>
+                        </div>
+                    </article>
+                </div>
             </div>
 
             <div v-if="!loading && records.length" class="pager-wrap">
@@ -169,12 +171,19 @@ watch(
 .trade-record-panel {
     display: grid;
     gap: 12px;
+    min-height: 0;
 }
 
 .trade-record-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
+}
+
+.trade-record-scroll {
+    max-height: min(58vh, 560px);
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 .summary {
@@ -233,15 +242,7 @@ watch(
 }
 
 .trade-record-dialog:deep(.el-dialog__body) {
-    max-height: min(74vh, 820px);
-    overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-}
-
-.trade-record-dialog:deep(.el-dialog__body::-webkit-scrollbar) {
-    width: 0;
-    height: 0;
+    overflow: hidden;
 }
 
 @media (max-width: 768px) {

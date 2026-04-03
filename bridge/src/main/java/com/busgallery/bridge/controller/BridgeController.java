@@ -87,7 +87,7 @@ public class BridgeController {
      * List active teams.
      */
     @GetMapping("/portal/teams")
-    public ResponseEntity<String> listTeams(@RequestParam("activityId") Long activityId,
+    public ResponseEntity<String> listTeams(@RequestParam(name = "activityId", required = false) Long activityId,
                                             @RequestParam(name = "limit", defaultValue = "5") Integer limit) {
         return jsonOk(bridgeTradeClient.listTeams(activityId, limit));
     }

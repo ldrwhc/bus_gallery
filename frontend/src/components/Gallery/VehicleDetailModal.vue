@@ -75,15 +75,34 @@
                         </div>
 
                         <GroupBuyBridgeCard
-                            class="trade-bridge-card"
+                            :class="[
+                                'trade-bridge-card',
+                                { 'trade-bridge-card--hide-teams': tradeVisibleTeams.length > 0 }
+                            ]"
                             :context="tradeBridgeContext"
                             :market-config="tradeMarketConfig"
-                            :active-teams="tradeActiveTeams"
+                            :active-teams="tradeVisibleTeams"
                             :loading="tradeLoading"
                             @buy="handleTradeBuy"
                             @group-buy="handleTradeGroupBuy"
                             @join-team="handleTradeJoinTeam"
                         />
+                        <section v-if="tradeVisibleTeams.length" class="trade-team-times">
+                            <p class="trade-team-times__title">正在拼团（截止时间）</p>
+                            <div class="trade-team-times__list">
+                                <article v-for="team in tradeVisibleTeams" :key="`detail-team-${team.teamId}`" class="trade-team-times__item">
+                                    <div class="trade-team-times__meta">
+                                        <span>团号 {{ team.teamId }}</span>
+                                        <span>进度 {{ team.completeCount || 0 }}/{{ team.targetCount || '-' }} 人</span>
+                                        <span>截止 {{ formatTradeEndTime(team.validEndTime) }}</span>
+                                        <span class="trade-team-times__countdown">{{ formatTradeCountdown(team.validEndTime) }}</span>
+                                    </div>
+                                    <button type="button" class="trade-team-times__join" @click="handleTradeJoinTeam(team.teamId)">
+                                        参与该团
+                                    </button>
+                                </article>
+                            </div>
+                        </section>
 
                         <div class="info-section" v-if="vehicleInfoCards.length">
                             <h3>车辆信息</h3>
@@ -238,8 +257,8 @@
             destroy-on-close
         >
             <div class="direct-checkout-panel">
-                <p>购买方式：<strong>直接下单</strong></p>
-                <p>支付金额：<strong>{{ centsToYuan(directPayCents) }}</strong></p>
+                <p>购买方式：<strong>{{ tradeCheckoutMode === 'direct-buy' ? '直接下单' : '拼团购买' }}</strong></p>
+                <p>支付金额：<strong>{{ centsToYuan(checkoutPayCents) }}</strong></p>
                 <p>当前余额：<strong>{{ centsToYuan(balanceCents) }}</strong></p>
 
                 <div class="direct-payment-options">
@@ -285,7 +304,7 @@
                     type="primary"
                     :loading="directSubmitting"
                     :disabled="!directReadyToSubmit"
-                    @click="submitDirectCheckout"
+                    @click="submitTradeCheckout"
                 >
                     确认支付
                 </el-button>
@@ -325,12 +344,11 @@ import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import ImageCarousel from './ImageCarousel.vue';
 import GroupBuyBridgeCard from '@/components/Trade/GroupBuyBridgeCard.vue';
-import { fetchFavoriteSummary, setFavorite } from '@/api/vehicles';
+import { setFavorite } from '@/api/vehicles';
+import http from '@/api/axiosInstance';
 import {
     directBuyCheckout,
-    fetchPortalActiveTeams,
-    fetchTradeBridgeConfig,
-    resolveTradeBindingByImage
+    groupBuyCheckout,
 } from '@/api/tradeBridge';
 import { verifyPassword } from '@/api/auth';
 import { CONFIG_INFO_FIELDS, VEHICLE_INFO_FIELDS } from '@/utils/constants';
@@ -358,6 +376,43 @@ const currentUser = computed(() => store.state.auth.profile);
 const currentUserId = computed(() => currentUser.value?.id || currentUser.value?.userId || null);
 const currentUserRole = computed(() => currentUser.value?.role || '');
 const balanceCents = computed(() => Number(currentUser.value?.balanceCents || 0));
+const unwrapData = (payload) => payload?.data ?? payload ?? null;
+const isCanceledError = (error) =>
+    error?.name === 'CanceledError' || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED';
+
+let tradeRequestSeq = 0;
+let favoriteRequestSeq = 0;
+let commentsRequestSeq = 0;
+let tradeAbortController = null;
+let favoriteAbortController = null;
+let commentsAbortController = null;
+
+const resetAbortController = (controllerRefName) => {
+    if (controllerRefName === 'trade') {
+        if (tradeAbortController) tradeAbortController.abort();
+        tradeAbortController = new AbortController();
+        return tradeAbortController;
+    }
+    if (controllerRefName === 'favorite') {
+        if (favoriteAbortController) favoriteAbortController.abort();
+        favoriteAbortController = new AbortController();
+        return favoriteAbortController;
+    }
+    if (commentsAbortController) commentsAbortController.abort();
+    commentsAbortController = new AbortController();
+    return commentsAbortController;
+};
+
+const abortModalRequests = () => {
+    if (tradeAbortController) tradeAbortController.abort();
+    if (favoriteAbortController) favoriteAbortController.abort();
+    if (commentsAbortController) commentsAbortController.abort();
+    tradeAbortController = null;
+    favoriteAbortController = null;
+    commentsAbortController = null;
+    tradeLoading.value = false;
+    commentsLoading.value = false;
+};
 
 const BODY_LOCK_CLASS = 'vehicle-detail-modal-open';
 const toggleBodyScroll = (shouldLock) => {
@@ -408,7 +463,13 @@ const tradeResolved = reactive({
 const tradeMarketConfig = ref(null);
 const tradeActiveTeams = ref([]);
 const tradeLoading = ref(false);
+const tradeNowTimestamp = ref(Date.now());
+const TRADE_CLOCK_INTERVAL_MS = 1000;
+const TRADE_SNAPSHOT_POLL_INTERVAL_MS = 20000;
+let tradeClockTimer = null;
+let tradeSnapshotPollTimer = null;
 const directCheckoutVisible = ref(false);
+const tradeCheckoutMode = ref('direct-buy');
 const directPaymentMethod = ref('BALANCE');
 const directPayPassword = ref('');
 const directSubmitting = ref(false);
@@ -417,8 +478,12 @@ const directPaymentOptions = [
     { value: 'WECHAT', label: '微信支付', desc: '扫码支付', available: false },
     { value: 'BALANCE', label: '余额支付', desc: '即时扣款', available: true }
 ];
-const directPayCents = computed(() => Number(tradeMarketConfig.value?.originalPriceCents || 0));
-const directHasSufficientBalance = computed(() => balanceCents.value >= directPayCents.value);
+const checkoutPayCents = computed(() =>
+    tradeCheckoutMode.value === 'direct-buy'
+        ? Number(tradeMarketConfig.value?.originalPriceCents || 0)
+        : Number(tradeMarketConfig.value?.groupPriceCents || 0)
+);
+const directHasSufficientBalance = computed(() => balanceCents.value >= checkoutPayCents.value);
 const directReadyToSubmit = computed(() => {
     if (!tradeBridgeContext.value?.goodsId || !tradeBridgeContext.value?.activityId) return false;
     if (directPaymentMethod.value !== 'BALANCE') return false;
@@ -463,6 +528,72 @@ const tradeBridgeContext = computed(() => {
     };
 });
 
+const parseDateMs = (value) => {
+    if (!value) return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (Array.isArray(value)) {
+        const year = Number(value[0] || 0);
+        const month = Number(value[1] || 0);
+        const day = Number(value[2] || 0);
+        const hour = Number(value[3] || 0);
+        const minute = Number(value[4] || 0);
+        const second = Number(value[5] || 0);
+        if (year > 0 && month > 0 && day > 0) {
+            const dt = new Date(year, Math.max(0, month - 1), day, hour, minute, second);
+            const ts = dt.getTime();
+            return Number.isFinite(ts) ? ts : 0;
+        }
+        return 0;
+    }
+    const t = Date.parse(value);
+    return Number.isFinite(t) ? t : 0;
+};
+
+const isTradeTeamActive = (team) => {
+    const targetCount = Number(team?.targetCount || 0);
+    const completeCount = Number(team?.completeCount || 0);
+    if (targetCount > 0 && completeCount >= targetCount) {
+        return false;
+    }
+    const endMs = parseDateMs(team?.validEndTime);
+    if (endMs > 0 && endMs <= tradeNowTimestamp.value) {
+        return false;
+    }
+    return true;
+};
+
+const tradeVisibleTeams = computed(() =>
+    (Array.isArray(tradeActiveTeams.value) ? tradeActiveTeams.value : [])
+        .filter((team) => isTradeTeamActive(team))
+);
+
+const formatTradeEndTime = (endTime) => {
+    const ts = parseDateMs(endTime);
+    if (!ts) return '--';
+    const dt = new Date(ts);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    const hh = String(dt.getHours()).padStart(2, '0');
+    const mm = String(dt.getMinutes()).padStart(2, '0');
+    const ss = String(dt.getSeconds()).padStart(2, '0');
+    return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+};
+
+const formatTradeCountdown = (endTime) => {
+    const endMs = parseDateMs(endTime);
+    if (!endMs) return '倒计时 --:--';
+    const diff = Math.floor((endMs - tradeNowTimestamp.value) / 1000);
+    if (diff <= 0) return '已结束';
+    const hours = Math.floor(diff / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+    const seconds = diff % 60;
+    if (hours > 0) {
+        return `剩余 ${hours}h ${String(minutes).padStart(2, '0')}m`;
+    }
+    return `剩余 ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
 const resetFocus = () => {
     let targetVariant = 0;
     let targetImageIndex = -1;
@@ -498,6 +629,18 @@ watch(
     }
 );
 
+const requestTradeBinding = (imageId, payload, signal) =>
+    http.post(`/bridge/images/${imageId}/binding`, payload || {}, { signal }).then(unwrapData);
+
+const requestTradeConfig = (payload, signal) =>
+    http.post('/bridge/index/config', payload || {}, { signal }).then(unwrapData);
+
+const requestActiveTeams = (activityId, limit, signal) =>
+    http.get('/bridge/portal/teams', {
+        params: activityId ? { activityId, limit } : { limit },
+        signal
+    }).then(unwrapData);
+
 const loadTradeSnapshot = async () => {
     if (!props.visible) return;
     const imageId = tradeBridgeContext.value?.imageId;
@@ -509,16 +652,23 @@ const loadTradeSnapshot = async () => {
         tradeActiveTeams.value = [];
         return;
     }
+    const requestSeq = ++tradeRequestSeq;
+    const controller = resetAbortController('trade');
+    const signal = controller.signal;
     tradeLoading.value = true;
     try {
         let goodsId = tradeBridgeContext.value?.goodsId ? String(tradeBridgeContext.value.goodsId) : null;
         let activityId = tradeBridgeContext.value?.activityId ? String(tradeBridgeContext.value.activityId) : null;
 
         if ((!goodsId || !activityId) && isAuthenticated.value) {
-            const binding = await resolveTradeBindingByImage(
+            const binding = await requestTradeBinding(
                 Number(imageId),
-                vehicleId ? { vehicleId: Number(vehicleId) } : {}
+                vehicleId ? { vehicleId: Number(vehicleId) } : {},
+                signal
             );
+            if (requestSeq !== tradeRequestSeq || signal.aborted || !props.visible) {
+                return;
+            }
             goodsId = binding?.goodsId ? String(binding.goodsId) : goodsId;
             activityId = binding?.activityId ? String(binding.activityId) : activityId;
             if (binding) {
@@ -536,7 +686,10 @@ const loadTradeSnapshot = async () => {
         }
 
         if (goodsId) {
-            const configResp = await fetchTradeBridgeConfig({ goodsId });
+            const configResp = await requestTradeConfig({ goodsId }, signal);
+            if (requestSeq !== tradeRequestSeq || signal.aborted || !props.visible) {
+                return;
+            }
             if (configResp) {
                 tradeMarketConfig.value = configResp;
                 activityId = configResp.activityId ? String(configResp.activityId) : activityId;
@@ -547,15 +700,72 @@ const loadTradeSnapshot = async () => {
         tradeResolved.activityId = activityId;
 
         if (activityId) {
-            const teams = await fetchPortalActiveTeams(Number(activityId), 5);
+            let teams = await requestActiveTeams(Number(activityId), 20, signal).catch((error) => {
+                if (isCanceledError(error)) {
+                    throw error;
+                }
+                return [];
+            });
+            if ((!Array.isArray(teams) || !teams.length) && !signal.aborted) {
+                const globalTeams = await requestActiveTeams(null, 100, signal).catch((error) => {
+                    if (isCanceledError(error)) {
+                        throw error;
+                    }
+                    return [];
+                });
+                teams = Array.isArray(globalTeams)
+                    ? globalTeams.filter((team) => Number(team?.activityId || 0) === Number(activityId || 0))
+                    : [];
+            }
+            if (requestSeq !== tradeRequestSeq || signal.aborted || !props.visible) {
+                return;
+            }
             tradeActiveTeams.value = Array.isArray(teams) ? teams : [];
         } else {
             tradeActiveTeams.value = [];
         }
     } catch (error) {
+        if (isCanceledError(error)) {
+            return;
+        }
+        if (requestSeq !== tradeRequestSeq) {
+            return;
+        }
         tradeActiveTeams.value = [];
     } finally {
-        tradeLoading.value = false;
+        if (requestSeq === tradeRequestSeq && !signal.aborted) {
+            tradeLoading.value = false;
+        }
+    }
+};
+
+const startTradeClock = () => {
+    if (tradeClockTimer) return;
+    tradeClockTimer = setInterval(() => {
+        if (!props.visible) return;
+        tradeNowTimestamp.value = Date.now();
+    }, TRADE_CLOCK_INTERVAL_MS);
+};
+
+const stopTradeClock = () => {
+    if (tradeClockTimer) {
+        clearInterval(tradeClockTimer);
+        tradeClockTimer = null;
+    }
+};
+
+const startTradeSnapshotPolling = () => {
+    if (tradeSnapshotPollTimer || !isDocumentVisible()) return;
+    tradeSnapshotPollTimer = setInterval(() => {
+        if (!props.visible || !isDocumentVisible()) return;
+        loadTradeSnapshot().catch(() => {});
+    }, TRADE_SNAPSHOT_POLL_INTERVAL_MS);
+};
+
+const stopTradeSnapshotPolling = () => {
+    if (tradeSnapshotPollTimer) {
+        clearInterval(tradeSnapshotPollTimer);
+        tradeSnapshotPollTimer = null;
     }
 };
 
@@ -645,6 +855,9 @@ const mapUsers = (list = []) =>
 async function loadFavoriteSummary() {
     if (!vehicle.value?.id) return;
     const vid = vehicle.value.id;
+    const requestSeq = ++favoriteRequestSeq;
+    const controller = resetAbortController('favorite');
+    const signal = controller.signal;
     // 先用 props.detail 携带的数据（若有）
     if (props.detail?.favoriteSummary && !favoriteCache[vid]) {
         favoriteCache[vid] = props.detail.favoriteSummary;
@@ -668,7 +881,10 @@ async function loadFavoriteSummary() {
     if (!shouldFetchRemote || favoriteLoadingIds.has(vid)) return;
     favoriteLoadingIds.add(vid);
     try {
-        const resp = await fetchFavoriteSummary(vid);
+        const resp = await http.get(`/favorites/${vid}/summary`, { signal }).then(unwrapData);
+        if (requestSeq !== favoriteRequestSeq || signal.aborted || !props.visible || Number(vehicle.value?.id || 0) !== Number(vid)) {
+            return;
+        }
         favoriteCache[vid] = resp || {};
         liked.value = resp?.liked || false;
         likeTotal.value = resp?.total || 0;
@@ -681,6 +897,9 @@ async function loadFavoriteSummary() {
             likes: likes.value
         });
     } catch (e) {
+        if (isCanceledError(e)) {
+            return;
+        }
         // ignore
     } finally {
         favoriteLoadingIds.delete(vid);
@@ -792,12 +1011,31 @@ const openDirectCheckoutDialog = () => {
         ElMessage.warning('当前图片还未绑定交易信息');
         return;
     }
+    tradeCheckoutMode.value = 'direct-buy';
     directPaymentMethod.value = 'BALANCE';
     directPayPassword.value = '';
     directCheckoutVisible.value = true;
 };
 
-const submitDirectCheckout = async () => {
+const openGroupCheckoutDialog = () => {
+    if (!isAuthenticated.value) {
+        ElMessage.info('请先登录后再下单');
+        router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } });
+        return;
+    }
+    const goodsId = tradeBridgeContext.value?.goodsId;
+    const activityId = tradeBridgeContext.value?.activityId;
+    if (!goodsId || !activityId) {
+        ElMessage.warning('当前图片还未绑定交易信息');
+        return;
+    }
+    tradeCheckoutMode.value = 'group-buy';
+    directPaymentMethod.value = 'BALANCE';
+    directPayPassword.value = '';
+    directCheckoutVisible.value = true;
+};
+
+const submitTradeCheckout = async () => {
     if (!directReadyToSubmit.value) {
         ElMessage.warning('请先完成支付方式和密码校验');
         return;
@@ -811,11 +1049,33 @@ const submitDirectCheckout = async () => {
             source: 'content',
             channel: 'balance'
         };
-        const result = await directBuyCheckout(payload);
+        const result = tradeCheckoutMode.value === 'direct-buy'
+            ? await directBuyCheckout(payload)
+            : await groupBuyCheckout({ ...payload, teamId: null });
         directCheckoutVisible.value = false;
         directPayPassword.value = '';
         await store.dispatch('auth/fetchProfile').catch(() => {});
         await loadTradeSnapshot();
+
+        if (tradeCheckoutMode.value === 'group-buy') {
+            ElMessage.success(result?.message || '支付成功，已进入拼团大厅');
+            emit('close');
+            router.push({
+                name: 'GroupBuyMarket',
+                query: {
+                    vehicleId: tradeBridgeContext.value?.vehicleId ? String(tradeBridgeContext.value.vehicleId) : undefined,
+                    imageId: tradeBridgeContext.value?.imageId ? String(tradeBridgeContext.value.imageId) : undefined,
+                    plateNumber: tradeBridgeContext.value?.plateNumber || undefined,
+                    goodsId: tradeBridgeContext.value?.goodsId ? String(tradeBridgeContext.value.goodsId) : undefined,
+                    activityId: tradeBridgeContext.value?.activityId ? String(tradeBridgeContext.value.activityId) : undefined,
+                    teamId: result?.teamId ? String(result.teamId) : undefined,
+                    source: 'content',
+                    channel: 'web'
+                }
+            });
+            return;
+        }
+
         if (result?.canDownload && result?.recordId) {
             ElMessage.success('支付成功，可在“查看购买记录”中下载原图');
             return;
@@ -855,8 +1115,7 @@ const handleTradeBuy = () => {
 };
 
 const handleTradeGroupBuy = () => {
-    const preferredTeamId = tradeActiveTeams.value?.[0]?.teamId || '';
-    openGroupTradePage('group-buy', preferredTeamId);
+    openGroupCheckoutDialog();
 };
 
 const handleTradeJoinTeam = (teamId) => {
@@ -892,20 +1151,32 @@ const loadComments = async ({ force = false } = {}) => {
         commentsTotal.value = 0;
         return;
     }
+    const requestSeq = ++commentsRequestSeq;
+    const controller = resetAbortController('comments');
+    const signal = controller.signal;
     commentsLoading.value = true;
     try {
         const resp = await store.dispatch('vehicles/loadVehicleComments', {
             vehicleId: id,
             page: 1,
             size: COMMENT_PAGE_SIZE,
-            force
+            force,
+            signal
         });
+        if (requestSeq !== commentsRequestSeq || signal.aborted || !props.visible || Number(vehicle.value?.id || 0) !== Number(id)) {
+            return;
+        }
         comments.value = resp?.records || [];
         commentsTotal.value = resp?.total ?? comments.value.length ?? 0;
     } catch (error) {
+        if (isCanceledError(error)) {
+            return;
+        }
         ElMessage.error(error.message || '加载评论失败');
     } finally {
-        commentsLoading.value = false;
+        if (requestSeq === commentsRequestSeq && !signal.aborted) {
+            commentsLoading.value = false;
+        }
     }
 };
 
@@ -993,16 +1264,24 @@ const stopCommentPolling = () => {
 };
 
 const onDocumentVisibilityChange = () => {
-    if (!props.visible || !isAuthenticated.value) {
+    if (!props.visible) {
         stopCommentPolling();
+        stopTradeSnapshotPolling();
         return;
     }
     if (!isDocumentVisible()) {
         stopCommentPolling();
+        stopTradeSnapshotPolling();
         return;
     }
-    startCommentPolling();
-    loadComments({ force: true }).catch(() => {});
+    if (isAuthenticated.value) {
+        startCommentPolling();
+        loadComments({ force: true }).catch(() => {});
+    } else {
+        stopCommentPolling();
+    }
+    startTradeSnapshotPolling();
+    loadTradeSnapshot().catch(() => {});
 };
 
 watch(
@@ -1010,6 +1289,9 @@ watch(
     async (val) => {
         toggleBodyScroll(val);
         if (val) {
+            tradeNowTimestamp.value = Date.now();
+            startTradeClock();
+            startTradeSnapshotPolling();
             await loadFavoriteSummary();
             if (isAuthenticated.value) {
                 await loadComments();
@@ -1020,7 +1302,11 @@ watch(
             exifVisible.value = false;
             directCheckoutVisible.value = false;
             directPayPassword.value = '';
+            tradeCheckoutMode.value = 'direct-buy';
+            stopTradeClock();
+            stopTradeSnapshotPolling();
             stopCommentPolling();
+            abortModalRequests();
         }
     },
     { immediate: true }
@@ -1032,6 +1318,7 @@ watch(
         if (!val) {
             directPayPassword.value = '';
             directPaymentMethod.value = 'BALANCE';
+            tradeCheckoutMode.value = 'direct-buy';
         }
     }
 );
@@ -1104,6 +1391,13 @@ onBeforeUnmount(() => {
         document.removeEventListener('visibilitychange', onDocumentVisibilityChange);
     }
     stopCommentPolling();
+    stopTradeClock();
+    stopTradeSnapshotPolling();
+    abortModalRequests();
+    if (likeDebounceTimer) {
+        clearTimeout(likeDebounceTimer);
+        likeDebounceTimer = null;
+    }
 });
 
 const toSnakeCase = (value = '') =>
@@ -1295,6 +1589,7 @@ const getConfigLink = (field) => {
 
 const handleClose = () => {
     exifVisible.value = false;
+    abortModalRequests();
     emit('close');
 };
 </script>
@@ -1656,6 +1951,63 @@ const handleClose = () => {
     border-radius: 16px;
     padding: 14px 16px;
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.trade-bridge-card--hide-teams :deep(.group-buy-bridge__teams) {
+    display: none;
+}
+
+.trade-team-times {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #f8fafc;
+}
+
+.trade-team-times__title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.trade-team-times__list {
+    margin-top: 8px;
+    display: grid;
+    gap: 8px;
+}
+
+.trade-team-times__item {
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.trade-team-times__meta {
+    display: grid;
+    gap: 2px;
+    font-size: 12px;
+    color: #334155;
+}
+
+.trade-team-times__countdown {
+    color: #0f766e;
+    font-weight: 600;
+}
+
+.trade-team-times__join {
+    border: 1px solid #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 10px;
+    cursor: pointer;
 }
 
 .direct-checkout-panel {

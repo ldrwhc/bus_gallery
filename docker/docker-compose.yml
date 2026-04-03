@@ -9,6 +9,11 @@ services:
       MYSQL_ROOT_HOST: '%'
     ports:
       - "13306:3306"
+    command:
+      - --long_query_time=0.1
+      - --slow_query_log=1
+      - --log_queries_not_using_indexes=1
+      - --slow_query_log_file=/var/lib/mysql/slow.log
     volumes:
       - mysql-data:/var/lib/mysql
       - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql

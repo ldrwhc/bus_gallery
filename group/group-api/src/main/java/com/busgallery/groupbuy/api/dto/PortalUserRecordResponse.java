@@ -15,6 +15,7 @@ public class PortalUserRecordResponse {
     private String orderId;
     private String outTradeNo;
     private String teamId;
+    private Long activityId;
     private String goodsId;
     private Long imageId;
     private Long vehicleId;
@@ -27,4 +28,3 @@ public class PortalUserRecordResponse {
     private String downloadUrl;
     private LocalDateTime createdAt;
 }
-

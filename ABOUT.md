@@ -5,6 +5,12 @@
 
 本文档约束重构目标不是“功能演示版”，而是“可部署、可鉴权、可追踪、可压测”的工程化版本。
 
+### 0.1 最新代码同步（2026-03-30）
+- `GroupBuyMarket.vue` 已按当前代码更新为“正在拼团 + 我的拼团进度”融合展示，避免上下文丢失时空列表。
+- “我的拼团进度”中，`trade_status=0` 的记录不再触发重复支付；主动作改为查看队伍/商品详情，`trade_status=2` 才允许重新拼团。
+- `group` 服务 `TradePortalService.groupCheckout` 增加硬性防重：同一用户在同一 `goodsId + activityId` 存在进行中队列时，拒绝重复下单（`A0409` 冲突）。
+- 前端下单入口增加同规则前置拦截：若当前商品拼团队列已包含自己，按钮禁用并提示“不能重复下单”。
+
 ## 1. 系统全景（组件、调用、配置）
 
 ### 1.1 组件职责总览
@@ -554,7 +560,7 @@ sequenceDiagram
 - 内部转发头：`Authorization` + `X-Request-Id` + 网关签名头透传
 
 ### 界面 / 交互说明
-前端组件 `GroupBuyBridgeCard` 在车辆详情页展示“当前图片价格 + 正在拼团信息”；交易页面 `GroupBuyMarket.vue` 负责支付方式选择（支付宝/微信占位、余额可用）、直接下单和拼团下单；`TradeDownload.vue` 负责支付成功后的自动下载体验。
+前端组件 `GroupBuyBridgeCard` 在车辆详情页展示“当前图片价格 + 正在拼团信息”；交易页面 `GroupBuyMarket.vue` 负责支付方式选择（支付宝/微信占位、余额可用）、直接下单和拼团下单；`TradeDownload.vue` 负责支付成功后的自动下载体验。当前版本在交易页新增“同商品拼团队列包含自己时禁止重复下单”的前置校验，防止重复支付。
 
 ```mermaid
 flowchart LR
@@ -594,10 +600,11 @@ sequenceDiagram
 4. 扣款成功后执行 `settleOrder`，订单状态推进到已支付，并更新团队进度（`lock_count/complete_count`）。
 5. 若是直接购买，订单可立即标记可下载并写 `trade_user_record` 成功记录与消息。
 6. 若是拼团购买，先写“等待成团”记录；达到目标人数时再批量刷新团队内记录为可下载并发成功消息。
-7. 每次关键状态变更都写 `trade_outbox_event`，由调度器异步投递 RabbitMQ，保证事件可重试、可追踪。
-8. 定时任务持续扫描超时未成团团队，执行失败关团、订单退款、余额返还、失败消息写入。
-9. 所有用户可见状态统一沉淀在 `trade_user_record` 与 `trade_user_message`，前端直接据此展示消息和交易记录。
-10. 任意环节异常都按业务码返回，确保前端知道是参数问题、鉴权问题还是资金/交易状态问题。
+7. 拼团下单前新增防重校验：若同一用户在同一 `goodsId + activityId` 已有进行中队列（`team.status=0` 且未过期），直接拒绝重复下单。
+8. 每次关键状态变更都写 `trade_outbox_event`，由调度器异步投递 RabbitMQ，保证事件可重试、可追踪。
+9. 定时任务持续扫描超时未成团团队，执行失败关团、订单退款、余额返还、失败消息写入。
+10. 所有用户可见状态统一沉淀在 `trade_user_record` 与 `trade_user_message`，前端直接据此展示消息和交易记录。
+11. 任意环节异常都按业务码返回，确保前端知道是参数问题、鉴权问题还是资金/交易状态问题。
 
 ### 接口清单（API 规范）
 | API | 方法 | 认证 | 说明 |
@@ -737,7 +744,7 @@ sequenceDiagram
 | `ReviewCenter.vue` | `/api/reviews/*` | 审核流程 |
 | `AdminDashboard.vue` | `/api/admin/*` | 全局治理与批量删除 |
 | `GroupBuyBridgeCard.vue` | `/api/bridge/images/{id}/binding`、`/api/bridge/portal/teams` | 详情页交易入口 |
-| `GroupBuyMarket.vue` | `/api/bridge/index/config`、`/api/bridge/portal/direct-buy|group-buy` | 交易结算页 |
+| `GroupBuyMarket.vue` | `/api/bridge/index/config`、`/api/bridge/portal/direct-buy|group-buy` | 交易结算页（同商品拼团队列含自己时禁止重复下单） |
 | `TradeDownload.vue` | `/api/bridge/purchases/{recordId}/download` | 自动下载原图 |
 
 ## 附录 B：数据库划分与跨域关联约束
@@ -761,3 +768,378 @@ sequenceDiagram
 9. 是否保留前端分页、懒加载与降载策略（避免全量查询）。
 10. 是否保留统一错误结构 `{code,message,data}` 与前端恢复策略。
 11. 是否保留 Nacos 注册发现链路（gateway lb 路由 + bridge OpenFeign 服务名调用）。
+
+## 附录 D：拼团消息存储与消息队列模型补充
+
+### 1. 消息在数据库里是“对象行”还是“JSON”？
+- 用户站内消息不是以整块 JSON 存储，而是以关系型表的“对象行”形式落库在 `trade_center.trade_user_message`。
+- 每条消息一行，核心字段包括：
+  - `message_id`：消息主业务 ID
+  - `app_user_id`：消息所属用户
+  - `message_type`：消息类型，如 `GROUP_WAIT`、`GROUP_SUCCESS`、`GROUP_FAILED`
+  - `title` / `content`：展示文案
+  - `biz_record_id`：关联的交易记录 ID
+  - `created_at`：创建时间
+- 这意味着消息本身不是一个 JSON blob，而是结构化字段，便于按用户、类型、时间排序和去重。
+- 只有领域事件 outbox 使用了 JSON 载荷：`trade_outbox_event.payload_json` 会保存订单事件内容，供后续 RabbitMQ 转发。
+
+### 2. 这次“别人都显示已在队列中”的根因
+- 后端防重本来就是按 `goodsId + activityId + userId` 精确判定，数据库查询没有把所有用户混在一起。
+- 真正的问题在前端：
+  - `GroupBuyMarket.vue` 里“是否已在队列”的查找曾经优先按 `goodsId` 命中；
+  - 记录接口又没有直接返回 `activityId`，前端会用当前商品配置去推断活动；
+  - 当同一商品存在不同活动，或旧记录被映射到当前活动时，就可能把其他用户场景误判成“已在队列”。
+- 本次修复做了两件事：
+  - `portal/records` 返回真实 `activityId`
+  - 前端改成必须按 `goodsId + activityId` 精确匹配，避免跨活动误判
+
+### 3. 项目的消息队列模型
+
+```mermaid
+flowchart LR
+    FE["Frontend / GroupBuyMarket"] --> GW["Gateway"]
+    GW --> BR["Bridge"]
+    BR --> GP["Group PortalService"]
+    GP --> DB1["trade_order_item / trade_order_team"]
+    GP --> DB2["trade_user_record / trade_user_message"]
+    GP --> OB["trade_outbox_event(payload_json)"]
+    OB --> RELAY["RabbitOutboxRelayScheduler"]
+    RELAY --> EX["Rabbit TopicExchange(group.trade.exchange)"]
+    EX --> Q1["trade.order.locked.queue"]
+    EX --> Q2["trade.order.settled.queue"]
+    EX --> Q3["trade.order.refunded.queue"]
+```
+
+### 4. 队列链路说明
+1. 前端发起拼团或直接购买，请求先经过 `gateway -> bridge -> group`。
+2. `TradePortalService.groupCheckout` 先按 `userId + goodsId + activityId` 做防重复校验。
+3. 交易主链路把订单、队伍状态写入 `trade_order_item`、`trade_order_team`。
+4. 面向用户展示的“我的拼团记录”和“站内消息”分别写入 `trade_user_record`、`trade_user_message`。
+5. 同一事务里，领域事件会写入 `trade_outbox_event`，这里的 `payload_json` 才是 JSON 形式。
+6. 定时任务 `RabbitOutboxRelayScheduler` 轮询 outbox，把 `ORDER_LOCKED / ORDER_SETTLED / ORDER_REFUNDED` 转发到 RabbitMQ。
+7. RabbitMQ 用 `TopicExchange + routingKey` 分发到对应队列，供后续异步消费者扩展通知、补偿或统计逻辑。
+
+### 5. 为什么要分成“用户消息表”和“outbox 事件表”
+- `trade_user_message` 面向页面展示，要求简单、可查、可去重，所以用结构化列存储。
+- `trade_outbox_event` 面向服务间异步投递，事件字段可能扩展，所以用 `payload_json` 更灵活。
+- 两者职责不同：
+  - 前者解决“用户看见什么”
+  - 后者解决“系统异步传播什么”
+
+## 附录 E：根目录文档归并映射（2026-04-03）
+
+| 原文档 | 已归并到 | 归并说明 |
+|---|---|---|
+| `API_DOCS.md` | `README.md` + 本文附录 G | 统一接口契约、错误码与联调示例摘要 |
+| `BUSINESS_FLOWS.md` | 本文第 1~10 章 + 附录 G | 登录/浏览/快照/上传/互动等流程图与说明并入 |
+| `ROUTE_CODE_GUIDE.md` | 本文附录 A + 附录 G | 路由到 Controller/Service/Mapper 的链路映射并入 |
+| `UPLOAD_MODULE_FLOWS.md` | 本文“上传流程”相关章节 + 附录 G | 分片会话、幂等、降级、MinIO 三层对象策略并入 |
+| `图片访问与MinIO安全流程.md` | 本文“图片访问与签名”相关章节 + 附录 G | 私有桶 + 临时签名 + 场景分发策略并入 |
+| `审核与后台治理流程.md` | 本文“审核与治理”相关章节 + 附录 G | 工单流转、角色权限、后台治理链路并入 |
+| `消息队列副作用流程.md` | 本文“RabbitMQ/副作用”相关章节 + 附录 G | afterCommit 事件与 best-effort 消费模型并入 |
+| `认证与会话流程.md` | 本文“网关与会话”相关章节 + 附录 G | 会话校验、ThreadLocal 主体、降级策略并入 |
+| `评论收藏与互动流程.md` | 本文“评论收藏”相关章节 + 附录 G | 事务内落库 + 缓存即时更新 + 异步副作用并入 |
+| `车辆浏览与快照流程.md` | 本文“车辆浏览与快照”相关章节 + 附录 G | 列表缓存、快照构建锁、stale 兜底并入 |
+| `技术难点.txt` | 本文“稳定性与高并发设计思路” + 附录 G | 技术风险与改进方向并入 |
+| `file-list.txt` | 本文附录 G | 由“静态清单文件”改为“命令式生成方式”说明 |
+
+## 附录 G：根目录文档精细归并摘要（2026-04-03）
+
+### G.1 接口契约归并（来自 `API_DOCS.md`）
+- 统一基础约定：`/api` 前缀、`Authorization: Bearer <token>`。
+- 统一错误码语义：`00000/A0400/A0401/A0404/A0429/A0500/B0500/B0501`。
+- 认证、用户、车辆、评论、收藏等典型请求/响应结构已并入本文对应业务章节。
+
+### G.2 业务主流程归并（来自 `BUSINESS_FLOWS.md`）
+- 登录会话：登录成功写 Redis 会话，受保护接口由鉴权拦截器校验。
+- 车辆列表：筛选参数参与 Redis 键，版本号控制缓存自然失效。
+- 详情快照：按车牌聚合并缓存，命中快照减少多接口拼装。
+- 上传、评论、收藏、审核等流程的 Mermaid 已合并到本文主章节。
+
+### G.3 路由到后端链路归并（来自 `ROUTE_CODE_GUIDE.md`）
+- 已把“前端页面/组件 -> API -> Controller -> Service -> Mapper”的映射收敛到附录 A。
+- 覆盖 `Gallery/VehicleDetail/Login/Upload/UserProfile/Admin` 等核心页面链路。
+
+### G.4 上传模块细节归并（来自 `UPLOAD_MODULE_FLOWS.md`）
+- 分片上传四阶段：`init -> part -> progress -> complete`。
+- `complete` 阶段统一幂等防重并执行最终业务落库。
+- Redis 会话异常时保留本地会话兜底，降低链路中断概率。
+- 图片写入保持三层对象：`original/display/thumbnail`。
+
+### G.5 图片安全访问归并（来自 `图片访问与MinIO安全流程.md`）
+- 私有桶访问模型：前端拿短期 token，不直接暴露长期对象地址。
+- `GET /api/images/access/{token}` 负责验签、过期校验、回源流式输出。
+- 前端场景约定固定：列表缩略图，详情/审核受控高清图。
+
+### G.6 审核与治理归并（来自 `审核与后台治理流程.md`）
+- 普通用户提交 `vehicle_submission(PENDING)`，审核通过后再落正式表。
+- 审核员按区域权限处理，站长可跨区域全局治理。
+- 后台评论治理与前台删除复用同一服务层，保证行为一致。
+
+### G.7 评论收藏互动归并（来自 `评论收藏与互动流程.md`）
+- 评论：事务内写库 + bump 评论版本键；事务后发 `comment.created`。
+- 收藏：事务内 toggle + summary/liked 覆盖写；事务后发 `favorite.toggled`。
+- 主流程优先 MySQL 结果，副作用采用 best-effort 不反压主链路。
+
+### G.8 消息队列副作用归并（来自 `消息队列副作用流程.md`）
+- `afterCommit` 发布事件，避免“数据库回滚但消息已发”。
+- Topic Exchange + 业务队列 + DLQ；异常消息进死信，降低反复重试风险。
+- 消费侧副作用失败仅记录日志，保留主链路可用性。
+
+### G.9 认证与会话归并（来自 `认证与会话流程.md`）
+- 会话主存储 Redis，异常时允许本地会话兜底。
+- 鉴权上下文统一收敛到 `AuthPrincipal`，请求结束后清理 ThreadLocal。
+- 登录、发码、人机校验与限流职责边界已并入主文档。
+
+### G.10 浏览与快照归并（来自 `车辆浏览与快照流程.md`）
+- 列表使用“参数键 + 版本号”缓存模型。
+- 快照使用构建锁 + stale 兜底，降低热点重建抖动。
+- 热门排序以 `viewCount` 为主，保留后续批量聚合优化空间。
+
+### G.11 技术难点归并（来自 `技术难点.txt`）
+- 重点难点：大文件上传弹性、缓存一致性、资源安全、耗时任务异步化、可观测性。
+- 改进方向：预签名直传、任务队列、病毒扫描、幂等补偿、状态化监控。
+
+### G.12 文件清单归并（来自 `file-list.txt`）
+- 原根目录静态清单文件已移除，改为命令式即时生成：
+  - PowerShell：`Get-ChildItem -Recurse -File | Select-Object -ExpandProperty FullName`
+  - Git：`git ls-files`
+
+## 附录 H：MySQL 慢查询调优记录（2026-04-03）
+
+### H.1 现有慢日志配置（Docker Compose）
+当前仓库 `docker/docker-compose.yml` 已开启 MySQL 慢查询：
+- `--long_query_time=0.1`
+- `--slow_query_log=1`
+- `--log_queries_not_using_indexes=1`
+- `--slow_query_log_file=/var/lib/mysql/slow.log`
+
+对应位置：`docker/docker-compose.yml:13-16`。
+
+### H.2 本次取慢日志过程与环境限制
+本次按“进入容器读取 `/var/lib/mysql/slow.log`”执行，但当前会话对 Docker 引擎管道无访问权限，命令返回：
+- `open //./pipe/dockerDesktopLinuxEngine: Access is denied`
+
+因此本次无法直接拿到容器内 `slow.log` 原文。为保证文档可落地，改用以下两条线并行分析：
+1. 基于真实 SQL 调用路径（Mapper XML + `TradePortalService`）做慢查询候选筛查。
+2. 基于当前表结构与索引（`docker/init/init.sql`、`docker/init/trade_center.sql`）评估命中情况与缺口。
+
+### H.3 已定位的高风险慢查询形态
+
+#### H.3.1 内容域（`bus_gallery`）
+1. 车辆分页与计数复杂过滤：
+- SQL 位置：`backend/src/main/resources/mapper/VehicleMapper.xml:182`（`selectPageByCursor`）、`:259`（`count`）
+- 风险点：
+  - 多个 `EXISTS` 子查询
+  - `LIKE '%keyword%'` 前导通配符
+  - `ORDER BY CASE WHEN launch_date IS NULL ...`
+2. 随机取样：
+- SQL 位置：`VehicleMapper.xml:173-179`
+- 风险点：`ORDER BY RAND()` 在大表上会全表排序。
+3. 图片上传者分页：
+- SQL 位置：`backend/src/main/resources/mapper/ImageMapper.xml:126`
+- 风险点：`WHERE uploader_id` + `ORDER BY created_at DESC, id DESC`，且包含子查询聚合 `vehicle_image`。
+4. 评论分页：
+- SQL 位置：`backend/src/main/resources/mapper/VehicleCommentMapper.xml:40`、`:54`
+- 风险点：按 `vehicle_id`/`plate_number` 查询后再按 `created_at,id` 排序，当前索引不覆盖排序列。
+5. 收藏分页：
+- SQL 位置：`backend/src/main/resources/mapper/VehicleFavoriteMapper.xml:36`
+- 风险点：`WHERE user_id` + `ORDER BY created_at DESC`，当前仅有 `(vehicle_id,user_id)` 唯一索引和 `vehicle_id` 索引。
+
+#### H.3.2 交易域（`trade_center`）
+1. 拼团大厅活跃团队：
+- SQL 位置：`group/group-trigger/src/main/java/com/busgallery/groupbuy/trigger/service/TradePortalService.java:54-69`
+- 风险点：`status + valid_end_time + created_at` 复合过滤/排序，现有索引对排序支持不足。
+2. “是否已在拼团队列”校验：
+- SQL 位置：`TradePortalService.java:421-424`
+- 风险点：`trade_order_item` 多条件筛选 + `JOIN trade_order_team`，需要更贴合查询路径的联合索引。
+3. 记录刷新与失败消息补偿：
+- SQL 位置：`TradePortalService.java:439-444`、`:594-606`
+- 风险点：`trade_user_record` 以 `app_user_id + order_mode + trade_status + team_id` 过滤/关联，当前索引维度不足。
+4. 超时队伍扫描：
+- SQL 位置：`TradePortalService.java:332`
+- 风险点：`WHERE status=0 AND valid_end_time < NOW() ORDER BY valid_end_time`，建议复合索引避免回表扫描放大。
+
+### H.4 当前索引基线（节选）
+- `vehicle`：`idx_vehicle_model/company/region/view_count`（`docker/init/init.sql:78-81`）
+- `image`：`idx_image_uploader`（`init.sql:141`）
+- `trade_order_team`：`idx_trade_order_team_activity_status`、`idx_trade_order_team_valid_end`（`trade_center.sql:111,113`）
+- `trade_order_item`：`idx_trade_order_item_user_status/team_status/activity_status/goods_status`（`trade_center.sql:147-150`）
+- `trade_user_record`：`idx_trade_user_record_user_created`（`trade_center.sql:225`）
+
+### H.5 推荐索引优化（按优先级）
+
+#### P0（先做，收益高）
+```sql
+-- bus_gallery: 收藏分页与统计
+ALTER TABLE vehicle_favorite
+  ADD INDEX idx_vehicle_favorite_user_created (user_id, created_at, vehicle_id);
+
+-- bus_gallery: 评论分页（按车辆 / 车牌）
+ALTER TABLE vehicle_comment
+  ADD INDEX idx_vehicle_comment_vehicle_created (vehicle_id, created_at, id),
+  ADD INDEX idx_vehicle_comment_plate_created (plate_number, created_at, id);
+
+-- bus_gallery: 上传者作品流分页
+ALTER TABLE image
+  ADD INDEX idx_image_uploader_created (uploader_id, created_at, id);
+
+-- trade_center: 活跃团队 + 超时扫描
+ALTER TABLE trade_order_team
+  ADD INDEX idx_team_status_valid_end_created (status, valid_end_time, created_at),
+  ADD INDEX idx_team_activity_status_valid_end_created (activity_id, status, valid_end_time, created_at);
+
+-- trade_center: 防重复下单查询
+ALTER TABLE trade_order_item
+  ADD INDEX idx_item_user_mode_goods_act_status_team (user_id, order_mode, goods_id, activity_id, status, team_id);
+
+-- trade_center: 用户记录刷新与补偿
+ALTER TABLE trade_user_record
+  ADD INDEX idx_record_user_mode_status_team (app_user_id, order_mode, trade_status, team_id);
+```
+
+#### P1（第二批）
+```sql
+-- bus_gallery: 最新图片流
+ALTER TABLE image
+  ADD INDEX idx_image_created_id (created_at, id);
+
+-- bus_gallery: 热门车辆排序
+ALTER TABLE vehicle
+  ADD INDEX idx_vehicle_view_id (view_count, id);
+
+-- trade_center: team 关联更新/查询兜底
+ALTER TABLE trade_user_record
+  ADD INDEX idx_record_team_id (team_id);
+```
+
+### H.6 查询改写建议（比“只加索引”更关键）
+1. `ORDER BY RAND()`（`VehicleMapper.xml:178`）改为“两段式随机”：
+- 先按条件取 `id` 区间或采样 id 集合，再按随机 id 回表 1 条。
+2. `LIKE '%keyword%'` 组合检索（`VehicleMapper.xml:207+`）：
+- 长期建议做检索索引（ES / Mroonga / 维护冗余检索表 + FULLTEXT）；
+- 短期可增加“前缀匹配”入口（`keyword%`）以便命中 B-Tree。
+3. `ORDER BY CASE WHEN launch_date IS NULL ...`：
+- 建议引入计算列（如 `launch_null_flag`）并联合索引，减少 filesort。
+
+### H.7 验证方法（上线前后必须执行）
+1. 采样慢日志 TopN（容器内）：
+```bash
+docker exec -it bus-gallery-mysql sh -lc "mysqldumpslow -s t -t 30 /var/lib/mysql/slow.log"
+```
+2. 对 Top SQL 执行：
+```sql
+EXPLAIN ANALYZE <slow_sql>;
+```
+3. 关注指标：
+- `rows examined` 明显下降
+- `Using filesort` / `Using temporary` 消失或显著减少
+- P95/P99 延迟下降
+4. 应用内辅助观测：
+- `GET /api/metrics/db` 查看 `slowSamples`（`backend/src/main/java/com/busgallery/busgallery/metrics/DbMetricsController.java`）
+- `busgallery.metrics.slow-query-ms`（`backend/src/main/resources/application.yml:160`）可临时下调到 `100` 做压测窗口观测
+
+### H.8 回滚与风险控制
+1. 单索引逐步上线，避免一次性叠加导致写入放大不可控。
+2. 每加一个索引都保留对照窗口（至少 30 分钟业务高峰）。
+3. 观察写入 RT、锁等待、磁盘增长；不达预期立即 `DROP INDEX` 回滚。
+4. 对交易核心表（`trade_order_item`、`trade_order_team`）优先在低峰执行 DDL。
+
+## 附录 I：调优（基于真实 slow.log 的索引收敛与实测）
+
+### I.1 执行时间与目标
+- 执行日期：2026-04-03
+- 目标：按真实慢日志 Top SQL 做“精准加索引”，并给出加索引前后性能对比。
+
+### I.2 慢日志获取与环境确认
+1. 容器确认：
+```bash
+docker ps
+```
+确认 `bus-gallery-mysql` 运行中。
+
+2. 按文档命令取 TopN：
+```bash
+docker exec -it bus-gallery-mysql sh -lc "mysqldumpslow -s t -t 30 /var/lib/mysql/slow.log"
+```
+结果：容器内未安装 `mysqldumpslow`（`command not found`）。
+
+3. 改为直接拉取真实日志原文：
+```bash
+docker cp bus-gallery-mysql:/var/lib/mysql/slow.log .tmp/slow.log
+```
+
+4. 慢查询配置核验：
+```sql
+SHOW VARIABLES LIKE 'slow_query_log';
+SHOW VARIABLES LIKE 'slow_query_log_file';
+SHOW VARIABLES LIKE 'long_query_time';
+SHOW VARIABLES LIKE 'log_queries_not_using_indexes';
+```
+结果：
+- `slow_query_log=ON`
+- `slow_query_log_file=/var/lib/mysql/slow.log`
+- `long_query_time=0.100000`
+- `log_queries_not_using_indexes=ON`
+
+### I.3 本次落地的索引（已执行）
+```sql
+ALTER TABLE trade_center.trade_order_team
+  ADD INDEX idx_team_status_end_team (status, valid_end_time, team_id);
+
+ALTER TABLE trade_center.trade_user_record
+  ADD INDEX idx_record_mode_status_user_record_team
+  (order_mode, trade_status, app_user_id, record_id, team_id);
+
+ALTER TABLE trade_center.trade_order_item
+  ADD INDEX idx_item_team_status_mode (team_id, status, order_mode);
+
+ALTER TABLE bus_gallery.image
+  ADD INDEX idx_image_uploader_created_id (uploader_id, created_at, id);
+
+ALTER TABLE bus_gallery.region
+  ADD INDEX idx_region_parent_name (parent_id, name);
+
+ALTER TABLE bus_gallery.company
+  ADD INDEX idx_company_region_name (region_id, name);
+
+ALTER TABLE bus_gallery.model
+  ADD INDEX idx_model_brand_name (brand_id, name);
+```
+
+### I.4 加索引前后性能对比（EXPLAIN ANALYZE 实测）
+说明：以下耗时取 `EXPLAIN ANALYZE` 顶层节点 `actual time=..` 的结束值，作为同机同库对照样本。
+
+| Query | 场景 | 加索引前 (ms) | 加索引后 (ms) | 提升倍数 |
+|---|---|---:|---:|---:|
+| Q1 | 超时队伍扫描 `trade_order_team` | 1006 | 29 | 34.69x |
+| Q2 | 拼团失败消息补偿扫描 `trade_user_record` | 2971 | 297 | 10.00x |
+| Q3 | 超时退款联表筛选 | 1956 | 625 | 3.13x |
+| Q4 | 上传者图片流（含 `vehicle_image` 聚合） | 8545 | 8342 | 1.02x |
+| Q5 | 地区子节点排序 `region` | 898 | 16 | 56.12x |
+| Q6 | 公司列表排序 `company` | 2107 | 30 | 70.23x |
+| Q7 | 车型列表排序 `model` | 1596 | 51 | 31.29x |
+
+### I.5 计划层面的变化（关键）
+1. `Q1`：`Table scan + Sort` -> `Covering index range scan(idx_team_status_end_team)`，并去掉 filesort。
+2. `Q2`：`trade_user_record` 从全表扫描 -> 命中 `idx_record_mode_status_user_record_team(order_mode, trade_status, ...)`。
+3. `Q5/Q6/Q7`：均从 `Table scan + Sort` -> 覆盖索引扫描（排序与过滤由索引完成）。
+4. `Q4`：主表 `image` 已命中 `idx_image_uploader_created_id`，但总耗时仍主要受 `vehicle_image GROUP BY` 物化子查询影响，因此整体下降有限。
+5. `Q3`：联表查询耗时明显下降，但当前样本下优化器仍可能从 `trade_order_item` 扫描起步，后续可通过 SQL 改写/驱动表约束继续收敛。
+
+### I.6 代码与初始化脚本同步
+为避免“容器重建后索引丢失”，已将索引定义同步进初始化脚本：
+- `docker/init/trade_center.sql`
+  - `trade_order_team` 新增 `idx_team_status_end_team`
+  - `trade_order_item` 新增 `idx_item_team_status_mode`
+  - `trade_user_record` 新增 `idx_record_mode_status_user_record_team`
+- `docker/init/init.sql`
+  - `image` 新增 `idx_image_uploader_created_id`
+  - `region` 新增 `idx_region_parent_name`
+  - `company` 新增 `idx_company_region_name`
+  - `model` 新增 `idx_model_brand_name`
+
+### I.7 下一步可继续收敛点
+1. `Q4`（图片流）若要进一步下降，需要优先优化 `vehicle_image` 聚合子查询（例如按业务改为预计算关联/减少运行时聚合）。
+2. `vehicle` 的 `ORDER BY CASE WHEN launch_date IS NULL ...` 仍建议走“生成列 + 联合索引”方案，单纯普通索引收益有限。
+

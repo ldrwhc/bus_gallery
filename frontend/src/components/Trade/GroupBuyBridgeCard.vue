@@ -12,6 +12,11 @@
             <p class="muted">拼团价：<strong>{{ groupPriceText }}</strong></p>
         </div>
 
+        <div class="group-buy-bridge__actions">
+            <button type="button" class="buy-btn buy-btn--direct" @click="emit('buy')">直接下单</button>
+            <button type="button" class="buy-btn buy-btn--group" @click="emit('group-buy')">拼团购买</button>
+        </div>
+
         <div class="group-buy-bridge__teams">
             <p class="teams-title">正在拼团</p>
             <p v-if="loading" class="teams-empty">拼团信息加载中...</p>
@@ -118,6 +123,32 @@ h3 {
     padding: 10px;
 }
 
+.group-buy-bridge__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.buy-btn {
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    padding: 9px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.buy-btn--direct {
+    color: #fff;
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}
+
+.buy-btn--group {
+    color: #1d4ed8;
+    background: #eff6ff;
+}
+
 .teams-title {
     margin: 0 0 8px;
     font-size: 13px;
@@ -178,6 +209,11 @@ h3 {
     .group-buy-bridge__meta {
         grid-template-columns: 1fr;
     }
+
+    .group-buy-bridge__actions {
+        grid-template-columns: 1fr;
+    }
+
     .team-item {
         flex-direction: column;
         align-items: flex-start;

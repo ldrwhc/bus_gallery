@@ -46,23 +46,28 @@ public class TradePortalService {
      */
     public List<PortalTeamSummaryResponse> listActiveTeams(Long activityId, int limit) {
         ensurePortalTables();
-        if (activityId == null) {
-            return List.of();
-        }
         int safeLimit = Math.max(1, Math.min(20, limit));
+        if (activityId != null) {
+            return jdbcTemplate.query(
+                    "SELECT t.team_id, t.activity_id, t.goods_id, t.target_count, t.complete_count, t.lock_count, t.valid_end_time, " +
+                            "g.image_id, g.vehicle_id, g.title, g.cover_url " +
+                            "FROM trade_order_team t " +
+                            "LEFT JOIN trade_goods g ON g.goods_id = t.goods_id " +
+                            "WHERE t.activity_id = ? AND t.status = 0 AND t.lock_count > 0 AND t.complete_count < t.target_count AND t.valid_end_time > NOW() " +
+                            "ORDER BY t.created_at DESC LIMIT ?",
+                    (rs, rowNum) -> mapActiveTeamRow(rs),
+                    activityId,
+                    safeLimit
+            );
+        }
         return jdbcTemplate.query(
-                "SELECT team_id, target_count, complete_count, lock_count, valid_end_time " +
-                        "FROM trade_order_team " +
-                        "WHERE activity_id = ? AND status = 0 AND lock_count > 0 AND valid_end_time > NOW() " +
-                        "ORDER BY created_at DESC LIMIT ?",
-                (rs, rowNum) -> PortalTeamSummaryResponse.builder()
-                        .teamId(rs.getString("team_id"))
-                        .targetCount(rs.getInt("target_count"))
-                        .completeCount(rs.getInt("complete_count"))
-                        .lockCount(rs.getInt("lock_count"))
-                        .validEndTime(toLocalDateTime(rs.getTimestamp("valid_end_time")))
-                        .build(),
-                activityId,
+                "SELECT t.team_id, t.activity_id, t.goods_id, t.target_count, t.complete_count, t.lock_count, t.valid_end_time, " +
+                        "g.image_id, g.vehicle_id, g.title, g.cover_url " +
+                        "FROM trade_order_team t " +
+                        "LEFT JOIN trade_goods g ON g.goods_id = t.goods_id " +
+                        "WHERE t.status = 0 AND t.lock_count > 0 AND t.complete_count < t.target_count AND t.valid_end_time > NOW() " +
+                        "ORDER BY t.created_at DESC LIMIT ?",
+                (rs, rowNum) -> mapActiveTeamRow(rs),
                 safeLimit
         );
     }
@@ -128,6 +133,7 @@ public class TradePortalService {
     public PortalCheckoutResponse groupCheckout(Long userId, PortalCheckoutRequest request) {
         ensurePortalTables();
         validateCheckoutRequest(userId, request);
+        ensureUserNotInActiveQueue(userId, request.getGoodsId(), request.getActivityId());
         String outTradeNo = nextOutTradeNo("GRP");
 
         LockOrderProjection lock = tradeDomainService.lockOrder(
@@ -194,6 +200,7 @@ public class TradePortalService {
         if (userId == null) {
             return List.of();
         }
+        appendMissingGroupFailureMessages(userId);
         int safeLimit = Math.max(1, Math.min(100, limit));
         return jdbcTemplate.query(
                 "SELECT message_id, message_type, title, content, biz_record_id, created_at " +
@@ -224,9 +231,10 @@ public class TradePortalService {
             return List.of();
         }
         refreshUserRecordSnapshots(userId);
+        appendMissingGroupFailureMessages(userId);
         int safeLimit = Math.max(1, Math.min(200, limit));
         return jdbcTemplate.query(
-                "SELECT r.record_id, r.order_id, r.out_trade_no, r.team_id, r.goods_id, r.image_id, r.vehicle_id, " +
+                "SELECT r.record_id, r.order_id, r.out_trade_no, r.team_id, r.activity_id, r.goods_id, r.image_id, r.vehicle_id, " +
                         "r.order_mode, r.trade_status, r.pay_price, r.can_download, r.created_at, " +
                         "g.title AS goods_title, g.cover_url " +
                         "FROM trade_user_record r " +
@@ -239,6 +247,7 @@ public class TradePortalService {
                             .orderId(rs.getString("order_id"))
                             .outTradeNo(rs.getString("out_trade_no"))
                             .teamId(rs.getString("team_id"))
+                            .activityId(toNullableLong(rs.getObject("activity_id")))
                             .goodsId(rs.getString("goods_id"))
                             .imageId(toNullableLong(rs.getObject("image_id")))
                             .vehicleId(toNullableLong(rs.getObject("vehicle_id")))
@@ -269,18 +278,18 @@ public class TradePortalService {
     public RefundOrderResponse refundAndSyncRecord(Long userId, String outTradeNo) {
         ensurePortalTables();
         if (userId == null) {
-            throw new GroupBizException(GroupErrorCode.UNAUTHORIZED, "login required");
+            throw new GroupBizException(GroupErrorCode.UNAUTHORIZED, "请先登录");
         }
         if (!StringUtils.hasText(outTradeNo)) {
-            throw new GroupBizException(GroupErrorCode.INVALID_PARAM, "outTradeNo is required");
+            throw new GroupBizException(GroupErrorCode.INVALID_PARAM, "缺少 outTradeNo");
         }
 
         OrderStatusRow statusRow = findOrderStatusByOutTradeNo(outTradeNo);
         if (statusRow == null) {
-            throw new GroupBizException(GroupErrorCode.NOT_FOUND, "order not found");
+            throw new GroupBizException(GroupErrorCode.NOT_FOUND, "订单不存在");
         }
         if (!userId.equals(statusRow.userId())) {
-            throw new GroupBizException(GroupErrorCode.CONFLICT, "order user mismatch");
+            throw new GroupBizException(GroupErrorCode.CONFLICT, "订单用户不匹配");
         }
 
         boolean alreadyRefunded = statusRow.status() == 2;
@@ -308,7 +317,7 @@ public class TradePortalService {
                 .orderId(row.orderId())
                 .teamId(row.teamId())
                 .code("REFUND_SUCCESS")
-                .message(alreadyRefunded ? "already refunded" : "refund processed")
+                .message(alreadyRefunded ? "订单已退款" : "退款已完成")
                 .build();
     }
 
@@ -325,7 +334,7 @@ public class TradePortalService {
         );
         for (String teamId : expiredTeams) {
             try {
-                failTeamAndRefund(teamId);
+                failTeamAndRefund(teamId, "timeout_not_grouped");
             } catch (Exception ex) {
                 log.error("fail team timeout handling error, teamId={}, reason={}", teamId, ex.getMessage(), ex);
             }
@@ -334,12 +343,19 @@ public class TradePortalService {
 
     @Transactional
     public void failTeamAndRefund(String teamId) {
+        failTeamAndRefund(teamId, "timeout_not_grouped");
+    }
+
+    @Transactional
+    public void failTeamAndRefund(String teamId, String failureReason) {
         ensurePortalTables();
         if (!StringUtils.hasText(teamId)) {
             return;
         }
+        String safeReason = StringUtils.hasText(failureReason) ? failureReason.trim() : "team_condition_not_met";
         int changed = jdbcTemplate.update(
-                "UPDATE trade_order_team SET status = 2, updated_at = NOW() WHERE team_id = ? AND status = 0",
+                "UPDATE trade_order_team SET status = 2, updated_at = NOW() " +
+                        "WHERE team_id = ? AND status = 0 AND valid_end_time < NOW()",
                 teamId
         );
         if (changed <= 0) {
@@ -361,7 +377,7 @@ public class TradePortalService {
                     row.userId(),
                     "GROUP_FAILED",
                     "拼团失败",
-                    "拼团超时未成团，资金已原路退回。",
+                    "失败原因：" + resolveFailureReasonText(safeReason) + "。系统已自动取消拼团并将金额原路退回到钱包。",
                     recordId
             );
         }
@@ -385,11 +401,92 @@ public class TradePortalService {
 
     private void validateCheckoutRequest(Long userId, PortalCheckoutRequest request) {
         if (userId == null) {
-            throw new GroupBizException(GroupErrorCode.UNAUTHORIZED, "login required");
+            throw new GroupBizException(GroupErrorCode.UNAUTHORIZED, "请先登录");
         }
         if (request == null || !StringUtils.hasText(request.getGoodsId()) || request.getActivityId() == null) {
-            throw new GroupBizException(GroupErrorCode.INVALID_PARAM, "goodsId/activityId is required");
+            throw new GroupBizException(GroupErrorCode.INVALID_PARAM, "goodsId/activityId 不能为空");
         }
+    }
+
+    /**
+     * Guard against duplicate group-buy payment:
+     * one user can only keep one active queue entry per goods/activity.
+     */
+    private void ensureUserNotInActiveQueue(Long userId, String goodsId, Long activityId) {
+        if (userId == null || !StringUtils.hasText(goodsId) || activityId == null) {
+            return;
+        }
+        Integer exists = jdbcTemplate.query(
+                "SELECT 1 " +
+                        "FROM trade_order_item i " +
+                        "JOIN trade_order_team t ON t.team_id = i.team_id " +
+                        "WHERE i.user_id = ? AND i.order_mode = 1 AND i.goods_id = ? AND i.activity_id = ? " +
+                        "AND i.status IN (0, 1) AND t.status = 0 AND t.valid_end_time > NOW() AND t.lock_count > 0 " +
+                        "LIMIT 1",
+                rs -> rs.next() ? 1 : 0,
+                userId,
+                goodsId,
+                activityId
+        );
+        if (exists != null && exists == 1) {
+            throw new GroupBizException(GroupErrorCode.CONFLICT, "你已在该商品拼团队列中，无需重复下单");
+        }
+    }
+
+    private void appendMissingGroupFailureMessages(Long userId) {
+        List<FailureRecordRow> rows = jdbcTemplate.query(
+                "SELECT r.record_id, t.status AS team_status, t.valid_end_time " +
+                        "FROM trade_user_record r " +
+                        "LEFT JOIN trade_order_team t ON t.team_id = r.team_id " +
+                        "LEFT JOIN trade_user_message m ON m.app_user_id = r.app_user_id " +
+                        "    AND m.message_type = 'GROUP_FAILED' AND m.biz_record_id = r.record_id " +
+                        "WHERE r.app_user_id = ? AND r.order_mode = 1 AND r.trade_status = 2 AND m.id IS NULL " +
+                        "ORDER BY r.created_at DESC LIMIT 100",
+                (rs, rowNum) -> new FailureRecordRow(
+                        rs.getString("record_id"),
+                        (Integer) rs.getObject("team_status"),
+                        toLocalDateTime(rs.getTimestamp("valid_end_time"))
+                ),
+                userId
+        );
+        for (FailureRecordRow row : rows) {
+            upsertUserMessage(
+                    userId,
+                    "GROUP_FAILED",
+                    "拼团失败",
+                    "失败原因：" + resolveFailureReasonText(resolveFailureReason(row.teamStatus(), row.validEndTime())) + "。系统已自动取消拼团并将金额原路退回到钱包。",
+                    row.recordId()
+            );
+        }
+    }
+
+    private String resolveFailureReason(Integer teamStatus, LocalDateTime validEndTime) {
+        if (teamStatus == null) {
+            return "team_not_found";
+        }
+        if (teamStatus == 2) {
+            if (validEndTime != null && !validEndTime.isAfter(LocalDateTime.now())) {
+                return "timeout_not_grouped";
+            }
+            return "team_condition_not_met";
+        }
+        if (teamStatus == 3) {
+            return "team_closed";
+        }
+        return "team_status_abnormal";
+    }
+
+    private String resolveFailureReasonText(String reasonCode) {
+        if (!StringUtils.hasText(reasonCode)) {
+            return "拼团队伍状态异常";
+        }
+        return switch (reasonCode) {
+            case "timeout_not_grouped" -> "拼团超时未成团";
+            case "team_closed" -> "拼团队伍已关闭";
+            case "team_condition_not_met" -> "拼团队伍未满足成团条件";
+            case "team_not_found" -> "拼团队伍不存在或已解散";
+            default -> "拼团队伍状态异常";
+        };
     }
 
     private synchronized void ensurePortalTables() {
@@ -651,6 +748,22 @@ public class TradePortalService {
         return value == null ? null : value.toLocalDateTime();
     }
 
+    private PortalTeamSummaryResponse mapActiveTeamRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return PortalTeamSummaryResponse.builder()
+                .teamId(rs.getString("team_id"))
+                .activityId(toNullableLong(rs.getObject("activity_id")))
+                .goodsId(rs.getString("goods_id"))
+                .imageId(toNullableLong(rs.getObject("image_id")))
+                .vehicleId(toNullableLong(rs.getObject("vehicle_id")))
+                .title(rs.getString("title"))
+                .coverUrl(rs.getString("cover_url"))
+                .targetCount(rs.getInt("target_count"))
+                .completeCount(rs.getInt("complete_count"))
+                .lockCount(rs.getInt("lock_count"))
+                .validEndTime(toLocalDateTime(rs.getTimestamp("valid_end_time")))
+                .build();
+    }
+
     private Long toNullableLong(Object value) {
         if (value == null) {
             return null;
@@ -681,6 +794,13 @@ public class TradePortalService {
             Long userId,
             int status,
             long payPrice
+    ) {
+    }
+
+    private record FailureRecordRow(
+            String recordId,
+            Integer teamStatus,
+            LocalDateTime validEndTime
     ) {
     }
 }

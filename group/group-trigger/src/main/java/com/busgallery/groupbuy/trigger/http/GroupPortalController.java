@@ -39,7 +39,7 @@ public class GroupPortalController {
      * @return active teams
      */
     @GetMapping("/teams")
-    public ApiResponse<List<PortalTeamSummaryResponse>> teams(@RequestParam("activityId") Long activityId,
+    public ApiResponse<List<PortalTeamSummaryResponse>> teams(@RequestParam(name = "activityId", required = false) Long activityId,
                                                               @RequestParam(name = "limit", defaultValue = "5") int limit) {
         List<PortalTeamSummaryResponse> data = tradePortalService.listActiveTeams(activityId, limit);
         return ApiResponse.success(data);

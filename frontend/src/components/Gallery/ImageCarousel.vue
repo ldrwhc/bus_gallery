@@ -11,7 +11,7 @@
                 >
                     ‹
                 </button>
-                <img :src="activeImageUrl" :alt="activeImageAlt" loading="eager" decoding="async" />
+                <img :src="activeImageUrl" :alt="activeImageAlt" loading="lazy" decoding="async" />
                 <span class="carousel__watermark">BUS GALLERY</span>
                 <div v-if="activeImage" class="carousel__meta carousel__meta--top">
                     <router-link

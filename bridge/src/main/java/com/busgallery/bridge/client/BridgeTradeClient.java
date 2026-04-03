@@ -29,7 +29,7 @@ public interface BridgeTradeClient {
     String refundOrder(@RequestBody(required = false) String body);
 
     @GetMapping("/api/v1/group/portal/teams")
-    String listTeams(@RequestParam("activityId") Long activityId,
+    String listTeams(@RequestParam(name = "activityId", required = false) Long activityId,
                      @RequestParam(name = "limit", defaultValue = "5") Integer limit);
 
     @PostMapping(value = "/api/v1/group/portal/direct-buy", consumes = MediaType.APPLICATION_JSON_VALUE)

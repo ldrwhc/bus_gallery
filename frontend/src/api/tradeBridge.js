@@ -39,10 +39,13 @@ export const refundTradeBridgeOrder = (payload) =>
     http.post('/bridge/trade/refund', payload).then(unwrapData);
 
 /**
- * 查询活动下正在拼团的队伍。
+ * 查询正在拼团的队伍。
+ * activityId 为空时返回全局进行中队伍（按时间倒序）。
  */
 export const fetchPortalActiveTeams = (activityId, limit = 5) =>
-    http.get('/bridge/portal/teams', { params: { activityId, limit } }).then(unwrapData);
+    http.get('/bridge/portal/teams', {
+        params: activityId ? { activityId, limit } : { limit }
+    }).then(unwrapData);
 
 /**
  * 直接下单并支付。
