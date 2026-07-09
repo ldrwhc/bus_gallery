@@ -7,6 +7,8 @@ import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.entity.*;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.mapper.BusRouteMapper;
+import com.busgallery.busgallery.mapper.VehicleRouteMapper;
 import com.busgallery.busgallery.service.ImageAccessService;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.RegionService;
@@ -46,6 +48,8 @@ public class VehicleController {
     private final ImageService imageService;
     private final ImageAccessService imageAccessService;
     private final RegionService regionService;
+    private final VehicleRouteMapper vehicleRouteMapper;
+    private final BusRouteMapper busRouteMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -132,7 +136,11 @@ public class VehicleController {
         List<Vehicle> vehicles = vehicleService.queryPage(pageSize, regionId, companyId, brandId, modelId, keyword, lastLaunch, lastId);
         long total = vehicleService.count(regionId, companyId, brandId, modelId, keyword);
         List<VehicleSummary> summaries = vehicles.stream()
-                .map(vehicle -> new VehicleSummary(mapVehicle(vehicle), mapImages(imageService.listByVehicle(vehicle.getId()))))
+                .map(vehicle -> {
+                    VehicleDTO dto = mapVehicle(vehicle);
+                    dto.setRoutes(buildRouteBriefs(vehicle.getId()));
+                    return new VehicleSummary(dto, mapImages(imageService.listByVehicle(vehicle.getId())));
+                })
                 .collect(Collectors.toList());
         java.time.LocalDate nextLaunch = vehicles.isEmpty() ? null : vehicles.get(vehicles.size() - 1).getLaunchDate();
         Long nextCursorId = vehicles.isEmpty() ? null : vehicles.get(vehicles.size() - 1).getId();
@@ -259,6 +267,7 @@ public class VehicleController {
                 request.getRegionProvince(),
                 request.getRegionCity()
         );
+        saveRouteAssignments(saved.getId(), request.getRoutes());
         return buildVehicleDetail(saved.getId());
     }
 
@@ -285,6 +294,7 @@ public class VehicleController {
                 request.getRegionProvince(),
                 request.getRegionCity()
         );
+        saveRouteAssignments(id, request.getRoutes());
         return buildVehicleDetail(updated.getId());
     }
 
@@ -331,6 +341,40 @@ public class VehicleController {
         }
 
         return new VehicleBatchDeleteResponse(normalizedIds.size(), deletedIds, failedIds);
+    }
+
+    private void saveRouteAssignments(Long vehicleId, List<RouteAssignment> assignments) {
+        if (assignments == null || assignments.isEmpty()) {
+            return;
+        }
+        vehicleRouteMapper.deleteByVehicleId(vehicleId);
+        for (RouteAssignment ra : assignments) {
+            Long routeId = ra.getRouteId();
+            // Auto-create route if routeNumber is provided but no routeId
+            if (routeId == null && ra.getRouteNumber() != null && !ra.getRouteNumber().isBlank()) {
+                com.busgallery.busgallery.entity.BusRoute newRoute = new com.busgallery.busgallery.entity.BusRoute();
+                newRoute.setRouteNumber(ra.getRouteNumber().trim());
+                newRoute.setRouteName(ra.getRouteName());
+                newRoute.setRouteType("REGULAR");
+                newRoute.setIsActive(true);
+                busRouteMapper.insert(newRoute);
+                routeId = newRoute.getId();
+            }
+            if (routeId != null) {
+                com.busgallery.busgallery.entity.VehicleRoute vr =
+                        new com.busgallery.busgallery.entity.VehicleRoute();
+                com.busgallery.busgallery.entity.Vehicle v = new com.busgallery.busgallery.entity.Vehicle();
+                v.setId(vehicleId);
+                vr.setVehicle(v);
+                com.busgallery.busgallery.entity.BusRoute br =
+                        new com.busgallery.busgallery.entity.BusRoute();
+                br.setId(routeId);
+                vr.setRoute(br);
+                vr.setIsCurrent(ra.getIsCurrent() != null ? ra.getIsCurrent() : true);
+                vr.setRemark(ra.getRemark());
+                vehicleRouteMapper.insert(vr);
+            }
+        }
     }
 
     private void assertVehicleUpdateAllowed(AuthPrincipal session, Vehicle existing, VehicleRequest request) {
@@ -396,7 +440,36 @@ public class VehicleController {
         Vehicle vehicle = vehicleService.findById(vehicleId);
         VehicleConfig config = vehicleService.findConfigByVehicleId(vehicleId);
         List<Image> images = imageService.listByVehicle(vehicleId);
-        return assembleDetail(vehicle, config, images);
+        VehicleDetailResponse detail = assembleDetail(vehicle, config, images);
+        if (detail != null && detail.getVehicle() != null) {
+            detail.getVehicle().setRoutes(buildRouteBriefs(vehicleId));
+        }
+        return detail;
+    }
+
+    private List<RouteBrief> buildRouteBriefs(Long vehicleId) {
+        List<com.busgallery.busgallery.entity.VehicleRoute> vrs = vehicleRouteMapper.selectByVehicleId(vehicleId);
+        if (vrs == null || vrs.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return vrs.stream().map(vr -> {
+            RouteBrief rb = new RouteBrief();
+            if (vr.getRoute() != null) {
+                com.busgallery.busgallery.entity.BusRoute br = vr.getRoute();
+                rb.setRouteId(br.getId());
+                rb.setRouteNumber(br.getRouteNumber());
+                rb.setRouteName(br.getRouteName());
+                rb.setSubType(br.getSubType());
+                rb.setStartStop(br.getStartStop());
+                rb.setEndStop(br.getEndStop());
+                rb.setDownStartStop(br.getDownStartStop());
+                rb.setDownEndStop(br.getDownEndStop());
+                rb.setIsLoop(br.getIsLoop());
+                rb.setRouteType(br.getRouteType());
+            }
+            rb.setIsCurrent(Boolean.TRUE.equals(vr.getIsCurrent()));
+            return rb;
+        }).collect(Collectors.toList());
     }
 
     public static VehicleDetailResponse assembleDetail(Vehicle vehicle,
@@ -520,6 +593,7 @@ public class VehicleController {
         dto.setUploaderDisplayName(source.getUploaderDisplayName());
         dto.setCreateTime(source.getCreateTime());
         dto.setExif(ExifUtils.fromJson(source.getExifJson()));
+        dto.setRouteId(source.getRouteId());
         return dto;
     }
 
@@ -581,6 +655,7 @@ public class VehicleController {
         private String remark;
         private VehicleConfigRequest config;
         private List<Long> imageIds;
+        private List<RouteAssignment> routes;
 
         public Vehicle toVehicle() {
             Vehicle vehicle = new Vehicle();
@@ -665,6 +740,15 @@ public class VehicleController {
     }
 
     @Data
+    public static class RouteAssignment {
+        private Long routeId;
+        private String routeNumber;
+        private String routeName;
+        private Boolean isCurrent;
+        private String remark;
+    }
+
+    @Data
     public static class VehicleDTO {
         private Long id;
         private String plateNumber;
@@ -680,6 +764,25 @@ public class VehicleController {
         private ModelDTO model;
         private CompanyDTO company;
         private RegionDTO region;
+        private List<RouteBrief> routes;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class RouteBrief {
+        private Long routeId;
+        private String routeNumber;
+        private String routeName;
+        private String subType;
+        private String direction;
+        private String startStop;
+        private String endStop;
+        private String downStartStop;
+        private String downEndStop;
+        private Boolean isLoop;
+        private String routeType;
+        private Boolean isCurrent;
     }
 
     @Data
@@ -745,5 +848,7 @@ public class VehicleController {
         private String uploaderDisplayName;
         private java.time.LocalDateTime createTime;
         private Map<String, String> exif;
+        private Long routeId;
+        private String routeNumber;
     }
 }

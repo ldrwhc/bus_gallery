@@ -1,0 +1,11 @@
+# BusGallery Desktop - Dependencies
+# This is a C++ Qt6 CMake project.
+
+# Build Requirements:
+# - Qt 6.10.1+ (MinGW 64-bit)
+# - CMake 3.16+
+# - MinGW 13.1.0+ (gcc, g++, mingw32-make)
+# - OpenSSL (for HTTPS support - ships with Qt)
+
+# Run build.bat to compile.
+# No Python/pip dependencies needed for C++ build.

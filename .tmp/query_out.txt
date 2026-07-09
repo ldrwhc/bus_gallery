@@ -1,0 +1,25 @@
+=== model table for BJ5120A ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '%BJ5120A% OR name LIKE %5120%' at line 1
+
+=== All models (first 20) ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+id	name	brand_id
+1	BJ6123C7BTD-1	1
+2	DNC6129BEVGS1	2
+3	JNP-WG120G	3
+14	BJ5120A	1
+
+=== Vehicle for model with BJ/5120 ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '%5120% OR b.name LIKE %BJ% LIMIT 10' at line 1
+
+=== Brand table ===
+mysql: [Warning] Using a password on the command line interface can be insecure.
+id	name	chn_name	created_at	updated_at
+1	BJ	??	2026-03-14 05:55:05	2026-03-19 17:01:40
+2	DNC	??	2026-03-19 13:31:18	2026-03-19 17:01:34
+3	JNP	NULL	2026-03-22 10:08:55	2026-03-22 10:08:55
+
+=== API: /api/catalog/models (first 100 chars) ===
+[{"id":14,"name":"BJ5120A","brandName":"BJ","companies":[{"id":3,"name":"巴士电车公司","regionId":5,"regionName":"广州市","thumbnailUrl":"/api/images/access/aW1hZ2VzLzIwMjYwNzA4LzcwY2JkYmVhNDhjMTQ5ODViZGY1MzYyMzZkYzFlZmFjX3RodW1iLmpwZ3wxNzgzNTAxMjQ1.c4c8c1f7fd0a9d970bb8d675aebd69285bba914cb0f74694e4aa33b69cd13c29"}]},{"id":1,"name":"BJ6123C7BTD-1","brandName":"BJ","companies":[]},{"id":2,"name":"DNC6129BEVGS1","brandName":"DNC","companies":[]},{"id":3,"name":"JNP-WG120G","brandName":"JN

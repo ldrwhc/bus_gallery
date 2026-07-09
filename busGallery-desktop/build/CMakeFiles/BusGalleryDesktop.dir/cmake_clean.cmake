@@ -1,0 +1,40 @@
+file(REMOVE_RECURSE
+  "BusGalleryDesktop.exe"
+  "BusGalleryDesktop.exe.manifest"
+  "BusGalleryDesktop.pdb"
+  "BusGalleryDesktop_autogen/mocs_compilation.cpp"
+  "BusGalleryDesktop_autogen/timestamp"
+  "CMakeFiles/BusGalleryDesktop.dir/BusGalleryDesktop_autogen/mocs_compilation.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/BusGalleryDesktop_autogen/mocs_compilation.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/api/ApiClient.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/api/ApiClient.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/api/AuthApi.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/api/AuthApi.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/api/CatalogApi.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/api/CatalogApi.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/api/UploadApi.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/api/UploadApi.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/main.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/main.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/utils/ThemeManager.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/utils/ThemeManager.cpp.obj.d"
+  "BusGalleryDesktop_autogen"
+  "CMakeFiles/BusGalleryDesktop_autogen.dir/AutogenUsed.txt"
+  "CMakeFiles/BusGalleryDesktop_autogen.dir/ParseCache.txt"
+  "libBusGalleryDesktop.dll.a"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/BusGalleryDesktop.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

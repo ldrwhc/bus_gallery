@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
  */
 @FeignClient(
         name = "${bridge.trade-service-name}",
+        url = "${bridge.trade-service-url:}",
         contextId = "bridgeTradeClient"
 )
 public interface BridgeTradeClient {

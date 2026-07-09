@@ -118,6 +118,9 @@ http.interceptors.response.use(
                 router.push({ name: 'Login', query: { redirect } });
             }
         }
+        if (axios.isCancel(error) || error?.code === 'ERR_CANCELED') {
+            return Promise.reject(error);
+        }
         const message = error?.response?.data?.message || error.message || '请求错误';
         console.error('请求错误:', message);
         return Promise.reject(new Error(message));

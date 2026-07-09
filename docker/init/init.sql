@@ -177,3 +177,58 @@ CREATE TABLE `app_user` (
   UNIQUE KEY `uk_app_user_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鐢ㄦ埛璐︽埛';
 
+-- bus route
+CREATE TABLE `bus_route` (
+  `id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `route_number`    VARCHAR(32)     NOT NULL COMMENT 'route number, e.g. 1路 / BRT1',
+  `route_name`      VARCHAR(200)    DEFAULT NULL COMMENT 'full route name',
+  `sub_type`        VARCHAR(16)     DEFAULT NULL COMMENT 'MAIN / INTERVAL / BRANCH / EXPRESS / NIGHT / DIRECT',
+  `parent_route_id` BIGINT UNSIGNED DEFAULT NULL COMMENT 'parent route FK (self-ref for branch/interval)',
+  `start_stop`      VARCHAR(128)    DEFAULT NULL COMMENT 'up direction start stop',
+  `end_stop`        VARCHAR(128)    DEFAULT NULL COMMENT 'up direction end stop',
+  `down_start_stop` VARCHAR(128)    DEFAULT NULL COMMENT 'down start stop (NULL=symmetrical)',
+  `down_end_stop`   VARCHAR(128)    DEFAULT NULL COMMENT 'down end stop (NULL=symmetrical)',
+  `is_loop`         TINYINT(1)      NOT NULL DEFAULT 0 COMMENT 'is circular route',
+  `region_id`       BIGINT UNSIGNED DEFAULT NULL COMMENT 'city/region FK',
+  `company_id`      BIGINT UNSIGNED DEFAULT NULL COMMENT 'operator company FK',
+  `route_type`      VARCHAR(32)     NOT NULL DEFAULT 'REGULAR' COMMENT 'REGULAR/BRT/AIRPORT/TOURIST/COMMUNITY/SUBWAY',
+  `line_length_km`  DECIMAL(7,2)    DEFAULT NULL COMMENT 'route length in km',
+  `ticket_type`     VARCHAR(32)     DEFAULT NULL COMMENT 'FLAT/SECTIONAL/FREE',
+  `ticket_price`    VARCHAR(64)     DEFAULT NULL COMMENT 'fare description',
+  `operating_hours` VARCHAR(128)    DEFAULT NULL COMMENT 'operating hours',
+  `is_active`       TINYINT(1)      NOT NULL DEFAULT 1 COMMENT 'still in service',
+  `first_operated`  DATE            DEFAULT NULL COMMENT 'first day of service',
+  `last_operated`   DATE            DEFAULT NULL COMMENT 'last day (if inactive)',
+  `remark`          VARCHAR(500)    DEFAULT NULL,
+  `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_route_number_company_sub` (`route_number`, `company_id`, `sub_type`),
+  KEY `idx_route_region`  (`region_id`),
+  KEY `idx_route_company` (`company_id`),
+  KEY `idx_route_type`    (`route_type`),
+  KEY `idx_route_number`  (`route_number`),
+  KEY `idx_route_active`  (`is_active`, `region_id`),
+  KEY `idx_route_parent`  (`parent_route_id`),
+  CONSTRAINT `fk_bus_route_region`  FOREIGN KEY (`region_id`)  REFERENCES `region`(`id`)  ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_bus_route_company` FOREIGN KEY (`company_id`) REFERENCES `company`(`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_bus_route_parent`  FOREIGN KEY (`parent_route_id`) REFERENCES `bus_route`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- vehicle-route many-to-many
+CREATE TABLE `vehicle_route` (
+  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `vehicle_id`    BIGINT UNSIGNED NOT NULL,
+  `route_id`      BIGINT UNSIGNED NOT NULL,
+  `is_current`    TINYINT(1)      NOT NULL DEFAULT 1 COMMENT 'is current route for this vehicle',
+  `remark`        VARCHAR(256)    DEFAULT NULL,
+  `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_vehicle_route` (`vehicle_id`, `route_id`),
+  KEY `idx_vr_vehicle` (`vehicle_id`),
+  KEY `idx_vr_route`   (`route_id`),
+  KEY `idx_vr_current` (`is_current`, `route_id`),
+  CONSTRAINT `fk_vr_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicle`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_vr_route`   FOREIGN KEY (`route_id`)   REFERENCES `bus_route`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+

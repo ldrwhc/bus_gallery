@@ -56,7 +56,8 @@ const getters = {
     companyOptions: (state) =>
         state.list.map((item) => ({
             label: item.name,
-            value: item.id
+            value: item.id,
+            regionId: item.regionId || (item.region ? item.region.id : null)
         })),
     companyById: (state) => (id) =>
         state.list.find((item) => item.id === id) ||

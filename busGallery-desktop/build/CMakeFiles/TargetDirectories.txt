@@ -1,0 +1,5 @@
+D:/code/bus-gallery/busGallery-desktop/build/CMakeFiles/BusGalleryDesktop.dir
+D:/code/bus-gallery/busGallery-desktop/build/CMakeFiles/edit_cache.dir
+D:/code/bus-gallery/busGallery-desktop/build/CMakeFiles/rebuild_cache.dir
+D:/code/bus-gallery/busGallery-desktop/build/CMakeFiles/BusGalleryDesktop_autogen_timestamp_deps.dir
+D:/code/bus-gallery/busGallery-desktop/build/CMakeFiles/BusGalleryDesktop_autogen.dir

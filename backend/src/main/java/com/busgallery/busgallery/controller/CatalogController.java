@@ -69,19 +69,24 @@ public class CatalogController {
         List<CompanyCatalogItem> result = new ArrayList<>();
         for (Company company : companies) {
             List<Vehicle> vehicles = vehicleService.listByCompany(company.getId());
-            Map<Long, CompanyModelSummary> models = new LinkedHashMap<>();
+            Map<String, CompanyModelSummary> models = new LinkedHashMap<>();
             for (Vehicle vehicle : vehicles) {
                 if (vehicle.getModel() == null) {
                     continue;
                 }
                 Long modelId = vehicle.getModel().getId();
-                CompanyModelSummary summary = models.computeIfAbsent(modelId, id ->
+                Integer batchYear = vehicle.getLaunchDate() != null ? vehicle.getLaunchDate().getYear() : null;
+                String batchKey = modelId + "_" + (batchYear != null ? batchYear : "unknown");
+                CompanyModelSummary summary = models.computeIfAbsent(batchKey, key ->
                         new CompanyModelSummary(
                                 modelId,
                                 vehicle.getModel().getName(),
                                 vehicle.getModel().getBrand() != null ? vehicle.getModel().getBrand().getName() : null,
-                                null
+                                null,
+                                batchYear,
+                                0
                         ));
+                summary.setVehicleCount(summary.getVehicleCount() + 1);
                 if (!StringUtils.hasText(summary.getThumbnailUrl())) {
                     summary.setThumbnailUrl(resolveThumbnail(Collections.singletonList(vehicle)));
                 }
@@ -259,6 +264,8 @@ public class CatalogController {
         private String name;
         private String brandName;
         private String thumbnailUrl;
+        private Integer batchYear;
+        private int vehicleCount;
     }
 
     /**

@@ -200,7 +200,7 @@
                     <el-col :sm="12" :xs="24">
                         <el-form-item label="运营公司（库内选择）">
                             <el-select v-model="editForm.companyId" clearable filterable placeholder="可搜索公司">
-                                <el-option v-for="option in companyOptions" :key="option.value" :label="option.label" :value="option.value" />
+                                <el-option v-for="option in filteredCompanyOptions" :key="option.value" :label="option.label" :value="option.value" />
                             </el-select>
                         </el-form-item>
                     </el-col>
@@ -255,6 +255,24 @@
                     <el-col :sm="12" :xs="24"><el-form-item label="其他配置"><el-input v-model="editForm.config.otherConfigs" /></el-form-item></el-col>
                 </el-row>
                 <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" /></el-form-item>
+                <el-form-item label="关联线路">
+                    <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+                        <div v-for="(ra, idx) in editForm.routes" :key="idx" style="display:flex;gap:8px;align-items:center">
+                            <el-autocomplete
+                                v-model="ra.routeNumber"
+                                placeholder="输入或搜索线路号"
+                                :fetch-suggestions="(kw, cb) => queryRouteSuggestions(kw, cb)"
+                                @select="(item) => selectEditRoute(idx, item)"
+                                style="flex:1"
+                                clearable
+                            />
+                            <el-switch v-model="ra.isCurrent" active-text="当前" size="small" />
+                            <el-button type="danger" size="small" text @click="editForm.routes.splice(idx,1)">×</el-button>
+                        </div>
+                        <el-button size="small" @click="editForm.routes.push({ routeId: null, routeNumber: '', isCurrent: true, remark: '' })">+ 关联已有线路</el-button>
+                        <el-button size="small" type="primary" @click="openProfileRouteCreate">+ 创建新线路</el-button>
+                    </div>
+                </el-form-item>
             </el-form>
 
             <template #footer>
@@ -311,6 +329,10 @@
                 <el-button type="primary" :loading="passwordSubmitting" @click="confirmPasswordChangeSubmit">确认修改</el-button>
             </template>
         </el-dialog>
+
+        <RouteCreateDialog v-model="profileRouteCreateVisible" :prefillRouteNumber="profileRoutePrefillNumber"
+            :prefillRegionId="editForm.regionId" :prefillCompanyId="editForm.companyId"
+            @created="onProfileRouteCreated" />
     </div>
 </template>
 
@@ -323,6 +345,8 @@ import { Check, Close, EditPen } from '@element-plus/icons-vue';
 import { fetchUserImages, fetchUserProfile, updateMyDisplayName } from '@/api/users';
 import { fetchFavorites } from '@/api/vehicles';
 import { fetchReviewInbox, submitVehicleUpdateReview } from '@/api/reviews';
+import { fetchRoutes } from '@/api/routes';
+import RouteCreateDialog from '@/components/Route/RouteCreateDialog.vue';
 import { updateVehicle } from '@/api/vehicles';
 import { fetchPortalRecords, refundTradeBridgeOrder } from '@/api/tradeBridge';
 import {
@@ -392,6 +416,62 @@ const fuelOptions = FUEL_OPTIONS;
 const brandOptions = computed(() => store.getters['brands/brandOptions'] || []);
 const modelOptions = computed(() => store.getters['models/modelOptions'] || []);
 const companyOptions = computed(() => store.getters['companies/companyOptions'] || []);
+const filteredCompanyOptions = computed(() => {
+    const list = companyOptions.value || [];
+    if (editForm.regionId) return list.filter(o => o.regionId === editForm.regionId || o.regionId == null);
+    return list;
+});
+const routeOptions = computed(() => store.getters['routes/routeOptions'] || []);
+
+const profileRouteCreateVisible = ref(false);
+const profileRoutePrefillNumber = ref('');
+let profileRouteAbort = null;
+
+const queryRouteSuggestions = (keyword, cb) => {
+    if (profileRouteAbort) profileRouteAbort.abort();
+    const controller = new AbortController();
+    profileRouteAbort = controller;
+    const kw = (keyword || '').trim();
+    const params = { keyword: kw, size: 8, isActive: true };
+    if (editForm.regionId) params.regionId = editForm.regionId;
+    if (editForm.companyId) params.companyId = editForm.companyId;
+    fetchRoutes(params, controller.signal)
+        .then(resp => {
+            const items = (Array.isArray(resp?.records) ? resp.records : (Array.isArray(resp) ? resp : [])).map(r => ({
+                value: r.routeNumber, id: r.id, routeNumber: r.routeNumber,
+                startStop: r.startStop, endStop: r.endStop, companyName: r.companyName
+            }));
+            if (!items.length && kw) {
+                items.push({ value: kw, id: '__new__', routeNumber: kw, __hint: true });
+            }
+            cb(items);
+        })
+        .catch(() => { if (controller.signal.aborted) return; cb([]); });
+};
+
+const selectEditRoute = (idx, item) => {
+    if (!item) return;
+    if (item.id === '__new__') {
+        profileRoutePrefillNumber.value = item.routeNumber || '';
+        profileRouteCreateVisible.value = true;
+        editForm.routes.splice(idx, 1);
+        return;
+    }
+    editForm.routes[idx].routeId = item.id;
+    editForm.routes[idx].routeNumber = item.routeNumber || item.value;
+};
+
+const openProfileRouteCreate = () => {
+    profileRoutePrefillNumber.value = '';
+    profileRouteCreateVisible.value = true;
+};
+
+const onProfileRouteCreated = (saved) => {
+    if (saved?.id) {
+        editForm.routes.push({ routeId: saved.id, routeNumber: saved.routeNumber, isCurrent: true, remark: '' });
+    }
+};
+
 const regions = computed(() => store.state.regions.list || []);
 const allChinaRegionOptions = computed(() =>
     (PROVINCE_CITY_DATA || []).map((province) => {
@@ -435,6 +515,7 @@ const editForm = reactive({
     source: '',
     remark: '',
     imageIds: [],
+    routes: [],
     config: { brandId: null, modelId: null, motor: '', engine: '', fuelType: '', stepType: '', transmissionSystem: '', suspension: '', axle: '', otherConfigs: '' }
 });
 
@@ -626,13 +707,13 @@ const handleFavoritePageChange = (page) => {
 const openImage = async (image) => {
     if (!image?.vehicleId) return;
     activeVehicleId.value = image.vehicleId;
-    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: image.vehicleId });
+    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: image.vehicleId, force: true });
 };
 
 const openFavorite = async (detail) => {
     if (!detail?.vehicle?.id) return;
     activeVehicleId.value = detail.vehicle.id;
-    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: detail.vehicle.id });
+    await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: detail.vehicle.id, force: true });
 };
 
 const closeVehicleDetail = () => {
@@ -854,7 +935,8 @@ const openEditDialog = async (image) => {
         store.dispatch('regions/loadRegions').catch(() => {}),
         store.dispatch('brands/loadBrands').catch(() => {}),
         store.dispatch('models/loadModels').catch(() => {}),
-        store.dispatch('companies/loadCompanies').catch(() => {})
+        store.dispatch('companies/loadCompanies').catch(() => {}),
+        store.dispatch('routes/loadRoutes', { size: 500 }).catch(() => {})
     ]);
     const detail = await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: image.vehicleId, force: true });
     const vehicle = detail?.vehicle || {};
@@ -895,6 +977,11 @@ const openEditDialog = async (image) => {
         axle: config.axle || '',
         otherConfigs: config.otherConfigs || ''
     };
+    editForm.routes = (Array.isArray(vehicle.routes) ? vehicle.routes : []).map(vr => ({
+        routeId: vr.routeId,
+        isCurrent: vr.isCurrent != null ? vr.isCurrent : true,
+        remark: ''
+    }));
     editTarget.value = { imageId: image.id, vehicleId: image.vehicleId };
     editVisible.value = true;
 };
@@ -943,6 +1030,12 @@ const submitEdit = async () => {
         source: cleanText(editForm.source),
         remark: cleanText(editForm.remark),
         imageIds: Array.isArray(editForm.imageIds) ? editForm.imageIds : [],
+        routes: (editForm.routes || []).filter(r => r.routeId || r.routeNumber).map(r => ({
+            routeId: r.routeId || null,
+            routeNumber: r.routeNumber || null,
+            isCurrent: r.isCurrent != null ? r.isCurrent : true,
+            remark: r.remark || ''
+        })),
         config: {
             brandId: editForm.brandId || null,
             modelId: editForm.modelId || null,

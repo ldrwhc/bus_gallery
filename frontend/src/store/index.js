@@ -5,6 +5,7 @@ import brands from './modules/brands';
 import models from './modules/models';
 import vehicles from './modules/vehicles';
 import auth from './modules/auth';
+import routes from './modules/routes';
 
 const store = createStore({
     modules: {
@@ -13,7 +14,8 @@ const store = createStore({
         brands,
         models,
         vehicles,
-        auth
+        auth,
+        routes
     },
     strict: import.meta.env.DEV
 });

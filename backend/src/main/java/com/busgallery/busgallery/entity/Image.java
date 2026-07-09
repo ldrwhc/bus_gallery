@@ -55,6 +55,9 @@ public class Image {
     @Column(name = "exif_json", columnDefinition = "TEXT")
     private String exifJson;
 
+    @Column(name = "route_id")
+    private Long routeId;
+
     @Transient
     private Long vehicleId;
 

@@ -1,0 +1,48 @@
+services:
+  nacos:
+    environment:
+      JVM_XMS: ${NACOS_JVM_XMS:-256m}
+      JVM_XMX: ${NACOS_JVM_XMX:-256m}
+      JVM_XMN: ${NACOS_JVM_XMN:-128m}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-serverIdentity}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:-security}
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
+
+  backend:
+    environment:
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-false}
+      JAVA_OPTS: >-
+        -Xms128m -Xmx320m -XX:MaxMetaspaceSize=160m
+        -Dspring.datasource.hikari.maximum-pool-size=${BACKEND_DB_MAX_POOL_SIZE:-8}
+        -Dspring.datasource.hikari.minimum-idle=${BACKEND_DB_MIN_IDLE:-2}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+      LOG_LEVEL_WEB: ${LOG_LEVEL_WEB:-INFO}
+      LOG_LEVEL_MYBATIS: ${LOG_LEVEL_MYBATIS:-INFO}
+
+  group:
+    environment:
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-false}
+      JAVA_OPTS: >-
+        -Xms128m -Xmx256m -XX:MaxMetaspaceSize=128m
+      TRADE_DB_MAX_POOL_SIZE: ${TRADE_DB_MAX_POOL_SIZE:-8}
+      TRADE_DB_MIN_IDLE: ${TRADE_DB_MIN_IDLE:-2}
+      GROUP_LOG_LEVEL_APP: ${GROUP_LOG_LEVEL_APP:-INFO}
+
+  bridge:
+    environment:
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-false}
+      BRIDGE_CONTENT_SERVICE_URL: ${BRIDGE_CONTENT_SERVICE_URL:-http://backend:8080}
+      BRIDGE_TRADE_SERVICE_URL: ${BRIDGE_TRADE_SERVICE_URL:-http://group:8092}
+      BRIDGE_CONTENT_SERVICE_BASE_URL: ${BRIDGE_CONTENT_SERVICE_BASE_URL:-http://backend:8080}
+      JAVA_OPTS: >-
+        -Xms96m -Xmx224m -XX:MaxMetaspaceSize=128m
+      BRIDGE_LOG_LEVEL_APP: ${BRIDGE_LOG_LEVEL_APP:-INFO}
+
+  gateway:
+    environment:
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-false}
+      GATEWAY_BRIDGE_URI: ${GATEWAY_BRIDGE_URI:-http://bridge:8093}
+      GATEWAY_CONTENT_URI: ${GATEWAY_CONTENT_URI:-http://backend:8080}
+      JAVA_OPTS: >-
+        -Xms128m -Xmx256m -XX:MaxMetaspaceSize=128m
+      GATEWAY_LOG_LEVEL_APP: ${GATEWAY_LOG_LEVEL_APP:-INFO}

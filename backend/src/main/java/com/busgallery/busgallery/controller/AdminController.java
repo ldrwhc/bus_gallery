@@ -46,6 +46,7 @@ public class AdminController {
     private final VehicleImageMapper vehicleImageMapper;
     private final VehicleCommentMapper vehicleCommentMapper;
     private final VehicleCommentService vehicleCommentService;
+    private final BusRouteService busRouteService;
 
     @GetMapping("/overview")
     @RequireLogin
@@ -354,6 +355,105 @@ public class AdminController {
     public BatchDeleteResult batchDeleteModels(@RequestBody IdBatchDeleteRequest request) {
         RoleGuard.requireStation();
         return executeBatchDelete(request, modelService::delete);
+    }
+
+    // --- Routes CRUD ---
+
+    @GetMapping("/tables/routes")
+    @RequireLogin
+    public List<AdminRouteRow> listRoutes(@RequestParam(required = false) Long regionId,
+                                          @RequestParam(required = false) Long companyId,
+                                          @RequestParam(required = false) String routeType,
+                                          @RequestParam(required = false) String keyword,
+                                          @RequestParam(required = false) Boolean isActive) {
+        RoleGuard.requireStation();
+        List<BusRoute> routes = busRouteService.queryPage(0, 500, regionId, companyId,
+                routeType, keyword, isActive);
+        return routes.stream().map(this::toRouteRow).collect(Collectors.toList());
+    }
+
+    @PostMapping("/tables/routes")
+    @RequireLogin
+    public AdminRouteRow createRoute(@RequestBody RouteUpsertRequest request) {
+        RoleGuard.requireStation();
+        if (request == null || !StringUtils.hasText(request.getRouteNumber())) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "Route number is required");
+        }
+        BusRoute route = new BusRoute();
+        applyRouteRequest(route, request);
+        return toRouteRow(busRouteService.create(route, request.getRegionId(),
+                request.getCompanyId(), request.getParentRouteId()));
+    }
+
+    @PutMapping("/tables/routes/{id}")
+    @RequireLogin
+    public AdminRouteRow updateRoute(@PathVariable Long id, @RequestBody RouteUpsertRequest request) {
+        RoleGuard.requireStation();
+        if (request == null || !StringUtils.hasText(request.getRouteNumber())) {
+            throw new BizException(ErrorCode.INVALID_PARAM, "Route number is required");
+        }
+        BusRoute route = new BusRoute();
+        route.setId(id);
+        applyRouteRequest(route, request);
+        return toRouteRow(busRouteService.update(route, request.getRegionId(),
+                request.getCompanyId(), request.getParentRouteId()));
+    }
+
+    @DeleteMapping("/tables/routes/{id}")
+    @RequireLogin
+    public void deleteRoute(@PathVariable Long id) {
+        RoleGuard.requireStation();
+        busRouteService.delete(id);
+    }
+
+    @PostMapping("/tables/routes/batch-delete")
+    @RequireLogin
+    public BatchDeleteResult batchDeleteRoutes(@RequestBody IdBatchDeleteRequest request) {
+        RoleGuard.requireStation();
+        return executeBatchDelete(request, busRouteService::delete);
+    }
+
+    private void applyRouteRequest(BusRoute r, RouteUpsertRequest req) {
+        r.setRouteNumber(req.getRouteNumber().trim());
+        r.setRouteName(req.getRouteName());
+        r.setSubType(req.getSubType());
+        r.setStartStop(req.getStartStop());
+        r.setEndStop(req.getEndStop());
+        r.setDownStartStop(req.getDownStartStop());
+        r.setDownEndStop(req.getDownEndStop());
+        r.setIsLoop(Boolean.TRUE.equals(req.getIsLoop()));
+        r.setRouteType(StringUtils.hasText(req.getRouteType()) ? req.getRouteType() : "REGULAR");
+        r.setLineLengthKm(req.getLineLengthKm());
+        r.setTicketType(req.getTicketType());
+        r.setTicketPrice(req.getTicketPrice());
+        r.setOperatingHours(req.getOperatingHours());
+        r.setIsActive(req.getIsActive() == null || req.getIsActive());
+        r.setFirstOperated(req.getFirstOperated());
+        r.setLastOperated(req.getLastOperated());
+        r.setRemark(req.getRemark());
+    }
+
+    private AdminRouteRow toRouteRow(BusRoute r) {
+        AdminRouteRow row = new AdminRouteRow();
+        row.setId(r.getId());
+        row.setRouteNumber(r.getRouteNumber());
+        row.setRouteName(r.getRouteName());
+        row.setSubType(r.getSubType());
+        row.setParentRouteId(r.getParentRoute() != null ? r.getParentRoute().getId() : null);
+        row.setStartStop(r.getStartStop());
+        row.setEndStop(r.getEndStop());
+        row.setIsLoop(r.getIsLoop());
+        row.setRegionId(r.getRegion() != null ? r.getRegion().getId() : null);
+        row.setRegionName(r.getRegion() != null ? r.getRegion().getName() : null);
+        row.setCompanyId(r.getCompany() != null ? r.getCompany().getId() : null);
+        row.setCompanyName(r.getCompany() != null ? r.getCompany().getName() : null);
+        row.setRouteType(r.getRouteType());
+        row.setLineLengthKm(r.getLineLengthKm());
+        row.setTicketType(r.getTicketType());
+        row.setTicketPrice(r.getTicketPrice());
+        row.setIsActive(r.getIsActive());
+        row.setCreatedAt(r.getCreatedAt());
+        return row;
     }
 
     @GetMapping("/images/suspects")
@@ -705,5 +805,51 @@ public class AdminController {
         private final int requestedCount;
         private final List<Long> deletedIds;
         private final List<Long> failedIds;
+    }
+
+    @Data
+    public static class RouteUpsertRequest {
+        private String routeNumber;
+        private String routeName;
+        private String subType;
+        private Long parentRouteId;
+        private String startStop;
+        private String endStop;
+        private String downStartStop;
+        private String downEndStop;
+        private Boolean isLoop;
+        private Long regionId;
+        private Long companyId;
+        private String routeType;
+        private java.math.BigDecimal lineLengthKm;
+        private String ticketType;
+        private String ticketPrice;
+        private String operatingHours;
+        private Boolean isActive;
+        private java.time.LocalDate firstOperated;
+        private java.time.LocalDate lastOperated;
+        private String remark;
+    }
+
+    @Data
+    public static class AdminRouteRow {
+        private Long id;
+        private String routeNumber;
+        private String routeName;
+        private String subType;
+        private Long parentRouteId;
+        private String startStop;
+        private String endStop;
+        private Boolean isLoop;
+        private Long regionId;
+        private String regionName;
+        private Long companyId;
+        private String companyName;
+        private String routeType;
+        private java.math.BigDecimal lineLengthKm;
+        private String ticketType;
+        private String ticketPrice;
+        private Boolean isActive;
+        private java.time.LocalDateTime createdAt;
     }
 }

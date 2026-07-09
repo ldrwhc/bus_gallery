@@ -22,7 +22,9 @@ spring:
 
 bridge:
   content-service-name: ${BRIDGE_CONTENT_SERVICE_NAME:bus-gallery}
+  content-service-url: ${BRIDGE_CONTENT_SERVICE_URL:}
   trade-service-name: ${BRIDGE_TRADE_SERVICE_NAME:bus-gallery-group-buy}
+  trade-service-url: ${BRIDGE_TRADE_SERVICE_URL:}
   content-service-base-url: ${BRIDGE_CONTENT_SERVICE_BASE_URL:http://bus-gallery}
   gateway:
     internal-secret: ${BRIDGE_GATEWAY_INTERNAL_SECRET:change-me-gateway-secret}

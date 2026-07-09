@@ -50,11 +50,12 @@
                         </div>
 
                         <div v-if="company.models?.length" class="model-grid">
-                            <div v-for="model in company.models" :key="model.id" class="model-card">
+                            <div v-for="(model, idx) in company.models" :key="model.id + '_' + idx" class="model-card">
                                 <img :src="model.thumbnailUrl || placeholderLogo" :alt="model.name" loading="lazy" decoding="async" />
                                 <div class="model-card__body">
                                     <p class="model-name">{{ model.name }}</p>
                                     <p class="tag">{{ resolveModelBrand(model) }}</p>
+                                    <p v-if="model.batchYear" class="batch-tag">{{ model.batchYear }} 年 · {{ model.vehicleCount || 0 }} 辆</p>
                                 </div>
                                 <button class="text-btn" type="button" @click="goModel(model.id)">
                                     查看车型
@@ -227,7 +228,7 @@ import { computed, ref, watch, onMounted, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
-import { fetchVehicleGallery, fetchRandomVehicleSample } from '@/api/vehicles';
+import { fetchVehicleGallery } from '@/api/vehicles';
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
 const store = useStore();
@@ -292,6 +293,7 @@ const companyModelSummaries = computed(() =>
 
 const modelCardsLoading = ref(false);
 const modelCardMap = ref({});
+const companyVehicles = ref([]);
 
 const detailLoading = computed(() =>
     selectedCompanyId.value ? store.state.companies.detailLoadingMap[selectedCompanyId.value] : false
@@ -310,10 +312,8 @@ const vehicleListTotal = ref(0);
 const vehicleListHasNext = ref(false);
 const vehicleListLoading = ref(false);
 const vehicleListPageSize = 30;
-const vehicleListCursorByPage = ref({
-    1: { lastLaunch: null, lastId: null }
-});
 const vehicleListModelId = ref(null);
+const vehicleListYear = ref(null);
 const activeVehicleId = ref(null);
 
 const groupedVehicleRows = computed(() => {
@@ -394,43 +394,87 @@ const loadModelCards = async (companyId, summaries = []) => {
     const token = ++modelCardsToken.value;
     if (!companyId || !Array.isArray(summaries) || !summaries.length) {
         modelCardMap.value = {};
+        companyVehicles.value = [];
         modelCardsLoading.value = false;
         return;
     }
     modelCardsLoading.value = true;
-    const entries = await Promise.all(
-        summaries.map(async (summary) => {
-            const modelId = Number(summary?.modelId || 0);
-            if (!modelId) return [modelId, null];
-            try {
-                const sample = await fetchRandomVehicleSample(companyId, modelId);
-                const sampleImages = Array.isArray(sample?.images) ? sample.images : [];
-                const coverImage = resolveImage(sampleImages) || summary?.thumbnailUrl || null;
-                return [
-                    modelId,
-                    {
-                        vehicleId: sample?.vehicle?.id || null,
-                        coverImage,
-                        sampleYear: formatYearValue(sample?.vehicle?.launchDate)
-                    }
-                ];
-            } catch (error) {
-                return [
-                    modelId,
-                    {
-                        vehicleId: null,
-                        coverImage: summary?.thumbnailUrl || null,
-                        sampleYear: '年份未知'
-                    }
-                ];
-            }
-        })
-    );
+
+    // Bulk-fetch all vehicles for the company (paginated, up to 300)
+    const allVehicles = [];
+    let cursor = { lastLaunch: null, lastId: null };
+    let hasMore = true;
+    const MAX_PAGES = 10;
+    let pageCount = 0;
+
+    while (hasMore && pageCount < MAX_PAGES) {
+        pageCount++;
+        const resp = await fetchVehicleGallery({
+            size: 30,
+            companyId,
+            ...(cursor.lastLaunch ? { lastLaunch: cursor.lastLaunch } : {}),
+            ...(cursor.lastId ? { lastId: cursor.lastId } : {})
+        });
+        const records = Array.isArray(resp?.records) ? resp.records : [];
+        allVehicles.push(...records);
+        if (resp?.nextLaunch != null || resp?.nextId != null) {
+            cursor = { lastLaunch: resp.nextLaunch, lastId: resp.nextId };
+        } else {
+            hasMore = false;
+        }
+    }
 
     if (token !== modelCardsToken.value) {
         return;
     }
-    modelCardMap.value = Object.fromEntries(entries.filter(([modelId]) => Number(modelId) > 0));
+
+    companyVehicles.value = allVehicles;
+
+    // Build summary lookup for model name fallback
+    const summaryMap = {};
+    summaries.forEach(s => {
+        summaryMap[Number(s.modelId)] = s;
+    });
+
+    // Group vehicles by modelId + launchYear
+    const modelYearMap = {};
+    allVehicles.forEach(record => {
+        const vehicle = record?.vehicle;
+        const modelId = vehicle?.model?.id;
+        if (!modelId || !summaryMap[modelId]) return;
+        const year = formatYearValue(vehicle?.launchDate);
+        if (!modelYearMap[modelId]) modelYearMap[modelId] = {};
+        if (!modelYearMap[modelId][year]) {
+            modelYearMap[modelId][year] = {
+                vehicleId: vehicle.id,
+                coverImage: resolveImage(record.images),
+                year
+            };
+        }
+    });
+
+    // Build modelCardMap: each model has multiple year entries
+    const cards = {};
+    summaries.forEach(summary => {
+        const modelId = Number(summary.modelId);
+        if (!modelId) return;
+        const years = modelYearMap[modelId] || {};
+        if (Object.keys(years).length === 0) {
+            // No vehicles found for this model — still show it with placeholder
+            years['年份未知'] = {
+                vehicleId: null,
+                coverImage: summary?.thumbnailUrl || null,
+                year: '年份未知'
+            };
+        }
+        cards[modelId] = {
+            years,
+            modelName: summary.modelName || '未命名车型',
+            thumbnailUrl: summary.thumbnailUrl || null
+        };
+    });
+
+    modelCardMap.value = cards;
     modelCardsLoading.value = false;
 };
 
@@ -440,22 +484,22 @@ const groupedVehicleTimeline = computed(() => {
     companyModelSummaries.value.forEach((summary) => {
         const modelId = Number(summary?.modelId || 0);
         if (!modelId) return;
-        const card = modelCardMap.value[modelId] || {};
-        const year = card.sampleYear || '年份未知';
-        const yearBucket = yearMap.get(year) || new Map();
-        if (!yearMap.has(year)) {
-            yearMap.set(year, yearBucket);
-        }
-        let entry = yearBucket.get(modelId);
-        if (!entry) {
-            entry = {
-                modelId,
-                modelName: summary?.modelName || '未命名车型',
-                coverImage: card.coverImage || summary?.thumbnailUrl || null,
-                sampleYear: card.sampleYear || '年份未知'
-            };
-            yearBucket.set(modelId, entry);
-        }
+        const card = modelCardMap.value[modelId];
+        if (!card) return;
+        const years = card.years || {};
+        Object.entries(years).forEach(([year, data]) => {
+            const yearBucket = yearMap.get(year) || new Map();
+            if (!yearMap.has(year)) yearMap.set(year, yearBucket);
+            const key = `${modelId}-${year}`;
+            if (!yearBucket.has(key)) {
+                yearBucket.set(key, {
+                    modelId,
+                    modelName: card.modelName || summary?.modelName || '未命名车型',
+                    coverImage: data.coverImage || card.thumbnailUrl || summary?.thumbnailUrl || null,
+                    sampleYear: year
+                });
+            }
+        });
     });
     return Array.from(yearMap.entries())
         .sort((a, b) => {
@@ -477,32 +521,29 @@ const getCardKey = (year, item) => `${year}-${item.modelId || item.modelName}`;
 const loadVehicleListPage = async (targetPage) => {
     if (!selectedCompanyId.value || !vehicleListModelId.value) return;
     const page = Math.max(1, Number(targetPage) || 1);
-    const cursor = vehicleListCursorByPage.value[page];
-    if (page > 1 && !cursor) {
-        return;
-    }
     vehicleListLoading.value = true;
     try {
-        const response = await fetchVehicleGallery({
-            size: vehicleListPageSize,
-            companyId: selectedCompanyId.value,
-            modelId: vehicleListModelId.value,
-            ...(cursor?.lastLaunch ? { lastLaunch: cursor.lastLaunch } : {}),
-            ...(cursor?.lastId ? { lastId: cursor.lastId } : {})
+        // Use cached vehicles filtered by modelId + year
+        const yearFilter = vehicleListYear.value;
+        let filtered = companyVehicles.value.filter(record => {
+            const vehicle = record?.vehicle;
+            if (!vehicle) return false;
+            const modelIdMatch = vehicle.model?.id === vehicleListModelId.value;
+            if (!modelIdMatch) return false;
+            if (yearFilter) {
+                const recordYear = formatYearValue(vehicle?.launchDate);
+                return recordYear === yearFilter;
+            }
+            return true;
         });
-        const records = Array.isArray(response?.records) ? response.records : [];
-        vehicleListItems.value = records;
+
+        // Client-side pagination
+        const start = (page - 1) * vehicleListPageSize;
+        const paged = filtered.slice(start, start + vehicleListPageSize);
+        vehicleListItems.value = paged;
         vehicleListPage.value = page;
-        vehicleListTotal.value = Number(response?.total || 0);
-        vehicleListHasNext.value = response?.nextLaunch != null || response?.nextId != null;
-        if (vehicleListHasNext.value) {
-            vehicleListCursorByPage.value[page + 1] = {
-                lastLaunch: response?.nextLaunch || null,
-                lastId: response?.nextId || null
-            };
-        } else {
-            delete vehicleListCursorByPage.value[page + 1];
-        }
+        vehicleListTotal.value = filtered.length;
+        vehicleListHasNext.value = start + vehicleListPageSize < filtered.length;
     } finally {
         vehicleListLoading.value = false;
     }
@@ -512,9 +553,7 @@ const openVehicleList = (year, item) => {
     if (!item?.modelId) return;
     vehicleListTitle.value = `${item.modelName} · ${year}`;
     vehicleListModelId.value = Number(item.modelId);
-    vehicleListCursorByPage.value = {
-        1: { lastLaunch: null, lastId: null }
-    };
+    vehicleListYear.value = year || null;
     vehicleListPage.value = 1;
     vehicleListTotal.value = 0;
     vehicleListHasNext.value = false;
@@ -529,9 +568,7 @@ const closeVehicleList = () => {
     vehicleListVisible.value = false;
     vehicleListItems.value = [];
     vehicleListModelId.value = null;
-    vehicleListCursorByPage.value = {
-        1: { lastLaunch: null, lastId: null }
-    };
+    vehicleListYear.value = null;
 };
 
 const vehicleDetailVisible = computed(() => Boolean(activeVehicleId.value));
@@ -546,7 +583,7 @@ const openVehicleDetail = async (vehicleId) => {
     if (!vehicleId) return;
     activeVehicleId.value = vehicleId;
     try {
-        await store.dispatch('vehicles/loadVehicleDetail', vehicleId);
+        await store.dispatch('vehicles/loadVehicleDetail', { vehicleId, force: true });
         vehicleListVisible.value = false;
     } catch (error) {
         console.error(error);
@@ -565,6 +602,7 @@ watch(
         if (!id) {
             store.dispatch('companies/loadCompanyCatalog');
             modelCardMap.value = {};
+            companyVehicles.value = [];
             modelCardsLoading.value = false;
             return;
         }
@@ -686,6 +724,16 @@ onMounted(() => {
     border-radius: 999px;
     font-size: 0.85rem;
     color: #2563eb;
+}
+.batch-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    background: #f0fdf4;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    color: #15803d;
+    margin-top: 6px;
     margin-top: 6px;
 }
 

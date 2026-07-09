@@ -31,15 +31,15 @@ spring:
           filters:
             - SetStatus=404
         - id: bridge-route
-          uri: lb://bus-gallery-bridge
+          uri: ${GATEWAY_BRIDGE_URI:lb://bus-gallery-bridge}
           predicates:
             - Path=/api/bridge/**
         - id: auth-route
-          uri: lb://bus-gallery
+          uri: ${GATEWAY_CONTENT_URI:lb://bus-gallery}
           predicates:
             - Path=/api/auth/**
         - id: content-route
-          uri: lb://bus-gallery
+          uri: ${GATEWAY_CONTENT_URI:lb://bus-gallery}
           predicates:
             - Path=/api/**
 

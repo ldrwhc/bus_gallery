@@ -3,14 +3,21 @@
         <div v-if="visible" class="search-overlay">
             <div class="search-overlay__backdrop" @click="$emit('close')"></div>
             <div class="search-overlay__panel">
-                <h2>搜索车辆</h2>
+                <h2>搜索</h2>
                 <form class="search-overlay__form" @submit.prevent="handleSearch">
                     <input
                         ref="inputRef"
                         v-model="keyword"
                         type="search"
-                        placeholder="输入车牌 / 公司 / 车型"
+                        placeholder="车牌 / 线路号 / 公司 / 车型"
                     />
+                    <div class="scope-selector">
+                        <label v-for="opt in scopeOptions" :key="opt.value"
+                               :class="{ active: scope === opt.value }">
+                            <input type="radio" :value="opt.value" v-model="scope" />
+                            {{ opt.label }}
+                        </label>
+                    </div>
                     <div class="search-overlay__actions">
                         <button class="primary-btn" type="submit">搜索</button>
                         <button class="ghost-btn" type="button" @click="$emit('close')">取消</button>
@@ -23,6 +30,7 @@
 
 <script setup>
 import { ref, watch, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 
 const props = defineProps({
     visible: {
@@ -31,14 +39,26 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['close', 'search']);
+const emit = defineEmits(['close']);
+const router = useRouter();
 
 const keyword = ref('');
+const scope = ref('all');
 const inputRef = ref(null);
 
+const scopeOptions = [
+    { value: 'all', label: '全部' },
+    { value: 'vehicles', label: '车辆' },
+    { value: 'routes', label: '线路' }
+];
+
 const handleSearch = () => {
-    emit('search', keyword.value.trim());
+    const kw = keyword.value.trim();
+    if (!kw) return;
+    emit('close');
+    router.push({ name: 'SearchResults', query: { keyword: kw, scope: scope.value } });
     keyword.value = '';
+    scope.value = 'all';
 };
 
 watch(
@@ -84,6 +104,30 @@ watch(
     h2 {
         margin: 0 0 16px;
         color: #0f172a;
+    }
+}
+
+.scope-selector {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+
+    label {
+        padding: 4px 14px;
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        font-size: 13px;
+        cursor: pointer;
+        color: #6b7280;
+        transition: all 0.15s;
+
+        &.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+        }
+
+        input { display: none; }
     }
 }
 

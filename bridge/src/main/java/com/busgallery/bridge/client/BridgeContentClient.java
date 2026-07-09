@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  */
 @FeignClient(
         name = "${bridge.content-service-name}",
+        url = "${bridge.content-service-url:}",
         contextId = "bridgeContentClient"
 )
 public interface BridgeContentClient {

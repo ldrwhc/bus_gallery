@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.BusRouteMapper">
+
+    <resultMap id="BusRouteResultMap" type="com.busgallery.busgallery.entity.BusRoute">
+        <id property="id" column="id"/>
+        <result property="routeNumber" column="route_number"/>
+        <result property="routeName" column="route_name"/>
+        <result property="subType" column="sub_type"/>
+        <result property="startStop" column="start_stop"/>
+        <result property="endStop" column="end_stop"/>
+        <result property="downStartStop" column="down_start_stop"/>
+        <result property="downEndStop" column="down_end_stop"/>
+        <result property="isLoop" column="is_loop"/>
+        <result property="routeType" column="route_type"/>
+        <result property="lineLengthKm" column="line_length_km"/>
+        <result property="ticketType" column="ticket_type"/>
+        <result property="ticketPrice" column="ticket_price"/>
+        <result property="operatingHours" column="operating_hours"/>
+        <result property="isActive" column="is_active"/>
+        <result property="firstOperated" column="first_operated"/>
+        <result property="lastOperated" column="last_operated"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <association property="region" javaType="com.busgallery.busgallery.entity.Region">
+            <id property="id" column="r_id"/>
+            <result property="name" column="r_name"/>
+        </association>
+        <association property="company" javaType="com.busgallery.busgallery.entity.Company">
+            <id property="id" column="c_id"/>
+            <result property="name" column="c_name"/>
+        </association>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, route_number, route_name, sub_type, parent_route_id,
+        start_stop, end_stop, down_start_stop, down_end_stop, is_loop,
+        region_id, company_id, route_type, line_length_km,
+        ticket_type, ticket_price, operating_hours,
+        is_active, first_operated, last_operated, remark,
+        created_at, updated_at
+    </sql>
+
+    <select id="selectById" parameterType="long" resultMap="BusRouteResultMap">
+        SELECT
+            br.*,
+            r.id AS r_id, r.name AS r_name,
+            c.id AS c_id, c.name AS c_name
+        FROM bus_route br
+        LEFT JOIN region r ON br.region_id = r.id
+        LEFT JOIN company c ON br.company_id = c.id
+        WHERE br.id = #{id}
+    </select>
+
+    <select id="selectPage" resultMap="BusRouteResultMap">
+        SELECT
+            br.*,
+            r.id AS r_id, r.name AS r_name,
+            c.id AS c_id, c.name AS c_name
+        FROM bus_route br
+        LEFT JOIN region r ON br.region_id = r.id
+        LEFT JOIN company c ON br.company_id = c.id
+        WHERE 1 = 1
+        <if test="regionId != null">
+            AND br.region_id = #{regionId}
+        </if>
+        <if test="companyId != null">
+            AND br.company_id = #{companyId}
+        </if>
+        <if test="routeType != null and routeType != ''">
+            AND br.route_type = #{routeType}
+        </if>
+        <if test="isActive != null">
+            AND br.is_active = #{isActive}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                br.route_number LIKE CONCAT('%', #{keyword}, '%')
+                OR br.route_name LIKE CONCAT('%', #{keyword}, '%')
+                OR br.start_stop LIKE CONCAT('%', #{keyword}, '%')
+                OR br.end_stop LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        ORDER BY br.route_number ASC, br.sub_type ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(1) FROM bus_route br
+        WHERE 1 = 1
+        <if test="regionId != null">
+            AND br.region_id = #{regionId}
+        </if>
+        <if test="companyId != null">
+            AND br.company_id = #{companyId}
+        </if>
+        <if test="routeType != null and routeType != ''">
+            AND br.route_type = #{routeType}
+        </if>
+        <if test="isActive != null">
+            AND br.is_active = #{isActive}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                br.route_number LIKE CONCAT('%', #{keyword}, '%')
+                OR br.route_name LIKE CONCAT('%', #{keyword}, '%')
+                OR br.start_stop LIKE CONCAT('%', #{keyword}, '%')
+                OR br.end_stop LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+    </select>
+
+    <select id="searchByKeyword" resultMap="BusRouteResultMap">
+        SELECT
+            br.*,
+            r.id AS r_id, r.name AS r_name,
+            c.id AS c_id, c.name AS c_name
+        FROM bus_route br
+        LEFT JOIN region r ON br.region_id = r.id
+        LEFT JOIN company c ON br.company_id = c.id
+        WHERE br.is_active = 1
+          AND (
+              br.route_number LIKE CONCAT('%', #{keyword}, '%')
+              OR br.route_name LIKE CONCAT('%', #{keyword}, '%')
+              OR br.start_stop LIKE CONCAT('%', #{keyword}, '%')
+              OR br.end_stop LIKE CONCAT('%', #{keyword}, '%')
+          )
+        ORDER BY br.route_number ASC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insert"
+            parameterType="com.busgallery.busgallery.entity.BusRoute"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO bus_route (
+            route_number, route_name, sub_type, parent_route_id,
+            start_stop, end_stop, down_start_stop, down_end_stop, is_loop,
+            region_id, company_id, route_type, line_length_km,
+            ticket_type, ticket_price, operating_hours,
+            is_active, first_operated, last_operated, remark
+        ) VALUES (
+            #{routeNumber}, #{routeName}, #{subType},
+            <choose>
+                <when test="parentRoute != null and parentRoute.id != null">#{parentRoute.id}</when>
+                <otherwise>NULL</otherwise>
+            </choose>,
+            #{startStop}, #{endStop}, #{downStartStop}, #{downEndStop}, #{isLoop},
+            <choose>
+                <when test="region != null and region.id != null">#{region.id}</when>
+                <otherwise>NULL</otherwise>
+            </choose>,
+            <choose>
+                <when test="company != null and company.id != null">#{company.id}</when>
+                <otherwise>NULL</otherwise>
+            </choose>,
+            #{routeType}, #{lineLengthKm},
+            #{ticketType}, #{ticketPrice}, #{operatingHours},
+            #{isActive}, #{firstOperated}, #{lastOperated}, #{remark}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.busgallery.busgallery.entity.BusRoute">
+        UPDATE bus_route SET
+            route_number    = #{routeNumber},
+            route_name      = #{routeName},
+            sub_type        = #{subType},
+            parent_route_id =
+                <choose>
+                    <when test="parentRoute != null and parentRoute.id != null">#{parentRoute.id}</when>
+                    <otherwise>NULL</otherwise>
+                </choose>,
+            start_stop      = #{startStop},
+            end_stop        = #{endStop},
+            down_start_stop = #{downStartStop},
+            down_end_stop   = #{downEndStop},
+            is_loop         = #{isLoop},
+            region_id       =
+                <choose>
+                    <when test="region != null and region.id != null">#{region.id}</when>
+                    <otherwise>NULL</otherwise>
+                </choose>,
+            company_id      =
+                <choose>
+                    <when test="company != null and company.id != null">#{company.id}</when>
+                    <otherwise>NULL</otherwise>
+                </choose>,
+            route_type      = #{routeType},
+            line_length_km  = #{lineLengthKm},
+            ticket_type     = #{ticketType},
+            ticket_price    = #{ticketPrice},
+            operating_hours = #{operatingHours},
+            is_active       = #{isActive},
+            first_operated  = #{firstOperated},
+            last_operated   = #{lastOperated},
+            remark          = #{remark}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete" parameterType="long">
+        DELETE FROM bus_route WHERE id = #{id}
+    </delete>
+
+</mapper>

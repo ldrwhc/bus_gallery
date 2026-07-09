@@ -628,6 +628,178 @@ sequenceDiagram
 - `trade_user_message`：`message_id/app_user_id/message_type/title/content/biz_record_id`
 - `trade_outbox_event`：可靠事件投递（发布状态、重试）
 
+### group 表设计
+```mermaid
+erDiagram
+    TRADE_USER_MAP {
+        bigint id PK
+        bigint app_user_id UK
+        varchar trade_user_id UK
+        varchar username_snapshot
+        varchar display_name_snapshot
+        tinyint status
+        datetime created_at
+        datetime updated_at
+    }
+
+    TRADE_GOODS {
+        bigint id PK
+        varchar goods_id UK
+        bigint image_id UK
+        bigint vehicle_id
+        bigint seller_user_id
+        varchar seller_trade_user_id
+        bigint original_price
+        bigint group_price
+        int stock_total
+        int stock_available
+        tinyint status
+    }
+
+    TRADE_ACTIVITY {
+        bigint id PK
+        bigint activity_id UK
+        varchar goods_id
+        int target_count
+        int valid_minutes
+        tinyint status
+        datetime start_time
+        datetime end_time
+    }
+
+    TRADE_ORDER_TEAM {
+        bigint id PK
+        varchar team_id UK
+        bigint activity_id
+        varchar goods_id
+        bigint owner_user_id
+        varchar owner_trade_user_id
+        int target_count
+        int lock_count
+        int complete_count
+        tinyint status
+        datetime valid_end_time
+        int version
+    }
+
+    TRADE_ORDER_ITEM {
+        bigint id PK
+        varchar order_id UK
+        varchar out_trade_no UK
+        varchar biz_id UK
+        varchar team_id
+        bigint activity_id
+        varchar goods_id
+        bigint user_id
+        varchar trade_user_id
+        tinyint order_mode
+        tinyint status
+        bigint pay_price
+    }
+
+    TRADE_OUTBOX_EVENT {
+        bigint id PK
+        varchar event_id UK
+        varchar aggregate_type
+        varchar aggregate_id
+        varchar event_type
+        varchar event_key
+        json payload_json
+        tinyint publish_status
+        int retry_count
+        datetime next_retry_at
+    }
+
+    TRADE_NOTIFY_TASK {
+        bigint id PK
+        varchar task_id UK
+        varchar biz_type
+        varchar biz_id
+        varchar notify_type
+        tinyint notify_status
+        int notify_count
+        datetime next_retry_at
+    }
+
+    TRADE_USER_RECORD {
+        bigint id PK
+        varchar record_id UK
+        varchar order_id UK
+        varchar out_trade_no
+        varchar team_id
+        bigint app_user_id
+        tinyint order_mode
+        tinyint trade_status
+        tinyint can_download
+    }
+
+    TRADE_USER_MESSAGE {
+        bigint id PK
+        varchar message_id UK
+        bigint app_user_id
+        varchar message_type
+        varchar biz_record_id
+        varchar title
+        varchar content
+        datetime created_at
+    }
+
+    TRADE_GOODS ||--o{ TRADE_ACTIVITY : "goods_id"
+    TRADE_ACTIVITY ||--o{ TRADE_ORDER_TEAM : "activity_id"
+    TRADE_ORDER_TEAM ||--o{ TRADE_ORDER_ITEM : "team_id"
+    TRADE_GOODS ||--o{ TRADE_ORDER_ITEM : "goods_id"
+    TRADE_ACTIVITY ||--o{ TRADE_ORDER_ITEM : "activity_id"
+    TRADE_ORDER_ITEM ||--|| TRADE_USER_RECORD : "order_id"
+    TRADE_USER_RECORD ||--o{ TRADE_USER_MESSAGE : "biz_record_id(业务关联)"
+    TRADE_USER_MAP ||--o{ TRADE_ORDER_ITEM : "trade_user_id(逻辑关联)"
+    TRADE_USER_MAP ||--o{ TRADE_ORDER_TEAM : "owner_trade_user_id(逻辑关联)"
+    TRADE_OUTBOX_EVENT }o--|| TRADE_ORDER_ITEM : "aggregate_id=order_id(逻辑关联)"
+    TRADE_NOTIFY_TASK }o--|| TRADE_ORDER_ITEM : "biz_id(逻辑关联)"
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant FE as 前端
+    participant Portal as Group TradePortalService
+    participant Redis as Redis
+    participant MySQL as MySQL(trade_center + bus_gallery)
+    participant Relay as OutboxRelayScheduler
+    participant MQ as RabbitMQ
+
+    FE->>Portal: POST /portal/group-buy (userId, goodsId, activityId, teamId, outTradeNo)
+    Portal->>Redis: SETNX lock:user:goods:activity (短锁)
+    alt 抢锁失败
+        Portal-->>FE: 返回“请求频繁/处理中”
+    else 抢锁成功
+        Portal->>MySQL: 查询活动/商品/队伍有效性
+        Portal->>MySQL: ensureUserNotInActiveQueue 查询是否已在有效队列
+        alt 已在队列
+            Portal-->>FE: 返回“已在拼团队列中”
+        else 可下单
+            Portal->>MySQL: BEGIN
+            Portal->>MySQL: 写 trade_order_team(新建或更新 lock_count)
+            Portal->>MySQL: 写 trade_order_item(uk_out_trade_no 幂等)
+            Portal->>MySQL: 扣减余额 bus_gallery.app_user.balance_cents
+            Portal->>MySQL: 写 trade_user_record / trade_user_message
+            Portal->>MySQL: 写 trade_outbox_event(pending)
+            Portal->>MySQL: COMMIT
+            Portal-->>FE: 返回下单成功(等待成团/已成团)
+        end
+        Portal->>Redis: DEL lock(校验requestId后释放)
+    end
+
+    loop 定时轮询
+        Relay->>MySQL: 扫描 trade_outbox_event pending/failed
+        Relay->>MQ: publish group.trade.exchange
+        alt 发送成功
+            Relay->>MySQL: 标记 published
+        else 发送失败
+            Relay->>MySQL: retry_count+1, next_retry_at 延后
+        end
+    end
+```
+
 ### 界面 / 交互说明
 交易页面是“强流程页面”：先绑定商品，再选择支付方式，再下单，再落地到消息与记录。拼团成功立即可下载，失败超时自动退款，交易记录可追溯。用户在“消息”页能看到直接下单成功、拼团中、拼团成功、拼团失败退款等状态。
 
@@ -1142,4 +1314,95 @@ ALTER TABLE bus_gallery.model
 ### I.7 下一步可继续收敛点
 1. `Q4`（图片流）若要进一步下降，需要优先优化 `vehicle_image` 聚合子查询（例如按业务改为预计算关联/减少运行时聚合）。
 2. `vehicle` 的 `ORDER BY CASE WHEN launch_date IS NULL ...` 仍建议走“生成列 + 联合索引”方案，单纯普通索引收益有限。
+
+## 附录 J：2G 生产运维手册（启动流程 + 回滚命令）
+
+### J.1 适用范围
+本手册适用于 `2G` 内存服务器，目标是优先保证业务可用性。  
+当前采用“低内存 + 去 Nacos 强依赖（直连）”运行方式：
+- 组合文件：`docker-compose.yml + docker-compose.lowmem.yml`
+- 低内存覆写文件：`docker/docker-compose.lowmem.yml`
+
+### J.2 首次上线前置检查
+1. 进入目录：
+```bash
+cd /root/code/bus_gallery/docker
+```
+2. 确认 swap（建议 2G）：
+```bash
+swapon --show
+free -h
+```
+若无 swap，执行：
+```bash
+fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+grep -q '^/swapfile ' /etc/fstab || echo '/swapfile swap swap defaults 0 0' >> /etc/fstab
+```
+3. 确认拼团库存在（避免 `group` 重启）：
+```bash
+docker exec bus-gallery-mysql mysqladmin -uroot -p123456 create trade_center || true
+cat /root/code/bus_gallery/docker/init/trade_center.sql | docker exec -i bus-gallery-mysql mysql -uroot -p123456 trade_center
+```
+
+### J.3 2G 生产启动流程（推荐）
+1. 先启动基础组件：
+```bash
+docker compose -f docker-compose.yml -f docker-compose.lowmem.yml up -d mysql redis rabbitmq minio
+```
+2. 启动业务组件（低内存模式）：
+```bash
+docker compose -f docker-compose.yml -f docker-compose.lowmem.yml up -d --no-deps backend group bridge gateway frontend
+```
+3. 若前端仍 502，重启前端刷新上游解析：
+```bash
+docker compose -f docker-compose.yml -f docker-compose.lowmem.yml restart frontend
+```
+
+### J.4 验活命令
+1. 容器状态：
+```bash
+docker compose -f docker-compose.yml -f docker-compose.lowmem.yml ps
+docker inspect bus-gallery-backend bus-gallery-group bus-gallery-bridge bus-gallery-gateway --format '{{.Name}} restart={{.RestartCount}} status={{.State.Status}}'
+```
+2. 接口探活（宿主机）：
+```bash
+wget -S -O- 'http://127.0.0.1/api/vehicles?size=1'
+wget -S -O- 'http://127.0.0.1/api/bridge/portal/teams?activityId=1000000000011&limit=5'
+```
+说明：
+- `/api/vehicles` 返回 `200` 表示内容链路可用。
+- `/api/bridge/portal/teams` 未带登录态通常返回 `401`，属于正常鉴权行为（不是 502）。
+
+### J.5 常见故障快速处理
+1. `group` 频繁重启且日志含 `Unknown database 'trade_center'`：
+```bash
+docker exec bus-gallery-mysql mysqladmin -uroot -p123456 create trade_center || true
+cat /root/code/bus_gallery/docker/init/trade_center.sql | docker exec -i bus-gallery-mysql mysql -uroot -p123456 trade_center
+docker compose -f docker-compose.yml -f docker-compose.lowmem.yml restart group
+```
+2. 前端仍报 `502 Bad Gateway`：
+```bash
+docker compose -f docker-compose.yml -f docker-compose.lowmem.yml ps
+docker logs --tail=120 bus-gallery-gateway
+docker compose -f docker-compose.yml -f docker-compose.lowmem.yml restart frontend
+```
+
+### J.6 回滚命令（恢复到原始 Nacos 模式）
+当需要回滚到“原始 compose（含 Nacos）”时执行：
+```bash
+cd /root/code/bus_gallery/docker
+
+# 停止低内存模式业务容器
+docker compose -f docker-compose.yml -f docker-compose.lowmem.yml stop gateway bridge group backend frontend
+
+# 按原始配置启动
+docker compose -f docker-compose.yml up -d
+
+# 查看状态
+docker compose -f docker-compose.yml ps
+```
+如仅需临时移除低内存覆写影响，也可直接不带 `-f docker-compose.lowmem.yml` 执行 `up/stop/restart`。
 

@@ -60,6 +60,25 @@ const router = createRouter({
             meta: { title: '上传图片', requiresAuth: true }
         },
         {
+            path: '/routes',
+            name: 'RouteCatalog',
+            component: () => import('@/views/RouteCatalog.vue'),
+            meta: { title: '线路' }
+        },
+        {
+            path: '/routes/:routeId',
+            name: 'RouteDetail',
+            component: () => import('@/views/RouteDetail.vue'),
+            props: true,
+            meta: { title: '线路详情' }
+        },
+        {
+            path: '/search',
+            name: 'SearchResults',
+            component: () => import('@/views/SearchResults.vue'),
+            meta: { title: '搜索' }
+        },
+        {
             path: '/group-buy',
             name: 'GroupBuyMarket',
             component: () => import('@/views/GroupBuyMarket.vue'),

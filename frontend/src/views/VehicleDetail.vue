@@ -59,6 +59,38 @@
                     </div>
                 </div>
 
+                <section class="info-card" v-if="routeCards.length">
+                    <h3>运营线路</h3>
+                    <div class="route-list">
+                        <div v-for="r in routeCards" :key="'r-' + r.routeId" class="route-item"
+                             :class="{ 'route-item--history': !r.isCurrent }">
+                            <div class="route-item__head">
+                                <router-link v-if="r.routeId" class="route-link"
+                                    :to="{ name: 'RouteDetail', params: { routeId: r.routeId } }">
+                                    {{ r.routeNumber }}
+                                </router-link>
+                                <strong v-else>{{ r.routeNumber }}</strong>
+                                <el-tag size="small" :type="r.isCurrent ? 'success' : 'info'">
+                                    {{ r.isCurrent ? '当前' : '历史' }}
+                                </el-tag>
+                                <el-tag v-if="r.subType" size="small" type="warning">
+                                    {{ subTypeLabel(r.subType) }}
+                                </el-tag>
+                            </div>
+                            <div class="route-item__stops">
+                                <template v-if="r.isLoop">环线</template>
+                                <template v-else-if="r.downStartStop || r.downEndStop">
+                                    上行 {{ r.startStop || '?' }} → {{ r.endStop || '?' }}
+                                    | 下行 {{ r.downStartStop || r.endStop || '?' }} → {{ r.downEndStop || r.startStop || '?' }}
+                                </template>
+                                <template v-else>
+                                    {{ r.startStop || '?' }} ↔ {{ r.endStop || '?' }}
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <el-card class="related-card" v-if="sameCompany.length">
                     <template #header>同公司其它车辆</template>
                     <el-row :gutter="12">
@@ -234,6 +266,17 @@ let pendingLikeSync = false;
 const favoriteCache = new Map();
 const favoriteLoading = new Set();
 
+const SUB_TYPE_LABELS = { INTERVAL: '区间', BRANCH: '支线', EXPRESS: '快线', NIGHT: '夜班', DIRECT: '直达' };
+const subTypeLabel = (v) => SUB_TYPE_LABELS[v] || v;
+
+const routeCards = computed(() => {
+    const routes = vehicleData.value?.vehicle?.routes || [];
+    return routes.map(r => ({
+        ...r,
+        isCurrent: r.isCurrent
+    }));
+});
+
 const isMobile = ref(false);
 const resizeHandler = () => {
     isMobile.value = window.innerWidth < 900;
@@ -286,7 +329,7 @@ const loadDetail = async (id) => {
     liked.value = false;
     likeTotal.value = 0;
     likes.value = [];
-    const detail = await store.dispatch('vehicles/loadVehicleDetail', id);
+    const detail = await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: id, force: true });
     const grouped = Array.isArray(detail?.variants) ? detail.variants : [];
     variants.value = grouped.length ? grouped : [detail];
     currentVariantIndex.value =
@@ -689,6 +732,32 @@ onBeforeUnmount(() => {
 .related-card {
     margin-top: 24px;
 }
+
+.info-card {
+    margin-top: 24px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+
+    h3 { margin: 0 0 12px; color: #0f172a; font-size: 1rem; }
+}
+
+.route-list { display: flex; flex-direction: column; gap: 8px; }
+.route-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    &--history { opacity: 0.7; background: #f8fafc; }
+}
+.route-item__head {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    strong { color: #0f172a; }
+}
+.route-link { color: #2563eb; font-weight: 700; text-decoration: none; font-size: 15px;
+    &:hover { text-decoration: underline; }
+}
+.route-item__stops { color: #475569; font-size: 13px; margin-top: 4px; }
 
 .like-bar {
     margin-top: 12px;

@@ -36,6 +36,7 @@ RUN if [ ! -f "/etc/nginx/conf.d/default.conf" ]; then echo "ERROR: default.conf
 # 复制前端构建产物
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
+EXPOSE 443
 
 # 启动Nginx
 CMD ["nginx", "-g", "daemon off;"]

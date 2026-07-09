@@ -1,0 +1,3 @@
+D:\env\QT\Tools\CMake_64\bin\cmake.exe -E rm -f CMakeFiles\BusGalleryDesktop.dir/objects.a
+D:\env\QT\Tools\mingw1310_64\bin\ar.exe qc CMakeFiles\BusGalleryDesktop.dir/objects.a @CMakeFiles\BusGalleryDesktop.dir\objects1.rsp
+D:\env\QT\Tools\mingw1310_64\bin\g++.exe -mwindows -Wl,--whole-archive CMakeFiles\BusGalleryDesktop.dir/objects.a -Wl,--no-whole-archive -o BusGalleryDesktop.exe -Wl,--out-implib,libBusGalleryDesktop.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\BusGalleryDesktop.dir\linkLibs.rsp

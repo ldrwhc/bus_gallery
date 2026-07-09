@@ -648,3 +648,95 @@ DEALLOCATE PREPARE stmt;
 UPDATE `vehicle_submission`
 SET `region_id` = COALESCE(`region_id`, `city_region_id`, `province_region_id`)
 WHERE `region_id` IS NULL;
+
+-- image.route_id: optional route reference for per-image route tagging
+SET @image_route_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'image'
+      AND COLUMN_NAME = 'route_id'
+);
+
+SET @ddl_image_route := IF(
+        @image_route_exists = 0,
+        'ALTER TABLE `image` ADD COLUMN `route_id` BIGINT UNSIGNED DEFAULT NULL COMMENT ''shot on this route'' AFTER `exif_json`',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_image_route;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @image_route_idx_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'image'
+      AND INDEX_NAME = 'idx_image_route'
+);
+
+SET @ddl_image_route_idx := IF(
+        @image_route_idx_exists = 0,
+        'ALTER TABLE `image` ADD KEY `idx_image_route` (`route_id`)',
+        'SELECT 1'
+    );
+
+PREPARE stmt FROM @ddl_image_route_idx;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- bus_route table
+CREATE TABLE IF NOT EXISTS `bus_route` (
+  `id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `route_number`    VARCHAR(32)     NOT NULL COMMENT 'route number',
+  `route_name`      VARCHAR(200)    DEFAULT NULL COMMENT 'full route name',
+  `sub_type`        VARCHAR(16)     DEFAULT NULL COMMENT 'MAIN / INTERVAL / BRANCH / EXPRESS / NIGHT / DIRECT',
+  `parent_route_id` BIGINT UNSIGNED DEFAULT NULL,
+  `start_stop`      VARCHAR(128)    DEFAULT NULL,
+  `end_stop`        VARCHAR(128)    DEFAULT NULL,
+  `down_start_stop` VARCHAR(128)    DEFAULT NULL,
+  `down_end_stop`   VARCHAR(128)    DEFAULT NULL,
+  `is_loop`         TINYINT(1)      NOT NULL DEFAULT 0,
+  `region_id`       BIGINT UNSIGNED DEFAULT NULL,
+  `company_id`      BIGINT UNSIGNED DEFAULT NULL,
+  `route_type`      VARCHAR(32)     NOT NULL DEFAULT 'REGULAR',
+  `line_length_km`  DECIMAL(7,2)    DEFAULT NULL,
+  `ticket_type`     VARCHAR(32)     DEFAULT NULL,
+  `ticket_price`    VARCHAR(64)     DEFAULT NULL,
+  `operating_hours` VARCHAR(128)    DEFAULT NULL,
+  `is_active`       TINYINT(1)      NOT NULL DEFAULT 1,
+  `first_operated`  DATE            DEFAULT NULL,
+  `last_operated`   DATE            DEFAULT NULL,
+  `remark`          VARCHAR(500)    DEFAULT NULL,
+  `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_route_number_company_sub` (`route_number`, `company_id`, `sub_type`),
+  KEY `idx_route_region`  (`region_id`),
+  KEY `idx_route_company` (`company_id`),
+  KEY `idx_route_type`    (`route_type`),
+  KEY `idx_route_number`  (`route_number`),
+  KEY `idx_route_active`  (`is_active`, `region_id`),
+  KEY `idx_route_parent`  (`parent_route_id`),
+  CONSTRAINT `fk_bus_route_region`  FOREIGN KEY (`region_id`)  REFERENCES `region`(`id`)  ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_bus_route_company` FOREIGN KEY (`company_id`) REFERENCES `company`(`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_bus_route_parent`  FOREIGN KEY (`parent_route_id`) REFERENCES `bus_route`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- vehicle_route table
+CREATE TABLE IF NOT EXISTS `vehicle_route` (
+  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `vehicle_id`    BIGINT UNSIGNED NOT NULL,
+  `route_id`      BIGINT UNSIGNED NOT NULL,
+  `is_current`    TINYINT(1)      NOT NULL DEFAULT 1,
+  `remark`        VARCHAR(256)    DEFAULT NULL,
+  `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_vehicle_route` (`vehicle_id`, `route_id`),
+  KEY `idx_vr_vehicle` (`vehicle_id`),
+  KEY `idx_vr_route`   (`route_id`),
+  KEY `idx_vr_current` (`is_current`, `route_id`),
+  CONSTRAINT `fk_vr_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicle`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_vr_route`   FOREIGN KEY (`route_id`)   REFERENCES `bus_route`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

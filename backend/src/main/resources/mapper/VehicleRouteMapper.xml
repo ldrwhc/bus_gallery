@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.busgallery.busgallery.mapper.VehicleRouteMapper">
+
+    <resultMap id="VehicleRouteResultMap" type="com.busgallery.busgallery.entity.VehicleRoute">
+        <id property="id" column="id"/>
+        <result property="isCurrent" column="is_current"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <association property="vehicle" javaType="com.busgallery.busgallery.entity.Vehicle">
+            <id property="id" column="v_id"/>
+            <result property="plateNumber" column="v_plate_number"/>
+        </association>
+        <association property="route" javaType="com.busgallery.busgallery.entity.BusRoute">
+            <id property="id" column="r_id"/>
+            <result property="routeNumber" column="r_route_number"/>
+            <result property="routeName" column="r_route_name"/>
+            <result property="subType" column="r_sub_type"/>
+            <result property="startStop" column="r_start_stop"/>
+            <result property="endStop" column="r_end_stop"/>
+            <result property="downStartStop" column="r_down_start_stop"/>
+            <result property="downEndStop" column="r_down_end_stop"/>
+            <result property="isLoop" column="r_is_loop"/>
+            <result property="routeType" column="r_route_type"/>
+        </association>
+    </resultMap>
+
+    <select id="selectByVehicleId" resultMap="VehicleRouteResultMap">
+        SELECT
+            vr.id, vr.is_current, vr.remark, vr.created_at,
+            br.id AS r_id, br.route_number AS r_route_number,
+            br.route_name AS r_route_name, br.sub_type AS r_sub_type,
+            br.start_stop AS r_start_stop, br.end_stop AS r_end_stop,
+            br.down_start_stop AS r_down_start_stop,
+            br.down_end_stop AS r_down_end_stop,
+            br.is_loop AS r_is_loop, br.route_type AS r_route_type
+        FROM vehicle_route vr
+        JOIN bus_route br ON vr.route_id = br.id
+        WHERE vr.vehicle_id = #{vehicleId}
+        ORDER BY vr.is_current DESC, vr.created_at DESC
+    </select>
+
+    <select id="selectByRouteId" resultMap="VehicleRouteResultMap">
+        SELECT
+            vr.id, vr.is_current, vr.remark, vr.created_at,
+            v.id AS v_id, v.plate_number AS v_plate_number,
+            br.id AS r_id, br.route_number AS r_route_number,
+            br.route_name AS r_route_name, br.sub_type AS r_sub_type,
+            br.start_stop AS r_start_stop, br.end_stop AS r_end_stop,
+            br.down_start_stop AS r_down_start_stop,
+            br.down_end_stop AS r_down_end_stop,
+            br.is_loop AS r_is_loop, br.route_type AS r_route_type
+        FROM vehicle_route vr
+        JOIN vehicle v ON vr.vehicle_id = v.id
+        JOIN bus_route br ON vr.route_id = br.id
+        WHERE vr.route_id = #{routeId}
+        ORDER BY vr.is_current DESC, vr.created_at DESC
+    </select>
+
+    <select id="selectByVehicleAndRoute" resultMap="VehicleRouteResultMap">
+        SELECT
+            vr.id, vr.is_current, vr.remark, vr.created_at,
+            br.id AS r_id, br.route_number AS r_route_number,
+            br.route_name AS r_route_name, br.sub_type AS r_sub_type,
+            br.start_stop AS r_start_stop, br.end_stop AS r_end_stop,
+            br.down_start_stop AS r_down_start_stop,
+            br.down_end_stop AS r_down_end_stop,
+            br.is_loop AS r_is_loop, br.route_type AS r_route_type
+        FROM vehicle_route vr
+        JOIN bus_route br ON vr.route_id = br.id
+        WHERE vr.vehicle_id = #{vehicleId}
+          AND vr.route_id = #{routeId}
+    </select>
+
+    <insert id="insert"
+            parameterType="com.busgallery.busgallery.entity.VehicleRoute"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO vehicle_route (vehicle_id, route_id, is_current, remark)
+        VALUES (
+            #{vehicle.id},
+            #{route.id},
+            #{isCurrent},
+            #{remark}
+        )
+    </insert>
+
+    <delete id="delete" parameterType="long">
+        DELETE FROM vehicle_route WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByVehicleId" parameterType="long">
+        DELETE FROM vehicle_route WHERE vehicle_id = #{vehicleId}
+    </delete>
+
+    <delete id="deleteByRouteId" parameterType="long">
+        DELETE FROM vehicle_route WHERE route_id = #{routeId}
+    </delete>
+
+    <delete id="deleteByVehicleAndRoute">
+        DELETE FROM vehicle_route
+        WHERE vehicle_id = #{vehicleId} AND route_id = #{routeId}
+    </delete>
+
+</mapper>

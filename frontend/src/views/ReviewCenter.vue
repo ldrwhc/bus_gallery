@@ -312,6 +312,25 @@
                 <el-form-item label="空调"><el-switch v-model="manageForm.airConditioned" /></el-form-item>
                 <el-form-item label="来源"><el-input v-model="manageForm.source" /></el-form-item>
                 <el-form-item label="备注"><el-input v-model="manageForm.remark" type="textarea" /></el-form-item>
+                <el-form-item label="关联线路">
+                    <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+                        <div v-for="(ra, idx) in manageForm.routes" :key="idx" style="display:flex;gap:8px;align-items:center">
+                            <el-autocomplete
+                                v-model="ra.routeNumber"
+                                placeholder="输入或搜索线路号"
+                                :fetch-suggestions="(kw, cb) => queryManageRouteSuggestions(kw, cb)"
+                                @select="(item) => selectManageRoute(idx, item)"
+                                style="flex:1"
+                                :disabled="manageEditLoading"
+                                clearable
+                            />
+                            <el-switch v-model="ra.isCurrent" active-text="当前" size="small" :disabled="manageEditLoading" />
+                            <el-button type="danger" size="small" text @click="manageForm.routes.splice(idx,1)" :disabled="manageEditLoading">×</el-button>
+                        </div>
+                        <el-button size="small" @click="manageForm.routes.push({ routeId: null, routeNumber: '', isCurrent: true, remark: '' })" :disabled="manageEditLoading">+ 关联已有线路</el-button>
+                        <el-button size="small" type="primary" @click="openManageRouteCreate" :disabled="manageEditLoading">+ 创建新线路</el-button>
+                    </div>
+                </el-form-item>
                 <h3>配置信息</h3>
                 <el-row v-if="showManageMotorField || showManageEngineField" :gutter="12">
                     <el-col v-if="showManageMotorField" :sm="showManageEngineField ? 12 : 24" :xs="24"><el-form-item label="电机"><el-input v-model="manageForm.config.motor" /></el-form-item></el-col>
@@ -343,6 +362,9 @@
                 </div>
             </template>
         </el-dialog>
+        <RouteCreateDialog v-model="manageRouteCreateVisible" :prefillRouteNumber="manageRoutePrefillNumber"
+            :prefillRegionId="manageForm.regionId" :prefillCompanyId="manageForm.companyId"
+            @created="onManageRouteCreated" />
     </div>
 </template>
 
@@ -352,6 +374,8 @@ import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { approveSubmission, fetchPendingSubmissions, rejectSubmission } from '@/api/reviews';
+import { fetchRoutes } from '@/api/routes';
+import RouteCreateDialog from '@/components/Route/RouteCreateDialog.vue';
 import { batchDeleteVehicles, deleteVehicle, fetchManageVehiclePage, fetchVehicleGalleryDetail, updateVehicle } from '@/api/vehicles';
 import { FUEL_OPTIONS, isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
 import RegionSelector from '@/components/Region/RegionSelector.vue';
@@ -405,6 +429,56 @@ const fuelOptions = FUEL_OPTIONS;
 const brandOptions = computed(() => store.getters['brands/brandOptions'] || []);
 const modelOptions = computed(() => store.getters['models/modelOptions'] || []);
 const companyOptions = computed(() => store.getters['companies/companyOptions'] || []);
+const routeOptions = computed(() => store.getters['routes/routeOptions'] || []);
+
+const manageRouteCreateVisible = ref(false);
+const manageRoutePrefillNumber = ref('');
+let manageRouteAbort = null;
+
+const queryManageRouteSuggestions = (keyword, cb) => {
+    if (manageRouteAbort) manageRouteAbort.abort();
+    const controller = new AbortController();
+    manageRouteAbort = controller;
+    const kw = (keyword || '').trim();
+    const params = { keyword: kw, size: 8, isActive: true };
+    if (manageForm.regionId) params.regionId = manageForm.regionId;
+    if (manageForm.companyId) params.companyId = manageForm.companyId;
+    fetchRoutes(params, controller.signal)
+        .then(resp => {
+            const items = (Array.isArray(resp?.records) ? resp.records : (Array.isArray(resp) ? resp : [])).map(r => ({
+                value: r.routeNumber, id: r.id, routeNumber: r.routeNumber,
+                startStop: r.startStop, endStop: r.endStop, companyName: r.companyName
+            }));
+            if (!items.length && kw) {
+                items.push({ value: kw, id: '__new__', routeNumber: kw, __hint: true });
+            }
+            cb(items);
+        })
+        .catch(() => { if (controller.signal.aborted) return; cb([]); });
+};
+
+const selectManageRoute = (idx, item) => {
+    if (!item) return;
+    if (item.id === '__new__') {
+        manageRoutePrefillNumber.value = item.routeNumber || '';
+        manageRouteCreateVisible.value = true;
+        manageForm.routes.splice(idx, 1);
+        return;
+    }
+    manageForm.routes[idx].routeId = item.id;
+    manageForm.routes[idx].routeNumber = item.routeNumber || item.value;
+};
+
+const openManageRouteCreate = () => {
+    manageRoutePrefillNumber.value = '';
+    manageRouteCreateVisible.value = true;
+};
+
+const onManageRouteCreated = (saved) => {
+    if (saved?.id) {
+        manageForm.routes.push({ routeId: saved.id, routeNumber: saved.routeNumber, isCurrent: true, remark: '' });
+    }
+};
 const regions = computed(() => store.state.regions.list || []);
 const previewImageList = computed(() => {
     const imageUrl = selected.value?.imageUrl;
@@ -465,7 +539,8 @@ const blankPayload = () => ({
         suspension: '',
         axle: '',
         otherConfigs: ''
-    }
+    },
+    routes: []
 });
 
 const form = reactive(blankPayload());
@@ -494,8 +569,10 @@ const fillManageForm = (payload = {}) => {
     base.config.fuelType = normalizeFuelType(base.config.fuelType || '');
     base.factoryDate = toMonthValue(base.factoryDate);
     base.launchDate = toMonthValue(base.launchDate);
+    base.routes = Array.isArray(payload?.routes) ? payload.routes.map(r => ({...r})) : [];
     Object.assign(manageForm, base);
     manageForm.config = base.config;
+    manageForm.routes = base.routes;
 };
 
 const selectSubmission = (item) => {
@@ -735,6 +812,7 @@ const toEditableManagePayload = (detail) => {
     const vehicle = detail?.vehicle || {};
     const config = detail?.vehicleConfig || {};
     const images = Array.isArray(detail?.images) ? detail.images : [];
+    const vehicleRoutes = Array.isArray(vehicle.routes) ? vehicle.routes : [];
     return {
         vehicleId: vehicle.id || null,
         plateNumber: vehicle.plateNumber || '',
@@ -752,6 +830,12 @@ const toEditableManagePayload = (detail) => {
         launchDate: toMonthValue(vehicle.launchDate),
         airConditioned: Boolean(vehicle.airConditioned),
         source: vehicle.source || '',
+        routes: vehicleRoutes.map(vr => ({
+            routeId: vr.routeId,
+            routeNumber: vr.routeNumber || '',
+            isCurrent: vr.isCurrent != null ? vr.isCurrent : true,
+            remark: ''
+        })),
         remark: vehicle.remark || '',
         imageIds: images.map((img) => img?.id).filter(Boolean),
         config: {
@@ -776,6 +860,7 @@ const openManageEdit = async (row) => {
     manageDialogVisible.value = true;
     manageEditLoading.value = true;
     try {
+        store.dispatch('routes/loadRoutes', { size: 500 }).catch(() => {});
         const detail = await fetchVehicleGalleryDetail(id);
         fillManageForm(toEditableManagePayload(detail));
     } catch (error) {

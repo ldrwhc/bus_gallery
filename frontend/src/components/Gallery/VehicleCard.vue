@@ -14,6 +14,10 @@
             </h3>
 
             <ul class="meta-list">
+                <li v-if="routeText">
+                    <span class="label">线路：</span>
+                    <span>{{ routeText }}</span>
+                </li>
                 <li>
                     <span class="label">车型：</span>
                     <span>{{ vehicle?.model?.name || '未知车型' }}</span>
@@ -157,6 +161,16 @@ const next = () => {
 const handleOpen = () => {
     emit('view-detail', vehicle.value?.id || props.vehicle?.id);
 };
+
+const routeText = computed(() => {
+  const routes = vehicle.value?.routes || [];
+  if (!routes.length) return '';
+  const current = routes.filter(r => r.isCurrent);
+  const list = current.length ? current : routes;
+  const names = list.map(r => r.routeNumber).slice(0, 3);
+  const suffix = routes.length > 3 ? ` 等${routes.length}条` : '';
+  return names.join(' / ') + suffix;
+});
 
 const formattedLaunchDate = computed(() =>
     formatYearMonth(vehicle.value?.launchDate)

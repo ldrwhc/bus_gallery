@@ -1,0 +1,20 @@
+=== CONFIG REWRITE ===
+OUT: Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+OK
+
+=== ACL user in redis.conf ===
+OUT: # ACL user rule
+user default on >12345678 ~* &* +@all -@hyperloglog
+
+=== ACL LIST ===
+OUT: Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+user default on #ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f ~* &* +@all -@hyperloglog
+
+=== PFADD test ===
+OUT: Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+NOPERM this user has no permissions to run the 'pfadd' command
+
+=== PING ===
+OUT: Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+PONG
+=== DONE ===

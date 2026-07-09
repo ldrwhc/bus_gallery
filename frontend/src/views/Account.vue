@@ -116,7 +116,7 @@ const openImage = async (image) => {
     if (image?.vehicleId) {
         activeVehicleId.value = image.vehicleId;
         try {
-            await store.dispatch('vehicles/loadVehicleDetail', image.vehicleId);
+            await store.dispatch('vehicles/loadVehicleDetail', { vehicleId: image.vehicleId, force: true });
             return;
         } catch (error) {
             console.error(error);

@@ -240,7 +240,8 @@ const openCard = async (card) => {
     try {
         await store.dispatch('vehicles/loadVehicleDetail', {
             vehicleId: card.vehicleId,
-            plateNumber: card.plateNumber
+            plateNumber: card.plateNumber,
+            force: true
         });
     } catch (error) {
         console.error(error);

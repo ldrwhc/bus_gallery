@@ -204,6 +204,82 @@
                         </el-table>
                     </el-tab-pane>
 
+                    <el-tab-pane label="线路表" name="routes">
+                        <div class="row-between">
+                            <div>
+                                <p class="muted">公交线路基础表，支持按城市/公司/类型筛选。</p>
+                                <div class="filter-bar" style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+                                    <el-select v-model="routeFilter.regionId" placeholder="城市" clearable filterable size="small"
+                                               style="width:140px" @change="loadAdminRoutes">
+                                        <el-option v-for="r in regionOptions" :key="r.value" :label="r.label" :value="r.value" />
+                                    </el-select>
+                                    <el-select v-model="routeFilter.companyId" placeholder="公司" clearable filterable size="small"
+                                               style="width:150px" @change="loadAdminRoutes">
+                                        <el-option v-for="c in companyOptions" :key="c.value" :label="c.label" :value="c.value" />
+                                    </el-select>
+                                    <el-select v-model="routeFilter.routeType" placeholder="类型" clearable size="small"
+                                               style="width:120px" @change="loadAdminRoutes">
+                                        <el-option label="常规" value="REGULAR" />
+                                        <el-option label="BRT" value="BRT" />
+                                        <el-option label="机场" value="AIRPORT" />
+                                        <el-option label="旅游" value="TOURIST" />
+                                        <el-option label="微循环" value="COMMUNITY" />
+                                        <el-option label="地铁接驳" value="SUBWAY" />
+                                    </el-select>
+                                    <el-input v-model="routeFilter.keyword" placeholder="搜索线路号" clearable size="small"
+                                              style="width:170px" @keyup.enter="loadAdminRoutes" />
+                                    <el-radio-group v-model="routeFilter.isActive" size="small" @change="loadAdminRoutes">
+                                        <el-radio-button :value="true">运营中</el-radio-button>
+                                        <el-radio-button :value="undefined">全部</el-radio-button>
+                                    </el-radio-group>
+                                </div>
+                            </div>
+                            <div class="toolbar-actions">
+                                <el-button type="primary" size="small" @click="openRouteEditor()">新增线路</el-button>
+                                <el-button type="danger" plain size="small" :loading="batchDeleting.routes"
+                                           :disabled="!selectedRouteIds.length" @click="removeSelectedRoutes">
+                                    批量删除
+                                </el-button>
+                            </div>
+                        </div>
+                        <el-table :data="adminRouteRows" stripe @selection-change="handleRouteSelectionChange" v-loading="adminRoutesLoading">
+                            <el-table-column type="selection" width="48" />
+                            <el-table-column prop="id" label="ID" width="60" />
+                            <el-table-column prop="routeNumber" label="线路号" min-width="100" />
+                            <el-table-column label="形式" width="70">
+                                <template #default="{ row }">{{ subTypeLabel(row.subType) }}</template>
+                            </el-table-column>
+                            <el-table-column label="首末站" min-width="200">
+                                <template #default="{ row }">
+                                    <template v-if="row.isLoop">环线</template>
+                                    <template v-else>{{ row.startStop || '-' }} ↔ {{ row.endStop || '-' }}</template>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="公司" min-width="120">
+                                <template #default="{ row }">{{ row.companyName || '-' }}</template>
+                            </el-table-column>
+                            <el-table-column label="城市" min-width="90">
+                                <template #default="{ row }">{{ row.regionName || '-' }}</template>
+                            </el-table-column>
+                            <el-table-column label="类型" width="80">
+                                <template #default="{ row }">{{ routeTypeLabel(row.routeType) }}</template>
+                            </el-table-column>
+                            <el-table-column label="状态" width="70">
+                                <template #default="{ row }">
+                                    <el-tag size="small" :type="row.isActive ? 'success' : 'info'">
+                                        {{ row.isActive ? '运营' : '停运' }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="140" fixed="right">
+                                <template #default="{ row }">
+                                    <el-button size="small" @click="openRouteEditor(row)">编辑</el-button>
+                                    <el-button size="small" type="danger" @click="removeAdminRoute(row)">删除</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </el-tab-pane>
+
                     <el-tab-pane label="异常图片" name="images">
                         <div class="row-between">
                             <p class="muted">检查未关联车辆的图片，以及 MinIO 原图或缩略图已丢失的异常记录。</p>
@@ -273,13 +349,14 @@
                         <p class="muted">按图片维度配置原图价格、拼团折扣、成团人数和成团时限。</p>
                     </div>
                     <div class="toolbar-actions">
-                        <span class="muted">已勾选 {{ selectedGroupParamGoodsIds.length }} 条</span>
+                        <el-input v-model="groupParamKeyword" placeholder="搜索图片ID/车牌/goodsId" clearable size="small" style="width:240px" />
+                        <span class="muted">显示 {{ filteredGroupParamRows.length }} / {{ groupParamRows.length }} 条</span>
                         <el-button :loading="groupParamsLoading" @click="loadGroupParams">刷新配置</el-button>
                     </div>
                 </header>
                 <div v-if="groupParamsLoading" class="state">正在加载拼团配置...</div>
                 <div v-else-if="!groupParamRows.length" class="state">暂无可配置的图片商品</div>
-                <el-table v-else :data="groupParamRows" stripe @selection-change="handleGroupParamSelectionChange">
+                <el-table v-else :data="paginatedGroupParamRows" stripe @selection-change="handleGroupParamSelectionChange">
                     <el-table-column type="selection" width="48" />
                     <el-table-column prop="imageId" label="图片ID" width="120" />
                     <el-table-column prop="imageName" label="图片名(车牌)" min-width="180" />
@@ -308,6 +385,16 @@
                         </template>
                     </el-table-column>
                 </el-table>
+                <div v-if="filteredGroupParamRows.length > groupParamPageSize" class="pagination-wrap" style="margin-top:14px;display:flex;justify-content:center">
+                    <el-pagination
+                        background
+                        layout="prev, pager, next, total"
+                        :current-page="groupParamPage"
+                        :page-size="groupParamPageSize"
+                        :total="filteredGroupParamRows.length"
+                        @current-change="(p) => groupParamPage = p"
+                    />
+                </div>
             </section>
 
             <section class="card">
@@ -429,6 +516,102 @@
             </template>
         </el-dialog>
 
+        <el-dialog v-model="routeEditor.visible" :title="routeEditor.id ? '编辑线路' : '新增线路'" width="620px" destroy-on-close>
+            <el-form label-position="top">
+                <el-row :gutter="12">
+                    <el-col :span="12">
+                        <el-form-item label="线路号"><el-input v-model="routeEditor.routeNumber" placeholder="如 1路" /></el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="线路全称"><el-input v-model="routeEditor.routeName" placeholder="1路（老山→四惠）" /></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="8">
+                        <el-form-item label="线路形式">
+                            <el-select v-model="routeEditor.subType" clearable placeholder="主线">
+                                <el-option label="主线" :value="null" />
+                                <el-option v-for="(v,k) in SUB_TYPE_MAP" :key="k" :label="v" :value="k" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="公交类型">
+                            <el-select v-model="routeEditor.routeType">
+                                <el-option v-for="(v,k) in RTYPE_MAP" :key="k" :label="v" :value="k" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="父线路">
+                            <el-select v-model="routeEditor.parentRouteId" clearable filterable placeholder="选择主线">
+                                <el-option v-for="r in adminRouteRows" :key="r.id" :label="r.routeNumber" :value="r.id" />
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="12">
+                        <el-form-item label="起点站"><el-input v-model="routeEditor.startStop" /></el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="终点站"><el-input v-model="routeEditor.endStop" /></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="12">
+                        <el-form-item label="下行起点"><el-input v-model="routeEditor.downStartStop" placeholder="不对称时填写" /></el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="下行终点"><el-input v-model="routeEditor.downEndStop" placeholder="不对称时填写" /></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="8">
+                        <el-form-item label="环线"><el-switch v-model="routeEditor.isLoop" /></el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="运营中"><el-switch v-model="routeEditor.isActive" /></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="8">
+                        <el-form-item label="城市"><el-select v-model="routeEditor.regionId" clearable filterable><el-option v-for="r in regionOptions" :key="r.value" :label="r.label" :value="r.value" /></el-select></el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="公司"><el-select v-model="routeEditor.companyId" clearable filterable><el-option v-for="c in companyOptions" :key="c.value" :label="c.label" :value="c.value" /></el-select></el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="线路长度(km)"><el-input v-model="routeEditor.lineLengthKm" placeholder="如 12.5" /></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="8">
+                        <el-form-item label="票制"><el-select v-model="routeEditor.ticketType" clearable><el-option label="一票制" value="FLAT" /><el-option label="分段计价" value="SECTIONAL" /><el-option label="免费" value="FREE" /></el-select></el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="票价"><el-input v-model="routeEditor.ticketPrice" placeholder="如 2元" /></el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="运营时间"><el-input v-model="routeEditor.operatingHours" placeholder="如 06:00-22:30" /></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="12">
+                        <el-form-item label="开通日期"><el-date-picker v-model="routeEditor.firstOperated" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="停运日期"><el-date-picker v-model="routeEditor.lastOperated" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-form-item label="备注"><el-input v-model="routeEditor.remark" type="textarea" /></el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="routeEditor.visible = false">取消</el-button>
+                <el-button type="primary" :loading="routeEditor.saving" @click="saveRoute">保存</el-button>
+            </template>
+        </el-dialog>
+
         <el-dialog v-model="groupParamEditor.visible" title="拼团参数设置" width="640px" destroy-on-close>
             <el-form label-position="top">
                 <el-form-item label="图片ID">
@@ -514,21 +697,25 @@ import {
     batchDeleteAdminCompanies,
     batchDeleteAdminModels,
     batchDeleteAdminRegions,
+    batchDeleteAdminRoutes,
     createAdminBrand,
     createAdminCompany,
     createAdminModel,
     createAdminRegion,
+    createAdminRoute,
     deleteAdminBrand,
     deleteAdminComment,
     deleteAdminCompany,
     deleteAdminModel,
     deleteAdminRegion,
+    deleteAdminRoute,
     fetchAdminBrands,
     fetchAdminComments,
     fetchAdminCompanies,
     fetchAdminModels,
     fetchAdminOverview,
     fetchAdminRegions,
+    fetchAdminRoutes,
     fetchAdminSuspectImages,
     fetchAdminUsers,
     cleanupAdminSuspectImages,
@@ -536,6 +723,7 @@ import {
     updateAdminCompany,
     updateAdminModel,
     updateAdminRegion,
+    updateAdminRoute,
     updateAdminUserRole
 } from '@/api/admin';
 
@@ -562,7 +750,32 @@ const commentAdmin = reactive({
 });
 const groupParamsLoading = ref(false);
 const groupParamRows = ref([]);
+const groupParamKeyword = ref('');
 const selectedGroupParamGoodsIds = ref([]);
+
+const groupParamPage = ref(1);
+const groupParamPageSize = 10;
+
+const filteredGroupParamRows = computed(() => {
+    const kw = (groupParamKeyword.value || '').trim().toLowerCase();
+    let rows = groupParamRows.value;
+    if (kw) {
+        rows = rows.filter(r =>
+            String(r.imageId || '').includes(kw) ||
+            String(r.imageName || '').toLowerCase().includes(kw) ||
+            String(r.goodsId || '').toLowerCase().includes(kw)
+        );
+    }
+    return rows;
+});
+
+const paginatedGroupParamRows = computed(() => {
+    const start = (groupParamPage.value - 1) * groupParamPageSize;
+    return filteredGroupParamRows.value.slice(start, start + groupParamPageSize);
+});
+
+watch(groupParamKeyword, () => { groupParamPage.value = 1; });
+
 const groupParamEditor = reactive({
     visible: false,
     saving: false,
@@ -611,6 +824,7 @@ const batchDeleting = reactive({
     companies: false,
     brands: false,
     models: false,
+    routes: false,
     comments: false,
     suspects: false
 });
@@ -805,6 +1019,7 @@ const reloadAll = async () => {
             loadModelTable(),
             loadGroupParams(),
             loadAdminComments(commentAdmin.page),
+            activeTab.value === 'routes' ? loadAdminRoutes() : Promise.resolve(),
             activeTab.value === 'images' ? loadSuspectImages() : Promise.resolve()
         ]);
     } catch (error) {
@@ -840,6 +1055,112 @@ const openBrandEditor = (row = null) => {
     brandEditor.chnName = row?.chnName || '';
     brandEditor.description = row?.description || '';
 };
+const SUB_TYPE_MAP = { INTERVAL: '区间', BRANCH: '支线', EXPRESS: '快线', NIGHT: '夜班', DIRECT: '直达' };
+const RTYPE_MAP = { REGULAR: '常规', BRT: '快速公交', AIRPORT: '机场', TOURIST: '旅游', COMMUNITY: '微循环', SUBWAY: '地铁接驳' };
+const subTypeLabel = (v) => SUB_TYPE_MAP[v] || '';
+const routeTypeLabel = (v) => RTYPE_MAP[v] || v;
+
+const adminRouteRows = ref([]);
+const adminRoutesLoading = ref(false);
+const selectedRouteIds = ref([]);
+
+const routeFilter = reactive({
+    regionId: null, companyId: null, routeType: null, keyword: '', isActive: true
+});
+
+const routeEditor = reactive({
+    visible: false, saving: false, id: null,
+    routeNumber: '', routeName: '', subType: null, parentRouteId: null,
+    startStop: '', endStop: '', downStartStop: '', downEndStop: '',
+    isLoop: false, regionId: null, companyId: null, routeType: 'REGULAR',
+    lineLengthKm: '', ticketType: null, ticketPrice: '', operatingHours: '',
+    isActive: true, firstOperated: null, lastOperated: null, remark: ''
+});
+
+const loadAdminRoutes = async () => {
+    adminRoutesLoading.value = true;
+    try {
+        const list = await fetchAdminRoutes({
+            regionId: routeFilter.regionId || undefined,
+            companyId: routeFilter.companyId || undefined,
+            routeType: routeFilter.routeType || undefined,
+            keyword: routeFilter.keyword || undefined,
+            isActive: routeFilter.isActive
+        });
+        adminRouteRows.value = Array.isArray(list) ? list : [];
+        selectedRouteIds.value = [];
+    } finally {
+        adminRoutesLoading.value = false;
+    }
+};
+
+const openRouteEditor = (row = null) => {
+    routeEditor.visible = true;
+    routeEditor.id = row?.id || null;
+    routeEditor.routeNumber = row?.routeNumber || '';
+    routeEditor.routeName = row?.routeName || '';
+    routeEditor.subType = row?.subType || null;
+    routeEditor.parentRouteId = row?.parentRouteId || null;
+    routeEditor.startStop = row?.startStop || '';
+    routeEditor.endStop = row?.endStop || '';
+    routeEditor.isLoop = row?.isLoop || false;
+    routeEditor.regionId = row?.regionId || null;
+    routeEditor.companyId = row?.companyId || null;
+    routeEditor.routeType = row?.routeType || 'REGULAR';
+    routeEditor.lineLengthKm = row?.lineLengthKm != null ? String(row.lineLengthKm) : '';
+    routeEditor.ticketType = row?.ticketType || null;
+    routeEditor.ticketPrice = row?.ticketPrice || '';
+    routeEditor.operatingHours = row?.operatingHours || '';
+    routeEditor.isActive = row?.isActive == null ? true : row.isActive;
+    routeEditor.firstOperated = row?.firstOperated || null;
+    routeEditor.lastOperated = row?.lastOperated || null;
+    routeEditor.remark = row?.remark || '';
+};
+
+const saveRoute = async () => {
+    if (!routeEditor.routeNumber.trim()) { ElMessage.warning('线路号不能为空'); return; }
+    routeEditor.saving = true;
+    try {
+        const payload = {
+            routeNumber: routeEditor.routeNumber.trim(), routeName: routeEditor.routeName || null,
+            subType: routeEditor.subType || null, parentRouteId: routeEditor.parentRouteId || null,
+            startStop: routeEditor.startStop || null, endStop: routeEditor.endStop || null,
+            downStartStop: routeEditor.downStartStop || null, downEndStop: routeEditor.downEndStop || null,
+            isLoop: routeEditor.isLoop, regionId: routeEditor.regionId, companyId: routeEditor.companyId,
+            routeType: routeEditor.routeType, lineLengthKm: routeEditor.lineLengthKm ? Number(routeEditor.lineLengthKm) : null,
+            ticketType: routeEditor.ticketType || null, ticketPrice: routeEditor.ticketPrice || null,
+            operatingHours: routeEditor.operatingHours || null, isActive: routeEditor.isActive,
+            firstOperated: routeEditor.firstOperated || null, lastOperated: routeEditor.lastOperated || null,
+            remark: routeEditor.remark || null
+        };
+        if (routeEditor.id) await updateAdminRoute(routeEditor.id, payload);
+        else await createAdminRoute(payload);
+        routeEditor.visible = false;
+        await loadAdminRoutes();
+        ElMessage.success('线路保存成功');
+    } catch (e) { ElMessage.error(e?.message || '保存失败'); }
+    finally { routeEditor.saving = false; }
+};
+
+const handleRouteSelectionChange = (rows) => {
+    selectedRouteIds.value = (rows || []).map(r => Number(r.id)).filter(id => id > 0);
+};
+
+const removeAdminRoute = (row) =>
+    confirmDelete(`确认删除线路「${row.routeNumber}」吗？`, async () => {
+        await deleteAdminRoute(row.id);
+        await loadAdminRoutes();
+        ElMessage.success('线路已删除');
+    }).catch(() => {});
+
+const removeSelectedRoutes = () =>
+    runBatchDelete({
+        ids: selectedRouteIds.value, loadingKey: 'routes',
+        request: batchDeleteAdminRoutes, reload: loadAdminRoutes,
+        label: '线路批量删除',
+        confirmMessage: `确认删除选中的 ${selectedRouteIds.value.length} 条线路吗？`
+    });
+
 const openModelEditor = (row = null) => {
     modelEditor.visible = true;
     modelEditor.id = row?.id || null;
@@ -1239,6 +1560,10 @@ const refreshTabData = async (tab) => {
     }
     if (tab === 'models') {
         await Promise.all([loadBrandTable(), loadModelTable()]);
+        return;
+    }
+    if (tab === 'routes') {
+        await loadAdminRoutes();
         return;
     }
     if (tab === 'images') {

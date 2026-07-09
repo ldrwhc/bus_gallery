@@ -229,6 +229,34 @@
                 </el-col>
             </el-row>
 
+            <el-row :gutter="16">
+                <el-col :span="24">
+                    <el-form-item label="关联线路">
+                        <div style="display:flex;flex-direction:column;gap:6px;width:100%">
+                            <div v-for="(ra, idx) in form.routes" :key="idx" style="display:flex;gap:6px;align-items:center">
+                                <el-autocomplete
+                                    v-model="ra.routeNumber"
+                                    placeholder="输入或搜索线路号"
+                                    :fetch-suggestions="(kw, cb) => queryUploadRouteSuggestions(kw, cb)"
+                                    @select="(item) => selectUploadRoute(idx, item)"
+                                    style="flex:1"
+                                    size="small"
+                                    clearable
+                                />
+                                <el-switch v-model="ra.isCurrent" active-text="当前" size="small" />
+                                <el-button type="danger" size="small" text @click="form.routes.splice(idx,1)">×</el-button>
+                            </div>
+                            <el-button size="small" @click="form.routes.push({ routeId: null, routeNumber: '', isCurrent: true, remark: '' })">+ 关联已有线路</el-button>
+                            <el-button size="small" type="primary" @click="openUploadRouteCreate">+ 创建新线路</el-button>
+                        </div>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+
+            <RouteCreateDialog v-model="uploadRouteCreateVisible" :prefillRouteNumber="uploadRoutePrefillNumber"
+                :prefillRegionId="form.regionId" :prefillCompanyId="form.companyId"
+                @created="onUploadRouteCreated" />
+
             <div v-if="submitStage !== 'idle'" class="submit-progress">
                 <div class="submit-progress__meta">
                     <span>{{ progressLabel }}</span>
@@ -256,6 +284,8 @@
 import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
+import { fetchRoutes } from '@/api/routes';
+import RouteCreateDialog from '@/components/Route/RouteCreateDialog.vue';
 import {
     cancelVehicleChunkUpload,
     completeVehicleChunkUpload,
@@ -294,6 +324,7 @@ const form = reactive({
     factoryDate: '',
     launchDate: '',
     airConditioned: true,
+    routes: [],
     config: initialConfig()
 });
 
@@ -304,6 +335,7 @@ const companyText = ref('');
 const brandOptions = computed(() => store.getters['brands/brandOptions'] || []);
 const modelOptions = computed(() => store.getters['models/modelOptions'] || []);
 const companyOptions = computed(() => store.getters['companies/companyOptions'] || []);
+const uploadRouteOptions = computed(() => store.getters['routes/routeOptions'] || []);
 const regionOptions = computed(() => store.getters['regions/regionOptions'] || []);
 
 const regionsList = computed(() => store.state.regions.list || []);
@@ -389,9 +421,13 @@ const toSuggestion = (option) => ({
     id: option.value
 });
 
-const makeSuggestionFetcher = (optionsRef) => (queryString, cb) => {
+const makeSuggestionFetcher = (optionsRef, regionFilter = false) => (queryString, cb) => {
     const keyword = (queryString || '').trim().toLowerCase();
-    const results = optionsRef.value
+    let list = optionsRef.value;
+    if (regionFilter && form.regionId) {
+        list = list.filter(o => o.regionId === form.regionId || o.regionId == null);
+    }
+    const results = list
         .filter((option) => !keyword || option.label.toLowerCase().includes(keyword))
         .slice(0, 8)
         .map(toSuggestion);
@@ -400,7 +436,7 @@ const makeSuggestionFetcher = (optionsRef) => (queryString, cb) => {
 
 const queryBrandSuggestions = makeSuggestionFetcher(brandOptions);
 const queryModelSuggestions = makeSuggestionFetcher(modelOptions);
-const queryCompanySuggestions = makeSuggestionFetcher(companyOptions);
+const queryCompanySuggestions = makeSuggestionFetcher(companyOptions, true);
 
 const handleBrandSelect = (item = {}) => {
     form.brandId = item.id || null;
@@ -451,6 +487,55 @@ const modelHint = computed(() => {
         ? `已匹配车型：${modelOptions.value.find((item) => item.value === form.modelId)?.label}`
         : '系统暂无该车型，提交后将自动创建';
 });
+
+const uploadRouteCreateVisible = ref(false);
+const uploadRoutePrefillNumber = ref('');
+let uploadRouteAbort = null;
+
+const queryUploadRouteSuggestions = (keyword, cb) => {
+    if (uploadRouteAbort) uploadRouteAbort.abort();
+    const controller = new AbortController();
+    uploadRouteAbort = controller;
+    const kw = (keyword || '').trim();
+    const params = { keyword: kw, size: 8, isActive: true };
+    if (form.regionId) params.regionId = form.regionId;
+    if (form.companyId) params.companyId = form.companyId;
+    fetchRoutes(params, controller.signal)
+        .then(resp => {
+            const items = (Array.isArray(resp?.records) ? resp.records : (Array.isArray(resp) ? resp : [])).map(r => ({
+                value: r.routeNumber, id: r.id, routeNumber: r.routeNumber,
+                startStop: r.startStop, endStop: r.endStop, companyName: r.companyName
+            }));
+            if (!items.length && kw) {
+                items.push({ value: kw, id: '__new__', routeNumber: kw, __hint: true });
+            }
+            cb(items);
+        })
+        .catch(() => { if (controller.signal.aborted) return; cb([]); });
+};
+
+const selectUploadRoute = (idx, item) => {
+    if (!item) return;
+    if (item.id === '__new__') {
+        uploadRoutePrefillNumber.value = item.routeNumber || '';
+        uploadRouteCreateVisible.value = true;
+        form.routes.splice(idx, 1);
+        return;
+    }
+    form.routes[idx].routeId = item.id;
+    form.routes[idx].routeNumber = item.routeNumber || item.value;
+};
+
+const onUploadRouteCreated = (saved) => {
+    if (saved?.id) {
+        form.routes.push({ routeId: saved.id, routeNumber: saved.routeNumber, isCurrent: true, remark: '' });
+    }
+};
+
+const openUploadRouteCreate = () => {
+    uploadRoutePrefillNumber.value = '';
+    uploadRouteCreateVisible.value = true;
+};
 
 const companyHint = computed(() => {
     if (!companyText.value) return '';
@@ -687,6 +772,12 @@ const submit = async () => {
             airConditioned: form.airConditioned,
             source: '用户上传',
             remark: null,
+            routes: (form.routes || []).filter(r => r.routeId || r.routeNumber).map(r => ({
+                routeId: r.routeId || null,
+                routeNumber: r.routeNumber || null,
+                isCurrent: r.isCurrent != null ? r.isCurrent : true,
+                remark: r.remark || ''
+            })),
             config: buildConfigPayload()
         };
 
@@ -743,6 +834,7 @@ onMounted(() => {
     document.addEventListener('click', handleClickOutside);
     store.dispatch('regions/loadRegions');
     store.dispatch('companies/loadCompanies');
+    store.dispatch('routes/loadRoutes', { size: 500 }).catch(() => {});
     store.dispatch('brands/loadBrands');
     store.dispatch('models/loadModels');
 });

@@ -1,0 +1,3 @@
+# Hashes of file build rules.
+94dceed4c6b7d2731869ba452d25b44a BusGalleryDesktop_autogen/timestamp
+13650382188aa76eebdd3dbfacf6be8a CMakeFiles/BusGalleryDesktop_autogen

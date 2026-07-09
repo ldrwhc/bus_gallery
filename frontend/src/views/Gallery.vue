@@ -93,6 +93,7 @@ const filters = reactive({
     companyId: null,
     brandId: null,
     modelId: null,
+    routeId: null,
     keyword: ''
 });
 
@@ -300,7 +301,7 @@ const openVehicleDetail = async (vehicleId) => {
     if (!vehicleId) return;
     activeVehicleId.value = vehicleId;
     try {
-        await store.dispatch('vehicles/loadVehicleDetail', vehicleId);
+        await store.dispatch('vehicles/loadVehicleDetail', { vehicleId, force: true });
     } catch (error) {
         console.error(error);
     }
@@ -322,6 +323,7 @@ const handleResetFilters = () => {
         companyId: null,
         brandId: null,
         modelId: null,
+        routeId: null,
         keyword: ''
     });
     resetCursorCache();

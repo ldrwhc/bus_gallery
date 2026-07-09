@@ -1,0 +1,30 @@
+CMD: docker exec bus-gallery-redis redis-cli ACL SETUSER default on '>12345678' '~*' '&*' '+@all' '-@hyperloglog'
+OUT: NOAUTH Authentication required.
+CMD: docker exec bus-gallery-redis redis-cli -a 12345678 ACL LIST 2>&1
+OUT: Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+user default on #ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f ~* &* +@all -@hyperloglog
+CMD: docker exec bus-gallery-redis redis-cli -a 12345678 PFADD test_hll_sec x 2>&1
+OUT: Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+NOPERM this user has no permissions to run the 'pfadd' command
+CMD: docker exec bus-gallery-redis redis-cli -a 12345678 PING 2>&1
+OUT: PONG
+Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+CMD: docker exec bus-gallery-redis redis-cli -a 12345678 ACL SAVE 2>&1
+OUT: ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.
+
+Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.---
+CMD: docker exec bus-gallery-redis redis-cli ACL SETUSER default on '>12345678' '~*' '&*' '+@all' '-@hyperloglog'
+OUT: NOAUTH Authentication required.
+CMD: docker exec bus-gallery-redis redis-cli -a 12345678 ACL LIST 2>&1
+OUT: Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+user default on #ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f ~* &* +@all -@hyperloglog
+CMD: docker exec bus-gallery-redis redis-cli -a 12345678 PFADD test_hll_sec x 2>&1
+OUT: Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+NOPERM this user has no permissions to run the 'pfadd' command
+CMD: docker exec bus-gallery-redis redis-cli -a 12345678 PING 2>&1
+OUT: PONG
+Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+CMD: docker exec bus-gallery-redis redis-cli -a 12345678 ACL SAVE 2>&1
+OUT: ERR This Redis instance is not configured to use an ACL file. You may want to specify users via the ACL SETUSER command and then issue a CONFIG REWRITE (assuming you have a Redis configuration file set) in order to store users in the Redis configuration.
+
+Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.

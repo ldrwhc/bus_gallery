@@ -41,3 +41,14 @@ export const batchDeleteAdminComments = (ids) => http.post('/admin/comments/batc
 export const fetchAdminSuspectImages = () => http.get('/admin/images/suspects');
 export const cleanupAdminSuspectImages = (imageIds) =>
     http.post('/admin/images/suspects/cleanup', imageIds ? { imageIds } : {});
+
+export const fetchAdminRoutes = (params = {}) =>
+    http.get('/admin/tables/routes', { params });
+export const createAdminRoute = (payload) =>
+    http.post('/admin/tables/routes', payload);
+export const updateAdminRoute = (id, payload) =>
+    http.put(`/admin/tables/routes/${id}`, payload);
+export const deleteAdminRoute = (id) =>
+    http.delete(`/admin/tables/routes/${id}`);
+export const batchDeleteAdminRoutes = (ids) =>
+    http.post('/admin/tables/routes/batch-delete', { ids });

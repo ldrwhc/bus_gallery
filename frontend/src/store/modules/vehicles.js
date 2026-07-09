@@ -378,7 +378,7 @@ const actions = {
             };
 
             const plate = findPlateByVehicleId();
-            const hasSnapshot = await applySnapshotByPlate(plate);
+            const hasSnapshot = !force && await applySnapshotByPlate(plate);
             if (hasSnapshot) return state.detailMap[vehicleId] || null;
             if (signal?.aborted) return state.detailMap[vehicleId] || null;
 
@@ -395,9 +395,13 @@ const actions = {
                 })
                 : await fetchVehicleGalleryDetail(vehicleId);
             const detailPlate = detail?.vehicle?.plateNumber;
-            const snapshotApplied = await applySnapshotByPlate(detailPlate);
-            if (!snapshotApplied) {
+            if (force) {
                 commit('SET_VEHICLE_DETAIL', { vehicleId, detail });
+            } else {
+                const snapshotApplied = await applySnapshotByPlate(detailPlate);
+                if (!snapshotApplied) {
+                    commit('SET_VEHICLE_DETAIL', { vehicleId, detail });
+                }
             }
             return state.detailMap[vehicleId] || detail;
         } catch (error) {
