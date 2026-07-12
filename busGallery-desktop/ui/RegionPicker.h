@@ -17,6 +17,7 @@ public:
     void setStaticRegions(); // built-in all-China data
     void clear();
     bool selectByCityName(const QString &cityName); // auto-select by city (handles 直辖市)
+    bool selectByPlateNumber(const QString &plate); // auto-select from license plate prefix
 
     qint64 regionId() const { return m_regionId; }
     QString provinceName() const { return m_province; }

@@ -470,6 +470,14 @@ void MainWindow::setupUploadForm(QWidget *page)
         connect(le, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
     };
     hookLineEdit(m_plateEdit);
+    // Auto-fill region from plate prefix when plate changes
+    connect(m_plateEdit, &QLineEdit::editingFinished, this, [this]() {
+        if (!m_regionPicker->hasSelection()) {
+            QString plate = m_plateEdit->text().trimmed().toUpper();
+            if (plate.length() >= 2)
+                m_regionPicker->selectByPlateNumber(plate);
+        }
+    });
     hookLineEdit(m_customNumEdit);
     hookLineEdit(m_engineEdit);
     hookLineEdit(m_motorEdit);
@@ -1069,6 +1077,18 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
                     }
                 } else {
                     regionNote = QString::fromUtf8("，⚠ 公司 %1 未匹配到数据库，请手动选择").arg(companyName);
+                }
+            }
+        }
+
+        // Fallback: if region is still not set, try to extract from plate prefix
+        if (!m_regionPicker->hasSelection()) {
+            QString plate = m_plateEdit->text().trimmed().toUpper();
+            if (!plate.isEmpty()) {
+                bool ok = m_regionPicker->selectByPlateNumber(plate);
+                if (ok) {
+                    regionNote = QString::fromUtf8("，地区已从车牌推断: %1")
+                        .arg(m_regionPicker->provinceName() + " / " + m_regionPicker->cityName());
                 }
             }
         }
