@@ -5,11 +5,17 @@ import com.busgallery.busgallery.auth.AuthPrincipal;
 import com.busgallery.busgallery.auth.RequireLogin;
 import com.busgallery.busgallery.auth.UserRole;
 import com.busgallery.busgallery.dto.request.VehicleUpsertPayload;
+import com.busgallery.busgallery.entity.BusRoute;
+import com.busgallery.busgallery.entity.Company;
 import com.busgallery.busgallery.entity.Image;
+import com.busgallery.busgallery.entity.Region;
 import com.busgallery.busgallery.entity.Vehicle;
+import com.busgallery.busgallery.entity.VehicleRoute;
 import com.busgallery.busgallery.entity.VehicleSubmission;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
+import com.busgallery.busgallery.mapper.BusRouteMapper;
+import com.busgallery.busgallery.mapper.VehicleRouteMapper;
 import com.busgallery.busgallery.service.ChunkUploadService;
 import com.busgallery.busgallery.service.IdempotencyService;
 import com.busgallery.busgallery.service.ImageService;
@@ -47,6 +53,8 @@ public class UploadController {
     private final IdempotencyService idempotencyService;
     private final UploadSecurityService uploadSecurityService;
     private final ChunkUploadService chunkUploadService;
+    private final BusRouteMapper busRouteMapper;
+    private final VehicleRouteMapper vehicleRouteMapper;
     private final ObjectMapper objectMapper;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -165,6 +173,11 @@ public class UploadController {
                 payload.getRegionCity()
         );
 
+        // Process route assignments (inherit region/company from the saved vehicle)
+        Long vRegionId = saved.getRegion() != null ? saved.getRegion().getId() : null;
+        Long vCompanyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        saveRouteAssignments(saved.getId(), payload.getRoutes(), vRegionId, vCompanyId);
+
         try {
             tradeBridgeService.resolveOrCreateByImageId(image.getId(), saved.getId());
         } catch (Exception ex) {
@@ -230,6 +243,51 @@ public class UploadController {
     @AllArgsConstructor
     public static class ChunkCompleteRequest {
         private VehicleUpsertPayload payload;
+    }
+
+    private void saveRouteAssignments(Long vehicleId,
+                                       List<VehicleUpsertPayload.RouteAssignmentPayload> assignments,
+                                       Long regionId, Long companyId) {
+        if (assignments == null || assignments.isEmpty()) {
+            return;
+        }
+        vehicleRouteMapper.deleteByVehicleId(vehicleId);
+        for (var ra : assignments) {
+            Long routeId = ra.getRouteId();
+            if (routeId == null && ra.getRouteNumber() != null && !ra.getRouteNumber().isBlank()) {
+                BusRoute newRoute = new BusRoute();
+                newRoute.setRouteNumber(ra.getRouteNumber().trim());
+                newRoute.setRouteType("REGULAR");
+                newRoute.setIsActive(true);
+                newRoute.setStartStop(ra.getStartStop());
+                newRoute.setEndStop(ra.getEndStop());
+                // Inherit region/company from the upload payload
+                if (regionId != null) {
+                    Region r = new Region();
+                    r.setId(regionId);
+                    newRoute.setRegion(r);
+                }
+                if (companyId != null) {
+                    Company c = new Company();
+                    c.setId(companyId);
+                    newRoute.setCompany(c);
+                }
+                busRouteMapper.insert(newRoute);
+                routeId = newRoute.getId();
+            }
+            if (routeId != null) {
+                VehicleRoute vr = new VehicleRoute();
+                Vehicle v = new Vehicle();
+                v.setId(vehicleId);
+                vr.setVehicle(v);
+                BusRoute br = new BusRoute();
+                br.setId(routeId);
+                vr.setRoute(br);
+                vr.setIsCurrent(ra.getIsCurrent() != null ? ra.getIsCurrent() : true);
+                vr.setRemark(ra.getRemark());
+                vehicleRouteMapper.insert(vr);
+            }
+        }
     }
 }
 

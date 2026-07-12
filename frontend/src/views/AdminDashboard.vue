@@ -194,7 +194,11 @@
                             <el-table-column type="selection" width="48" />
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="车型名" min-width="180" />
-                            <el-table-column prop="brandName" label="品牌" min-width="140" />
+                            <el-table-column prop="brandChnName" label="品牌" min-width="140">
+                                <template #default="{ row }">
+                                    {{ row.brandChnName || row.brandName }}
+                                </template>
+                            </el-table-column>
                             <el-table-column label="操作" width="180" fixed="right">
                                 <template #default="{ row }">
                                     <el-button size="small" @click="openModelEditor(row)">编辑</el-button>
@@ -215,7 +219,7 @@
                                     </el-select>
                                     <el-select v-model="routeFilter.companyId" placeholder="公司" clearable filterable size="small"
                                                style="width:150px" @change="loadAdminRoutes">
-                                        <el-option v-for="c in companyOptions" :key="c.value" :label="c.label" :value="c.value" />
+                                        <el-option v-for="c in filteredRouteFilterCompanyOptions" :key="c.value" :label="c.label" :value="c.value" />
                                     </el-select>
                                     <el-select v-model="routeFilter.routeType" placeholder="类型" clearable size="small"
                                                style="width:120px" @change="loadAdminRoutes">
@@ -242,17 +246,22 @@
                                 </el-button>
                             </div>
                         </div>
-                        <el-table :data="adminRouteRows" stripe @selection-change="handleRouteSelectionChange" v-loading="adminRoutesLoading">
+                        <el-table :data="paginatedRouteRows" stripe @selection-change="handleRouteSelectionChange" v-loading="adminRoutesLoading">
                             <el-table-column type="selection" width="48" />
                             <el-table-column prop="id" label="ID" width="60" />
                             <el-table-column prop="routeNumber" label="线路号" min-width="100" />
                             <el-table-column label="形式" width="70">
                                 <template #default="{ row }">{{ subTypeLabel(row.subType) }}</template>
                             </el-table-column>
-                            <el-table-column label="首末站" min-width="200">
+                            <el-table-column label="首末站" min-width="220">
                                 <template #default="{ row }">
-                                    <template v-if="row.isLoop">环线</template>
-                                    <template v-else>{{ row.startStop || '-' }} ↔ {{ row.endStop || '-' }}</template>
+                                    <template v-if="row.isLoop">{{ row.startStop || '?' }} → {{ row.endStop || '?' }}</template>
+                                    <template v-else>
+                                        {{ row.startStop || '-' }} → {{ row.endStop || '-' }}
+                                        <template v-if="hasAsymmetricStops(row)">
+                                            <br/>{{ row.downStartStop || row.endStop || '-' }} → {{ row.downEndStop || row.startStop || '-' }}
+                                        </template>
+                                    </template>
                                 </template>
                             </el-table-column>
                             <el-table-column label="公司" min-width="120">
@@ -278,6 +287,9 @@
                                 </template>
                             </el-table-column>
                         </el-table>
+                        <div v-if="adminRouteRows.length > routePageSize" style="margin-top:14px;display:flex;justify-content:center">
+                            <el-pagination background layout="prev, pager, next, total" :current-page="routePage" :page-size="routePageSize" :total="adminRouteRows.length" @current-change="(p) => routePage = p" />
+                        </div>
                     </el-tab-pane>
 
                     <el-tab-pane label="异常图片" name="images">
@@ -519,11 +531,8 @@
         <el-dialog v-model="routeEditor.visible" :title="routeEditor.id ? '编辑线路' : '新增线路'" width="620px" destroy-on-close>
             <el-form label-position="top">
                 <el-row :gutter="12">
-                    <el-col :span="12">
+                    <el-col :span="24">
                         <el-form-item label="线路号"><el-input v-model="routeEditor.routeNumber" placeholder="如 1路" /></el-form-item>
-                    </el-col>
-                    <el-col :span="12">
-                        <el-form-item label="线路全称"><el-input v-model="routeEditor.routeName" placeholder="1路（老山→四惠）" /></el-form-item>
                     </el-col>
                 </el-row>
                 <el-row :gutter="12">
@@ -576,11 +585,16 @@
                 </el-row>
                 <el-row :gutter="12">
                     <el-col :span="8">
-                        <el-form-item label="城市"><el-select v-model="routeEditor.regionId" clearable filterable><el-option v-for="r in regionOptions" :key="r.value" :label="r.label" :value="r.value" /></el-select></el-form-item>
+                        <el-form-item label="省份"><el-select v-model="routeEditorProvinceId" clearable filterable placeholder="选择省份" @change="onRouteProvinceChange"><el-option v-for="r in routeProvinceOptions" :key="r.value" :label="r.label" :value="r.value" /></el-select></el-form-item>
                     </el-col>
                     <el-col :span="8">
-                        <el-form-item label="公司"><el-select v-model="routeEditor.companyId" clearable filterable><el-option v-for="c in companyOptions" :key="c.value" :label="c.label" :value="c.value" /></el-select></el-form-item>
+                        <el-form-item label="城市"><el-select v-model="routeEditorCityId" clearable filterable placeholder="选择城市" @change="onRouteCityChange"><el-option v-for="r in routeCityOptions" :key="r.value" :label="r.label" :value="r.value" /></el-select></el-form-item>
                     </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="公司"><el-select v-model="routeEditor.companyId" clearable filterable><el-option v-for="c in filteredCompanyOptions" :key="c.value" :label="c.label" :value="c.value" /></el-select></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-row :gutter="12">
                     <el-col :span="8">
                         <el-form-item label="线路长度(km)"><el-input v-model="routeEditor.lineLengthKm" placeholder="如 12.5" /></el-form-item>
                     </el-col>
@@ -857,6 +871,23 @@ const provinceRegionOptions = computed(() =>
 const regionNameMap = computed(() =>
     regionRows.value.reduce((acc, item) => ({ ...acc, [item.id]: item.name }), {})
 );
+const companyOptions = computed(() =>
+    companyRows.value.map((item) => ({
+        label: item.name,
+        value: item.id,
+        regionId: item.regionId || (item.region ? item.region.id : null)
+    }))
+);
+const filteredCompanyOptions = computed(() => {
+    const all = companyOptions.value || [];
+    if (!routeEditor.regionId) return all;
+    return all.filter(c => c.regionId == null || c.regionId === routeEditor.regionId);
+});
+const filteredRouteFilterCompanyOptions = computed(() => {
+    const all = companyOptions.value || [];
+    if (!routeFilter.regionId) return all;
+    return all.filter(c => c.regionId == null || c.regionId === routeFilter.regionId);
+});
 const brandOptions = computed(() =>
     brandRows.value.map((item) => ({ value: item.id, label: item.chnName || item.name }))
 );
@@ -1059,25 +1090,71 @@ const SUB_TYPE_MAP = { INTERVAL: '区间', BRANCH: '支线', EXPRESS: '快线', 
 const RTYPE_MAP = { REGULAR: '常规', BRT: '快速公交', AIRPORT: '机场', TOURIST: '旅游', COMMUNITY: '微循环', SUBWAY: '地铁接驳' };
 const subTypeLabel = (v) => SUB_TYPE_MAP[v] || '';
 const routeTypeLabel = (v) => RTYPE_MAP[v] || v;
+const hasAsymmetricStops = (r) => {
+    const downStart = r.downStartStop || '';
+    const downEnd = r.downEndStop || '';
+    if (!downStart && !downEnd) return false;
+    return downStart !== (r.startStop || '') || downEnd !== (r.endStop || '');
+};
 
 const adminRouteRows = ref([]);
 const adminRoutesLoading = ref(false);
 const selectedRouteIds = ref([]);
+const routePage = ref(1);
+const routePageSize = 20;
 
 const routeFilter = reactive({
     regionId: null, companyId: null, routeType: null, keyword: '', isActive: true
 });
 
+const paginatedRouteRows = computed(() => {
+    const start = (routePage.value - 1) * routePageSize;
+    return adminRouteRows.value.slice(start, start + routePageSize);
+});
+
 const routeEditor = reactive({
     visible: false, saving: false, id: null,
-    routeNumber: '', routeName: '', subType: null, parentRouteId: null,
+    routeNumber: '', subType: null, parentRouteId: null,
     startStop: '', endStop: '', downStartStop: '', downEndStop: '',
     isLoop: false, regionId: null, companyId: null, routeType: 'REGULAR',
     lineLengthKm: '', ticketType: null, ticketPrice: '', operatingHours: '',
     isActive: true, firstOperated: null, lastOperated: null, remark: ''
 });
 
+const routeEditorProvinceId = ref(null);
+const routeEditorCityId = ref(null);
+
+const routeProvinceOptions = computed(() =>
+    regionRows.value
+        .filter(r => (r.level == null || r.level === 1) && r.parentId == null)
+        .map(r => ({ value: r.id, label: r.name }))
+        .sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-CN'))
+);
+
+const routeCityOptions = computed(() => {
+    if (!routeEditorProvinceId.value) return [];
+    return regionRows.value
+        .filter(r => r.parentId === routeEditorProvinceId.value)
+        .map(r => ({ value: r.id, label: r.name }))
+        .sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-CN'))
+});
+
+const onRouteProvinceChange = () => {
+    routeEditorCityId.value = null;
+    const cities = routeCityOptions.value;
+    if (!cities.length) {
+        routeEditor.regionId = routeEditorProvinceId.value;
+    } else {
+        routeEditor.regionId = null;
+    }
+};
+
+const onRouteCityChange = () => {
+    routeEditor.regionId = routeEditorCityId.value || null;
+};
+
 const loadAdminRoutes = async () => {
+    routePage.value = 1;
     adminRoutesLoading.value = true;
     try {
         const list = await fetchAdminRoutes({
@@ -1098,14 +1175,36 @@ const openRouteEditor = (row = null) => {
     routeEditor.visible = true;
     routeEditor.id = row?.id || null;
     routeEditor.routeNumber = row?.routeNumber || '';
-    routeEditor.routeName = row?.routeName || '';
+
+
     routeEditor.subType = row?.subType || null;
     routeEditor.parentRouteId = row?.parentRouteId || null;
     routeEditor.startStop = row?.startStop || '';
     routeEditor.endStop = row?.endStop || '';
+    routeEditor.downStartStop = row?.downStartStop || '';
+    routeEditor.downEndStop = row?.downEndStop || '';
     routeEditor.isLoop = row?.isLoop || false;
     routeEditor.regionId = row?.regionId || null;
+    // Resolve province/city from regionId for cascading selects
+    const region = row?.regionId ? regionRows.value.find(r => r.id === row.regionId) : null;
+    if (region && region.parentId) {
+        routeEditorProvinceId.value = region.parentId;
+        routeEditorCityId.value = region.id;
+    } else if (region) {
+        routeEditorProvinceId.value = region.id;
+        routeEditorCityId.value = null;
+    } else {
+        routeEditorProvinceId.value = null;
+        routeEditorCityId.value = null;
+    }
     routeEditor.companyId = row?.companyId || null;
+    if (!row) {
+        routeEditorProvinceId.value = null;
+        routeEditorCityId.value = null;
+    } else if (!routeEditorCityId.value && routeEditorProvinceId.value) {
+        // Municipality: province has no child cities, auto-set regionId
+        routeEditor.regionId = routeEditorProvinceId.value;
+    }
     routeEditor.routeType = row?.routeType || 'REGULAR';
     routeEditor.lineLengthKm = row?.lineLengthKm != null ? String(row.lineLengthKm) : '';
     routeEditor.ticketType = row?.ticketType || null;
@@ -1122,7 +1221,7 @@ const saveRoute = async () => {
     routeEditor.saving = true;
     try {
         const payload = {
-            routeNumber: routeEditor.routeNumber.trim(), routeName: routeEditor.routeName || null,
+            routeNumber: routeEditor.routeNumber.trim(),
             subType: routeEditor.subType || null, parentRouteId: routeEditor.parentRouteId || null,
             startStop: routeEditor.startStop || null, endStop: routeEditor.endStop || null,
             downStartStop: routeEditor.downStartStop || null, downEndStop: routeEditor.downEndStop || null,

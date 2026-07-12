@@ -29,16 +29,25 @@ public class ImageResponse {
     private String uploaderDisplayName;
     private LocalDateTime createTime;
     private Long vehicleId;
+    private String vehiclePlateNumber;
+    private String modelName;
     private Map<String, String> exif;
 
-    /**
-     * fromEntity方法用于处理fromEntity相关的业务逻辑。
-     * @param image image参数，详见调用方上下文。
-     * @return 返回ImageResponse类型结果。
-     */
     public static ImageResponse fromEntity(Image image) {
+        return fromEntity(image, null);
+    }
+
+    public static ImageResponse fromEntity(Image image, com.busgallery.busgallery.entity.Vehicle vehicle) {
         if (image == null) {
             return null;
+        }
+        String plate = null;
+        String model = null;
+        if (vehicle != null) {
+            plate = vehicle.getPlateNumber();
+            if (vehicle.getModel() != null) {
+                model = vehicle.getModel().getName();
+            }
         }
         return new ImageResponse(
                 image.getId(),
@@ -52,6 +61,8 @@ public class ImageResponse {
                 image.getUploaderDisplayName(),
                 image.getCreateTime(),
                 image.getVehicleId(),
+                plate,
+                model,
                 ExifUtils.fromJson(image.getExifJson())
         );
     }

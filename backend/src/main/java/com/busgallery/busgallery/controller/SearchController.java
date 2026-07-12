@@ -153,8 +153,7 @@ public class SearchController {
             SearchItem item = new SearchItem();
             item.id = r.getId();
             item.title = r.getRouteNumber();
-            item.subtitle = r.getRouteName() != null ? r.getRouteName()
-                    : (r.getStartStop() != null ? r.getStartStop() + " ↔ " + r.getEndStop() : null);
+            item.subtitle = (r.getStartStop() != null ? r.getStartStop() + " ↔ " + r.getEndStop() : null);
             item.type = "route";
             return item;
         }

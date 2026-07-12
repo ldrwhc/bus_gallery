@@ -403,10 +403,17 @@ public class VehicleServiceImpl implements VehicleService {
     }
 
     private Long findOrCreateBrand(String brandName) {
+        // 1. Exact match on name (abbreviation like "BJ")
         Brand existing = brandMapper.selectByName(brandName);
         if (existing != null) {
             return existing.getId();
         }
+        // 2. Try chnName (user might have entered Chinese name like "福田")
+        existing = brandMapper.selectByChnName(brandName);
+        if (existing != null) {
+            return existing.getId();
+        }
+        // 3. Create new — user input goes to name, chnName stays null
         Brand brand = new Brand();
         brand.setName(brandName);
         brandMapper.insert(brand);

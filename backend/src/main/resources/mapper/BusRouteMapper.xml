@@ -6,7 +6,6 @@
     <resultMap id="BusRouteResultMap" type="com.busgallery.busgallery.entity.BusRoute">
         <id property="id" column="id"/>
         <result property="routeNumber" column="route_number"/>
-        <result property="routeName" column="route_name"/>
         <result property="subType" column="sub_type"/>
         <result property="startStop" column="start_stop"/>
         <result property="endStop" column="end_stop"/>
@@ -24,6 +23,7 @@
         <result property="remark" column="remark"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
+        <result property="parentRouteId" column="parent_route_id"/>
         <association property="region" javaType="com.busgallery.busgallery.entity.Region">
             <id property="id" column="r_id"/>
             <result property="name" column="r_name"/>
@@ -35,7 +35,7 @@
     </resultMap>
 
     <sql id="BaseColumnList">
-        id, route_number, route_name, sub_type, parent_route_id,
+        id, route_number, sub_type, parent_route_id,
         start_stop, end_stop, down_start_stop, down_end_stop, is_loop,
         region_id, company_id, route_type, line_length_km,
         ticket_type, ticket_price, operating_hours,
@@ -78,7 +78,6 @@
         <if test="keyword != null and keyword != ''">
             AND (
                 br.route_number LIKE CONCAT('%', #{keyword}, '%')
-                OR br.route_name LIKE CONCAT('%', #{keyword}, '%')
                 OR br.start_stop LIKE CONCAT('%', #{keyword}, '%')
                 OR br.end_stop LIKE CONCAT('%', #{keyword}, '%')
             )
@@ -105,7 +104,6 @@
         <if test="keyword != null and keyword != ''">
             AND (
                 br.route_number LIKE CONCAT('%', #{keyword}, '%')
-                OR br.route_name LIKE CONCAT('%', #{keyword}, '%')
                 OR br.start_stop LIKE CONCAT('%', #{keyword}, '%')
                 OR br.end_stop LIKE CONCAT('%', #{keyword}, '%')
             )
@@ -136,13 +134,13 @@
             useGeneratedKeys="true"
             keyProperty="id">
         INSERT INTO bus_route (
-            route_number, route_name, sub_type, parent_route_id,
+            route_number, sub_type, parent_route_id,
             start_stop, end_stop, down_start_stop, down_end_stop, is_loop,
             region_id, company_id, route_type, line_length_km,
             ticket_type, ticket_price, operating_hours,
             is_active, first_operated, last_operated, remark
         ) VALUES (
-            #{routeNumber}, #{routeName}, #{subType},
+            #{routeNumber}, #{subType},
             <choose>
                 <when test="parentRoute != null and parentRoute.id != null">#{parentRoute.id}</when>
                 <otherwise>NULL</otherwise>
@@ -165,7 +163,6 @@
     <update id="update" parameterType="com.busgallery.busgallery.entity.BusRoute">
         UPDATE bus_route SET
             route_number    = #{routeNumber},
-            route_name      = #{routeName},
             sub_type        = #{subType},
             parent_route_id =
                 <choose>

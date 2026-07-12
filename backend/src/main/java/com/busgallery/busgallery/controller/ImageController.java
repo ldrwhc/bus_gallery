@@ -100,6 +100,9 @@ public class ImageController {
         if (request.getUploaderDisplayName() != null) {
             image.setUploaderDisplayName(request.getUploaderDisplayName());
         }
+        if (request.getRouteId() != null) {
+            image.setRouteId(request.getRouteId());
+        }
         return imageService.update(image);
     }
 
@@ -156,5 +159,7 @@ public class ImageController {
     public static class ImageUpdateRequest {
         private String uploadUser;
         private String uploaderDisplayName;
+        private Long routeId;
+        private String routeNumber;
     }
 }

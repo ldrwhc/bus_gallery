@@ -10,10 +10,12 @@ import com.busgallery.busgallery.dto.response.PageResponse;
 import com.busgallery.busgallery.dto.response.UserProfileResponse;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.User;
+import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.UserService;
+import com.busgallery.busgallery.service.VehicleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -34,6 +36,7 @@ public class UserController {
     private final UserService userService;
     private final UserSessionService userSessionService;
     private final ImageService imageService;
+    private final VehicleService vehicleService;
 
     /**
      * currentUser方法用于处理currentUser相关的业务逻辑。
@@ -83,7 +86,10 @@ public class UserController {
         }
         List<Image> images = imageService.listByUploader(user.getId(), page, FIXED_IMAGE_PAGE_SIZE);
         List<ImageResponse> records = images.stream()
-                .map(ImageResponse::fromEntity)
+                .map(img -> {
+                    Vehicle v = img.getVehicleId() != null ? vehicleService.findById(img.getVehicleId()) : null;
+                    return ImageResponse.fromEntity(img, v);
+                })
                 .collect(Collectors.toList());
         long total = userService.countUserImages(user.getId());
         int pageNo = Math.max(page, 1);
@@ -125,7 +131,10 @@ public class UserController {
         }
         List<Image> images = imageService.listByUploader(userId, page, FIXED_IMAGE_PAGE_SIZE);
         List<ImageResponse> records = images.stream()
-                .map(ImageResponse::fromEntity)
+                .map(img -> {
+                    Vehicle v = img.getVehicleId() != null ? vehicleService.findById(img.getVehicleId()) : null;
+                    return ImageResponse.fromEntity(img, v);
+                })
                 .collect(Collectors.toList());
         long total = userService.countUserImages(userId);
         int pageNo = Math.max(page, 1);

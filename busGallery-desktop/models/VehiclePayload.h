@@ -3,8 +3,39 @@
 
 #include <QString>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QDate>
+#include <QList>
+
+// Full route info fetched from server for auto-fill
+struct RouteInfo {
+    qint64 id = 0;
+    QString routeNumber;
+    QString startStop;
+    QString endStop;
+    QString routeType;
+};
+
+struct RouteAssignment {
+    qint64 routeId = 0;
+    QString routeNumber;
+    QString startStop;
+    QString endStop;
+    bool isCurrent = true;
+    QString remark;
+
+    QJsonObject toJson() const {
+        QJsonObject obj;
+        if (routeId > 0) obj["routeId"] = routeId;
+        if (!routeNumber.isEmpty()) obj["routeNumber"] = routeNumber;
+        if (!startStop.isEmpty()) obj["startStop"] = startStop;
+        if (!endStop.isEmpty()) obj["endStop"] = endStop;
+        obj["isCurrent"] = isCurrent;
+        if (!remark.isEmpty()) obj["remark"] = remark;
+        return obj;
+    }
+};
 
 struct VehicleConfigPayload {
     qint64 brandId = 0;
@@ -52,6 +83,7 @@ struct VehicleUpsertPayload {
     QString source = "用户上传";
     QString remark;
     VehicleConfigPayload config;
+    QList<RouteAssignment> routes;
 
     QString toJsonString() const {
         QJsonObject obj;
@@ -74,6 +106,15 @@ struct VehicleUpsertPayload {
 
         QJsonObject cfg = config.toJson();
         if (!cfg.isEmpty()) obj["config"] = cfg;
+
+        if (!routes.isEmpty()) {
+            QJsonArray routesArr;
+            for (const auto &r : routes) {
+                QJsonObject routeObj = r.toJson();
+                if (!routeObj.isEmpty()) routesArr.append(routeObj);
+            }
+            if (!routesArr.isEmpty()) obj["routes"] = routesArr;
+        }
 
         QJsonDocument doc(obj);
         return QString::fromUtf8(doc.toJson(QJsonDocument::Compact));

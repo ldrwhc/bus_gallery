@@ -415,7 +415,6 @@ public class AdminController {
 
     private void applyRouteRequest(BusRoute r, RouteUpsertRequest req) {
         r.setRouteNumber(req.getRouteNumber().trim());
-        r.setRouteName(req.getRouteName());
         r.setSubType(req.getSubType());
         r.setStartStop(req.getStartStop());
         r.setEndStop(req.getEndStop());
@@ -437,11 +436,12 @@ public class AdminController {
         AdminRouteRow row = new AdminRouteRow();
         row.setId(r.getId());
         row.setRouteNumber(r.getRouteNumber());
-        row.setRouteName(r.getRouteName());
         row.setSubType(r.getSubType());
         row.setParentRouteId(r.getParentRoute() != null ? r.getParentRoute().getId() : null);
         row.setStartStop(r.getStartStop());
         row.setEndStop(r.getEndStop());
+        row.setDownStartStop(r.getDownStartStop());
+        row.setDownEndStop(r.getDownEndStop());
         row.setIsLoop(r.getIsLoop());
         row.setRegionId(r.getRegion() != null ? r.getRegion().getId() : null);
         row.setRegionName(r.getRegion() != null ? r.getRegion().getName() : null);
@@ -674,6 +674,7 @@ public class AdminController {
         row.setDescription(model.getDescription());
         row.setBrandId(model.getBrand() != null ? model.getBrand().getId() : null);
         row.setBrandName(model.getBrand() != null ? model.getBrand().getName() : null);
+        row.setBrandChnName(model.getBrand() != null ? model.getBrand().getChnName() : null);
         return row;
     }
 
@@ -757,6 +758,7 @@ public class AdminController {
         private String description;
         private Long brandId;
         private String brandName;
+        private String brandChnName;
     }
 
     @Data
@@ -810,7 +812,6 @@ public class AdminController {
     @Data
     public static class RouteUpsertRequest {
         private String routeNumber;
-        private String routeName;
         private String subType;
         private Long parentRouteId;
         private String startStop;
@@ -835,11 +836,12 @@ public class AdminController {
     public static class AdminRouteRow {
         private Long id;
         private String routeNumber;
-        private String routeName;
         private String subType;
         private Long parentRouteId;
         private String startStop;
         private String endStop;
+        private String downStartStop;
+        private String downEndStop;
         private Boolean isLoop;
         private Long regionId;
         private String regionName;

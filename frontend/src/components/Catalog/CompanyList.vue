@@ -18,7 +18,7 @@
                     @click="$emit('select-model', model)">
                     <img :src="model.thumbnailUrl || placeholder" :alt="model.name" loading="lazy" decoding="async" />
                     <p class="model-name">{{ model.name }}</p>
-                    <p class="meta">{{ model.brandName || '品牌未知' }}</p>
+                    <p class="meta">{{ brandDisplayMap[model.brandName] || model.brandName || '品牌未知' }}</p>
                 </div>
             </div>
         </article>
@@ -26,7 +26,19 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
+import { useStore } from 'vuex';
 import { FALLBACK_IMAGE } from '@/utils/constants';
+
+const store = useStore();
+const brandDisplayMap = computed(() => {
+    const brands = store.state.brands.list || [];
+    const map = {};
+    brands.forEach((b) => {
+        if (b.name) map[b.name] = b.chnName || b.name;
+    });
+    return map;
+});
 
 defineProps({
     companies: {

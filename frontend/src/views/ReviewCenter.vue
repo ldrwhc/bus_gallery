@@ -16,6 +16,13 @@
                 >
                     车辆管理
                 </button>
+                <button
+                    type="button"
+                    :class="['switch-btn', { active: activePanel === 'routes' }]"
+                    @click="switchPanel('routes')"
+                >
+                    线路管理
+                </button>
             </div>
 
             <section v-if="activePanel === 'review'" key="review" class="panel">
@@ -175,15 +182,15 @@
                 </div>
             </section>
 
-            <section v-else key="manage" class="panel manage-panel-wrap">
+            <section v-else-if="activePanel === 'manage'" key="manage" class="panel">
                 <header class="panel-head">
                     <div>
-                        <p class="eyebrow">Vehicle Manage</p>
-                        <h2>车辆管理</h2>
+                        <p class="eyebrow">Manage</p>
+                        <h1>车辆管理</h1>
                         <p class="muted" v-if="canSelectManageRegion">站长可查询全站车辆</p>
                         <p class="muted" v-else>审核范围：{{ currentReviewRegionLabel }}</p>
                     </div>
-                    <el-button type="primary" :loading="manageLoading" @click="loadManageList(true)">刷新车辆</el-button>
+                    <el-button type="primary" :loading="manageLoading" @click="loadManageList(true)">刷新列表</el-button>
                 </header>
 
                 <div class="manage-toolbar">
@@ -252,6 +259,53 @@
                         @click="loadManageList(false)"
                     >加载更多</el-button>
                 </div>
+            </section>
+
+            <section v-if="activePanel === 'routes'" key="routes" class="panel">
+                <header class="panel-head">
+                    <div>
+                        <p class="eyebrow">Routes</p>
+                        <h1>线路管理</h1>
+                        <p class="muted">管理公交线路基础数据，支持按城市、公司筛选和增删改查。</p>
+                    </div>
+                    <el-button type="primary" @click="openReviewRouteEditor()">新增线路</el-button>
+                </header>
+                <div class="filter-bar" style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+                    <el-select v-model="reviewRouteFilter.regionId" placeholder="城市" clearable filterable size="small" style="width:140px" @change="loadReviewRoutes">
+                        <el-option v-for="r in reviewRegionOptions" :key="r.value" :label="r.label" :value="r.value" />
+                    </el-select>
+                    <el-select v-model="reviewRouteFilter.companyId" placeholder="公司" clearable filterable size="small" style="width:150px" @change="loadReviewRoutes">
+                        <el-option v-for="c in reviewCompanyOptions" :key="c.value" :label="c.label" :value="c.value" />
+                    </el-select>
+                    <el-input v-model="reviewRouteFilter.keyword" placeholder="搜索线路号" clearable size="small" style="width:170px" @keyup.enter="loadReviewRoutes" />
+                </div>
+                <el-table :data="reviewRouteRows" stripe v-loading="reviewRoutesLoading">
+                    <el-table-column prop="id" label="ID" width="60" />
+                    <el-table-column prop="routeNumber" label="线路号" min-width="100" />
+                    <el-table-column label="首末站" min-width="200">
+                        <template #default="{ row }">
+                            <template v-if="row.isLoop">环线</template>
+                            <template v-else>{{ row.startStop || '-' }} ↔ {{ row.endStop || '-' }}</template>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="公司" min-width="120">
+                        <template #default="{ row }">{{ row.company?.name || row.companyName || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="城市" min-width="90">
+                        <template #default="{ row }">{{ row.region?.name || row.regionName || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="状态" width="70">
+                        <template #default="{ row }">
+                            <el-tag size="small" :type="row.isActive ? 'success' : 'info'">{{ row.isActive ? '运营' : '停运' }}</el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="160" fixed="right">
+                        <template #default="{ row }">
+                            <el-button size="small" @click="openReviewRouteEditor(row)">编辑</el-button>
+                            <el-button size="small" type="danger" @click="removeReviewRoute(row)">删除</el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
             </section>
         </main>
 
@@ -362,6 +416,43 @@
                 </div>
             </template>
         </el-dialog>
+
+        <el-dialog v-model="reviewRouteEditor.visible" :title="reviewRouteEditor.id ? '编辑线路' : '新增线路'" width="620px" destroy-on-close>
+            <el-form label-position="top" :model="reviewRouteEditor">
+                <el-row :gutter="12">
+                    <el-col :span="24"><el-form-item label="线路号"><el-input v-model="reviewRouteEditor.routeNumber" placeholder="如 1路" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="12"><el-form-item label="起点站"><el-input v-model="reviewRouteEditor.startStop" /></el-form-item></el-col>
+                    <el-col :span="12"><el-form-item label="终点站"><el-input v-model="reviewRouteEditor.endStop" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="12"><el-form-item label="下行起点"><el-input v-model="reviewRouteEditor.downStartStop" /></el-form-item></el-col>
+                    <el-col :span="12"><el-form-item label="下行终点"><el-input v-model="reviewRouteEditor.downEndStop" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="8"><el-form-item label="环线"><el-switch v-model="reviewRouteEditor.isLoop" /></el-form-item></el-col>
+                    <el-col :span="8"><el-form-item label="运营中"><el-switch v-model="reviewRouteEditor.isActive" /></el-form-item></el-col>
+                </el-row>
+                <el-row :gutter="12">
+                    <el-col :span="8">
+                        <el-form-item label="省份"><el-select v-model="reviewRouteProvinceId" clearable filterable placeholder="选择省份" @change="onReviewProvinceChange"><el-option v-for="r in reviewRouteProvinceOptions" :key="r.value" :label="r.label" :value="r.value" /></el-select></el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="城市"><el-select v-model="reviewRouteCityId" clearable filterable placeholder="选择城市" @change="onReviewCityChange"><el-option v-for="r in reviewRouteCityOptions" :key="r.value" :label="r.label" :value="r.value" /></el-select></el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="公司"><el-select v-model="reviewRouteEditor.companyId" clearable filterable><el-option v-for="c in reviewFilteredCompanyOptions" :key="c.value" :label="c.label" :value="c.value" /></el-select></el-form-item>
+                    </el-col>
+                </el-row>
+                <el-form-item label="备注"><el-input v-model="reviewRouteEditor.remark" type="textarea" /></el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="reviewRouteEditor.visible = false">取消</el-button>
+                <el-button type="primary" :loading="reviewRouteEditor.saving" @click="saveReviewRoute">保存</el-button>
+            </template>
+        </el-dialog>
+
         <RouteCreateDialog v-model="manageRouteCreateVisible" :prefillRouteNumber="manageRoutePrefillNumber"
             :prefillRegionId="manageForm.regionId" :prefillCompanyId="manageForm.companyId"
             @created="onManageRouteCreated" />
@@ -374,7 +465,7 @@ import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { approveSubmission, fetchPendingSubmissions, rejectSubmission } from '@/api/reviews';
-import { fetchRoutes } from '@/api/routes';
+import { fetchRoutes, createRoute, updateRoute, deleteRoute } from '@/api/routes';
 import RouteCreateDialog from '@/components/Route/RouteCreateDialog.vue';
 import { batchDeleteVehicles, deleteVehicle, fetchManageVehiclePage, fetchVehicleGalleryDetail, updateVehicle } from '@/api/vehicles';
 import { FUEL_OPTIONS, isCombustionFuel, isElectricFuel, normalizeFuelType } from '@/utils/fuel';
@@ -386,7 +477,7 @@ import {
 
 const store = useStore();
 const route = useRoute();
-const activePanel = ref(route.query.panel === 'manage' ? 'manage' : 'review');
+const activePanel = ref(route.query.panel === 'manage' ? 'manage' : route.query.panel === 'routes' ? 'routes' : 'review');
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -1096,6 +1187,152 @@ watch(
         }
     }
 );
+
+// === Route Management ===
+const reviewRouteRows = ref([]);
+const reviewRoutesLoading = ref(false);
+const reviewRouteFilter = reactive({ regionId: null, companyId: null, keyword: '' });
+const reviewRouteProvinceId = ref(null);
+const reviewRouteCityId = ref(null);
+
+const reviewRouteEditor = reactive({
+    visible: false, saving: false, id: null,
+    routeNumber: '',
+    startStop: '', endStop: '', downStartStop: '', downEndStop: '',
+    isLoop: false, isActive: true, regionId: null, companyId: null, remark: ''
+});
+
+const reviewRegionOptions = computed(() => {
+    const list = store.state.regions.list || [];
+    return list.map(r => ({ value: r.id, label: r.name })).sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-CN'));
+});
+
+const reviewCompanyOptions = computed(() => {
+    const list = store.state.companies.list || [];
+    return list.map(c => ({ value: c.id, label: c.name, regionId: c.regionId || (c.region ? c.region.id : null) }));
+});
+
+const reviewFilteredCompanyOptions = computed(() => {
+    const all = reviewCompanyOptions.value;
+    if (!reviewRouteEditor.regionId) return all;
+    return all.filter(c => c.regionId == null || c.regionId === reviewRouteEditor.regionId);
+});
+
+const reviewRouteProvinceOptions = computed(() => {
+    const list = store.state.regions.list || [];
+    return list
+        .filter(r => (r.level == null || r.level === 1) && r.parentId == null)
+        .map(r => ({ value: r.id, label: r.name }))
+        .sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-CN'));
+});
+
+const reviewRouteCityOptions = computed(() => {
+    if (!reviewRouteProvinceId.value) return [];
+    const list = store.state.regions.list || [];
+    return list
+        .filter(r => r.parentId === reviewRouteProvinceId.value)
+        .map(r => ({ value: r.id, label: r.name }))
+        .sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-CN'));
+});
+
+const onReviewProvinceChange = () => {
+    reviewRouteCityId.value = null;
+    // For municipalities (no child cities), use province as region directly
+    const cities = reviewRouteCityOptions.value;
+    if (!cities.length) {
+        reviewRouteEditor.regionId = reviewRouteProvinceId.value;
+    } else {
+        reviewRouteEditor.regionId = null;
+    }
+};
+const onReviewCityChange = () => {
+    reviewRouteEditor.regionId = reviewRouteCityId.value || null;
+};
+
+const loadReviewRoutes = async () => {
+    reviewRoutesLoading.value = true;
+    try {
+        const resp = await fetchRoutes({
+            regionId: reviewRouteFilter.regionId || undefined,
+            companyId: reviewRouteFilter.companyId || undefined,
+            keyword: reviewRouteFilter.keyword || undefined,
+            isActive: undefined,
+            size: 200
+        });
+        reviewRouteRows.value = Array.isArray(resp?.records) ? resp.records : Array.isArray(resp) ? resp : [];
+    } finally { reviewRoutesLoading.value = false; }
+};
+
+const openReviewRouteEditor = (row = null) => {
+    reviewRouteEditor.visible = true;
+    reviewRouteEditor.id = row?.id || null;
+    reviewRouteEditor.routeNumber = row?.routeNumber || '';
+
+
+    reviewRouteEditor.startStop = row?.startStop || '';
+    reviewRouteEditor.endStop = row?.endStop || '';
+    reviewRouteEditor.downStartStop = row?.downStartStop || '';
+    reviewRouteEditor.downEndStop = row?.downEndStop || '';
+    reviewRouteEditor.isLoop = row?.isLoop || false;
+    reviewRouteEditor.isActive = row?.isActive == null ? true : row.isActive;
+    reviewRouteEditor.regionId = row?.regionId || null;
+    reviewRouteEditor.companyId = row?.companyId || null;
+    reviewRouteEditor.remark = row?.remark || '';
+    const regionList = store.state.regions.list || [];
+    const region = row?.regionId ? regionList.find(r => r.id === row.regionId) : null;
+    if (region && region.parentId) {
+        reviewRouteProvinceId.value = region.parentId;
+        reviewRouteCityId.value = region.id;
+    } else if (region) {
+        reviewRouteProvinceId.value = region.id;
+        reviewRouteCityId.value = null;
+    } else {
+        reviewRouteProvinceId.value = null;
+        reviewRouteCityId.value = null;
+    }
+    if (!row) {
+        reviewRouteProvinceId.value = null;
+        reviewRouteCityId.value = null;
+    } else if (!reviewRouteCityId.value && reviewRouteProvinceId.value) {
+        reviewRouteEditor.regionId = reviewRouteProvinceId.value;
+    }
+};
+
+const saveReviewRoute = async () => {
+    if (!reviewRouteEditor.routeNumber.trim()) { ElMessage.warning('线路号不能为空'); return; }
+    reviewRouteEditor.saving = true;
+    try {
+        const payload = {
+            routeNumber: reviewRouteEditor.routeNumber.trim(),
+            startStop: reviewRouteEditor.startStop || null, endStop: reviewRouteEditor.endStop || null,
+            downStartStop: reviewRouteEditor.downStartStop || null, downEndStop: reviewRouteEditor.downEndStop || null,
+            isLoop: reviewRouteEditor.isLoop, isActive: reviewRouteEditor.isActive,
+            regionId: reviewRouteEditor.regionId, companyId: reviewRouteEditor.companyId,
+            remark: reviewRouteEditor.remark || null
+        };
+        if (reviewRouteEditor.id) await updateRoute(reviewRouteEditor.id, payload);
+        else await createRoute(payload);
+        reviewRouteEditor.visible = false;
+        await loadReviewRoutes();
+        ElMessage.success('线路保存成功');
+    } finally { reviewRouteEditor.saving = false; }
+};
+
+const removeReviewRoute = async (row) => {
+    try {
+        await ElMessageBox.confirm(`确认删除线路「${row.routeNumber}」吗？`, '删除确认', { type: 'warning' });
+    } catch { return; }
+    try {
+        await deleteRoute(row.id);
+        ElMessage.success('线路已删除');
+        await loadReviewRoutes();
+    } catch (e) { ElMessage.error(e?.message || '删除失败'); }
+};
+
+// Watch for routes tab activation
+watch(() => activePanel.value, (val) => {
+    if (val === 'routes' && !reviewRouteRows.value.length) loadReviewRoutes();
+});
 
 onBeforeUnmount(() => {
     stopSubmitProgressTimer();

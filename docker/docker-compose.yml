@@ -185,6 +185,7 @@ services:
         condition: service_healthy
     environment:
       TZ: Asia/Shanghai
+      NACOS_DISCOVERY_ENABLED: "false"
       TRADE_DB_URL: ${TRADE_DB_URL:-jdbc:mysql://mysql:3306/trade_center?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
       TRADE_DB_USERNAME: ${TRADE_DB_USERNAME:-root}
       TRADE_DB_PASSWORD: ${TRADE_DB_PASSWORD:-123456}
@@ -231,8 +232,11 @@ services:
     environment:
       TZ: Asia/Shanghai
       SERVER_PORT: 8093
+      NACOS_DISCOVERY_ENABLED: "false"
       BRIDGE_CONTENT_SERVICE_NAME: ${BRIDGE_CONTENT_SERVICE_NAME:-bus-gallery}
       BRIDGE_TRADE_SERVICE_NAME: ${BRIDGE_TRADE_SERVICE_NAME:-bus-gallery-group-buy}
+      BRIDGE_CONTENT_SERVICE_URL: "http://backend:8080"
+      BRIDGE_TRADE_SERVICE_URL: "http://group:8092"
       BRIDGE_CONTENT_SERVICE_BASE_URL: ${BRIDGE_CONTENT_SERVICE_BASE_URL:-http://bus-gallery}
       BRIDGE_GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_AUTH_SECRET:-change-me-gateway-secret}
       BRIDGE_GATEWAY_MAX_SKEW_SECONDS: ${BRIDGE_GATEWAY_MAX_SKEW_SECONDS:-120}
@@ -261,6 +265,9 @@ services:
     environment:
       TZ: Asia/Shanghai
       SERVER_PORT: 8094
+      NACOS_DISCOVERY_ENABLED: "false"
+      GATEWAY_CONTENT_URI: "http://backend:8080"
+      GATEWAY_BRIDGE_URI: "http://bridge:8093"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-12345678}

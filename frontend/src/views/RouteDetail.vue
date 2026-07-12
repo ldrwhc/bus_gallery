@@ -11,11 +11,10 @@
                         <div class="hero__tags">
                             <el-tag v-if="routeInfo.subType" size="small" type="warning">{{ subTypeLabel(routeInfo.subType) }}</el-tag>
                             <el-tag size="small" :type="routeInfo.isActive ? 'success' : 'info'">{{ routeInfo.isActive ? '运营中' : '已停运' }}</el-tag>
-                            <el-tag size="small">{{ routeTypeLabel(routeInfo.routeType) }}</el-tag>
                         </div>
                     </div>
                     <div class="hero__stops">
-                        <template v-if="routeInfo.isLoop">环线</template>
+                        <template v-if="routeInfo.isLoop">{{ routeInfo.startStop || '?' }} → {{ routeInfo.endStop || '?' }}</template>
                         <template v-else-if="routeInfo.downStartStop || routeInfo.downEndStop">
                             <div class="stop-line">上行：{{ routeInfo.startStop || '?' }} → {{ routeInfo.endStop || '?' }}</div>
                             <div class="stop-line">下行：{{ routeInfo.downStartStop || routeInfo.endStop || '?' }} → {{ routeInfo.downEndStop || routeInfo.startStop || '?' }}</div>
@@ -23,6 +22,15 @@
                         <template v-else>
                             {{ routeInfo.startStop || '?' }} ↔ {{ routeInfo.endStop || '?' }}
                         </template>
+                    </div>
+                    <!-- Variant routes -->
+                    <div v-if="variantRoutes.length" class="hero__variants">
+                        <div v-for="vr in variantRoutes" :key="vr.id" class="variant-line"
+                             :class="{ 'variant-line--active': vr.id === routeInfo.id }">
+                            <el-tag size="small" type="warning">{{ subTypeLabel(vr.subType) }}</el-tag>
+                            <span v-if="vr.isLoop">环线</span>
+                            <span v-else>{{ vr.startStop || '?' }} ↔ {{ vr.endStop || '?' }}</span>
+                        </div>
                     </div>
                 </section>
 
@@ -89,7 +97,10 @@
                                      @click="openPhotoDetail(photo.vehicleId, photo.imageId)">
                                     <img :src="photo.thumb || fallbackImg" :alt="photo.plate" loading="lazy" />
                                     <div class="photo-card__info">
-                                        <strong>{{ photo.plate }}</strong>
+                                        <strong>
+                                            <span v-if="photo.routeNumber" class="photo-route-tag">{{ photo.routeNumber }}</span>
+                                            {{ photo.plate }}
+                                        </strong>
                                         <span>{{ photo.modelName }}</span>
                                     </div>
                                 </div>
@@ -112,6 +123,7 @@ import { computed, defineAsyncComponent, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { fetchRouteDetail } from '@/api/routes';
+import { fetchRoutes } from '@/api/routes';
 import http from '@/api/axiosInstance';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
 
@@ -122,6 +134,7 @@ const store = useStore();
 const loading = ref(true);
 const routeInfo = ref(null);
 const vehicles = ref([]);
+const variantRoutes = ref([]);
 const detailVisible = ref(false);
 const activeVehicleId = ref(null);
 const activeImageId = ref(null);
@@ -149,11 +162,10 @@ const hasMetaInfo = computed(() =>
 const historicalModels = computed(() => {
     const seen = new Set();
     return vehicles.value
-        .map(v => ({ modelId: v.vehicle?.model?.id, modelName: v.vehicle?.model?.name, brandName: v.vehicle?.model?.brandName || v.vehicle?.model?.brandChnName }))
+        .map(v => ({ modelId: v.vehicle?.model?.id, modelName: v.vehicle?.model?.name, brandName: v.vehicle?.model?.brandChnName || v.vehicle?.model?.brandName }))
         .filter(m => m.modelId && !seen.has(m.modelId) && seen.add(m.modelId));
 });
 
-// Extract year from EXIF or upload date
 const extractYear = (img) => {
     const exif = img?.exif || {};
     const exifDate = exif['DateTimeOriginal'] || exif['DateTime'] || exif['DateCreated'];
@@ -165,10 +177,11 @@ const extractYear = (img) => {
     return '未知年份';
 };
 
-// Flatten all images across all vehicles, grouped by year
+// Flatten all images across all vehicles (main + variants), tagged with routeNumber
 const yearGroups = computed(() => {
     const map = {};
     vehicles.value.forEach(v => {
+        const rn = v._routeNumber || '';
         (v.images || []).forEach(img => {
             const year = extractYear(img);
             if (!map[year]) map[year] = [];
@@ -177,6 +190,7 @@ const yearGroups = computed(() => {
                 vehicleId: v.vehicle?.id,
                 plate: v.vehicle?.plateNumber || '-',
                 modelName: v.vehicle?.model?.name || '-',
+                routeNumber: rn,
                 thumb: img.thumbnailUrl || img.url,
                 year
             });
@@ -201,12 +215,53 @@ const openPhotoDetail = async (vehicleId, imageId) => {
 
 onMounted(async () => {
     try {
-        const [detail, vehicleList] = await Promise.all([
-            fetchRouteDetail($route.params.routeId),
-            http.get(`/routes/${$route.params.routeId}/vehicles`)
-        ]);
+        let detail = await fetchRouteDetail($route.params.routeId);
+
+        // If this route is a variant (has parentRouteId), redirect to the parent
+        if (detail?.parentRouteId) {
+            $route.params.routeId = detail.parentRouteId;
+            detail = await fetchRouteDetail(detail.parentRouteId);
+        }
         routeInfo.value = detail;
-        vehicles.value = Array.isArray(vehicleList) ? vehicleList : (vehicleList?.records || []);
+
+        // Strip suffix (路/区间/支线 etc.) to get base number for keyword search,
+        // so "880路" can find "880区间" via LIKE '%880%'
+        const baseRouteKey = (detail.routeNumber || '').replace(/[路区间支线快线夜班直达线]$/g, '');
+
+        const [vehicleList, allRoutesResp] = await Promise.all([
+            http.get(`/routes/${detail.id}/vehicles`),
+            fetchRoutes({ keyword: baseRouteKey, size: 50, isActive: undefined })
+        ]);
+
+        const mainVehicles = (Array.isArray(vehicleList) ? vehicleList : (vehicleList?.records || []))
+            .map(v => { v._routeNumber = detail.routeNumber; return v; });
+        vehicles.value = mainVehicles;
+
+        // Find child routes (variants: interval, branch, etc.)
+        // Match by: parentRouteId pointing to us, or same numeric prefix
+        const allRoutes = Array.isArray(allRoutesResp?.records) ? allRoutesResp.records : (Array.isArray(allRoutesResp) ? allRoutesResp : []);
+        const siblings = allRoutes.filter(r =>
+            r.id !== detail.id && (
+                r.parentRouteId === detail.id ||
+                (r.routeNumber || '').startsWith(baseRouteKey)
+            )
+        );
+        variantRoutes.value = siblings;
+
+        // Fetch vehicles for each sibling route
+        if (siblings.length) {
+            const siblingVehicles = await Promise.all(
+                siblings.map(async (sr) => {
+                    try {
+                        const vlist = await http.get(`/routes/${sr.id}/vehicles`);
+                        const arr = Array.isArray(vlist) ? vlist : (vlist?.records || []);
+                        const subLabel = sr.subType ? subTypeLabel(sr.subType) : '';
+                        return arr.map(v => { v._routeNumber = sr.routeNumber + (subLabel && !sr.routeNumber.endsWith(subLabel) ? subLabel : ''); return v; });
+                    } catch { return []; }
+                })
+            );
+            vehicles.value = [...mainVehicles, ...siblingVehicles.flat()];
+        }
     } catch (e) {
         console.error('Failed to load route', e);
     } finally {
@@ -231,6 +286,11 @@ onMounted(async () => {
 .hero__tags { display: flex; gap: 6px; }
 .hero__stops { font-size: 16px; opacity: 0.9;
     .stop-line + .stop-line { margin-top: 4px; }
+}
+.hero__variants { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); }
+.variant-line {
+    display: flex; align-items: center; gap: 8px; font-size: 14px; opacity: 0.75; padding: 2px 0;
+    &--active { opacity: 1; font-weight: 600; }
 }
 
 // Body layout
@@ -273,8 +333,11 @@ onMounted(async () => {
 }
 .photo-card img { width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block; background: #f3f4f6; }
 .photo-card__info { padding: 8px 10px; display: flex; flex-direction: column; gap: 1px;
-    strong { color: #111827; font-size: 13px; }
+    strong { color: #111827; font-size: 13px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     span { color: #6b7280; font-size: 12px; }
+}
+.photo-route-tag {
+    color: #94a3b8; font-size: 10px; font-weight: 500; white-space: nowrap;
 }
 
 .info-link { color: #2563eb; text-decoration: none; font-weight: 600; &:hover { text-decoration: underline; } }

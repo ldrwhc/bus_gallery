@@ -122,7 +122,7 @@ public class CatalogController {
                 String thumbnail = resolveThumbnail(vehicles);
                 summaries.add(new ModelSummary(model.getId(), model.getName(), thumbnail));
             }
-            result.add(new BrandCatalogItem(brand.getId(), brand.getName(), summaries));
+            result.add(new BrandCatalogItem(brand.getId(), brand.getName(), brand.getChnName(), summaries));
         }
         return result;
     }
@@ -160,6 +160,7 @@ public class CatalogController {
                     model.getId(),
                     model.getName(),
                     model.getBrand() != null ? model.getBrand().getName() : null,
+                    model.getBrand() != null ? model.getBrand().getChnName() : null,
                     new ArrayList<>(companyMap.values())
             ));
         }
@@ -277,6 +278,7 @@ public class CatalogController {
     public static class BrandCatalogItem {
         private Long id;
         private String name;
+        private String chnName;
         private List<ModelSummary> models;
     }
 
@@ -302,6 +304,7 @@ public class CatalogController {
         private Long id;
         private String name;
         private String brandName;
+        private String brandChnName;
         private List<ModelCompanySummary> companies;
     }
 

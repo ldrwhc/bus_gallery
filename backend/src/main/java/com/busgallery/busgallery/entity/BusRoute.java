@@ -1,5 +1,6 @@
 package com.busgallery.busgallery.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,15 +27,17 @@ public class BusRoute {
     @Column(name = "route_number", length = 32, nullable = false)
     private String routeNumber;
 
-    @Column(name = "route_name", length = 200)
-    private String routeName;
-
     @Column(name = "sub_type", length = 16)
     private String subType;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_route_id")
+    @JoinColumn(name = "parent_route_id", insertable = false, updatable = false)
+    @ToString.Exclude
+    @JsonIgnore
     private BusRoute parentRoute;
+
+    @Column(name = "parent_route_id", insertable = false, updatable = false)
+    private Long parentRouteId;
 
     @Column(name = "start_stop", length = 128)
     private String startStop;

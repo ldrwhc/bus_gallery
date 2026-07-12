@@ -23,6 +23,9 @@ inline const QString CATALOG_COMPANIES = "/companies";
 // Upload endpoint
 inline const QString UPLOAD_VEHICLE = "/upload";
 
+// Route search (pre-load active routes for autocomplete)
+inline const QString ROUTES_SEARCH = "/routes";
+
 // Model vehicle config lookup
 inline QString modelVehicles(qint64 modelId) {
     return QString("/models/%1/vehicles").arg(modelId);

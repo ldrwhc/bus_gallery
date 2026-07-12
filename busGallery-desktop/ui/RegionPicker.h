@@ -16,6 +16,7 @@ public:
     void setRegions(const QList<RegionNode> &regions);
     void setStaticRegions(); // built-in all-China data
     void clear();
+    bool selectByCityName(const QString &cityName); // auto-select by city (handles 直辖市)
 
     qint64 regionId() const { return m_regionId; }
     QString provinceName() const { return m_province; }

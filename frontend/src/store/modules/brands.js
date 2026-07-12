@@ -21,7 +21,7 @@ const state = () => ({
 const getters = {
     brandOptions: (state) =>
         state.list.map((item) => ({
-            label: item.name,
+            label: item.chnName ? `${item.chnName} [${item.name}]` : item.name,
             value: item.id
         })),
     brandById: (state) => (id) =>

@@ -29,6 +29,13 @@
         LIMIT 1
     </select>
 
+    <select id="selectByChnName" parameterType="string" resultMap="BrandResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM brand
+        WHERE chn_name = #{chnName}
+        LIMIT 1
+    </select>
+
     <select id="selectAll" resultMap="BrandResultMap">
         SELECT <include refid="BaseColumnList"/>
         FROM brand

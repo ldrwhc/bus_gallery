@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include "ApiClient.h"
 #include "models/CatalogItem.h"
+#include "models/VehiclePayload.h"
 
 class CatalogApi : public QObject
 {
@@ -17,6 +18,7 @@ public:
     void fetchModels();
     void fetchCompanies();
     void fetchModelVehicles(qint64 modelId);
+    void fetchRoutes();
 
 signals:
     void regionsReady(const QList<RegionNode> &regions);
@@ -24,6 +26,8 @@ signals:
     void modelsReady(const QList<CatalogItem> &models);
     void companiesReady(const QList<CatalogItem> &companies);
     void modelVehiclesReady(qint64 modelId, const QJsonArray &vehicles);
+    void routesReady(const QList<CatalogItem> &routes);
+    void routesDataReady(const QList<RouteInfo> &routes);
     void catalogError(const QString &endpoint, const QString &message);
 
 private:

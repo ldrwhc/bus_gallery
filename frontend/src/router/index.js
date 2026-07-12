@@ -66,6 +66,12 @@ const router = createRouter({
             meta: { title: '线路' }
         },
         {
+            path: '/compare',
+            name: 'Compare',
+            component: () => import('@/views/Compare.vue'),
+            meta: { title: '对比' }
+        },
+        {
             path: '/routes/:routeId',
             name: 'RouteDetail',
             component: () => import('@/views/RouteDetail.vue'),

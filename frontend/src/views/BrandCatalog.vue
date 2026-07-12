@@ -39,7 +39,7 @@
                 <article v-for="brand in filteredBrands" :key="brand.id" class="brand-card">
                     <div class="brand-card__header">
                         <div>
-                            <h2>{{ brand.name }}</h2>
+                            <h2>{{ brand.chnName || brand.name }}</h2>
                             <p class="tag">车型 {{ brand.models?.length || 0 }}</p>
                         </div>
                         <button class="pill-btn" type="button" @click="viewBrand(brand.id)">

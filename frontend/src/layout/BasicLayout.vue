@@ -6,15 +6,23 @@
         </main>
         <AppFooter v-if="!hideFooter" class="app-shell__footer" />
         <SearchOverlay :visible="searchVisible" @close="closeSearch" @search="handleSearch" />
-        <button v-if="showDocFab" class="doc-fab" type="button" title="文档" @click="$router.push({ name: 'About' })">
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <line x1="16" y1="13" x2="8" y2="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                <line x1="16" y1="17" x2="8" y2="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <span>文档</span>
-        </button>
+        <div v-if="showFabGroup" class="fab-group">
+            <button class="fab-btn fab-btn--doc" type="button" title="查看文档" @click="$router.push({ name: 'About' })">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <line x1="16" y1="13" x2="8" y2="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="16" y1="17" x2="8" y2="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <button class="fab-btn fab-btn--groupbuy" type="button" title="拼团交易台" @click="$router.push({ name: 'GroupBuyMarket' })">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <line x1="3" y1="6" x2="21" y2="6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M16 10a4 4 0 0 1-8 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
     </div>
 </template>
 
@@ -29,7 +37,9 @@ const searchVisible = ref(false);
 const router = useRouter();
 const route = useRoute();
 const hideFooter = computed(() => route.name === 'Home');
-const showDocFab = computed(() => route.name !== 'About');
+const showFabGroup = computed(() =>
+    route.name !== 'About' && route.name !== 'GroupBuyMarket'
+);
 
 const lockBody = (locked) => {
     document.body.style.overflow = locked ? 'hidden' : '';
@@ -85,29 +95,45 @@ onBeforeUnmount(() => lockBody(false));
     padding-bottom: 24px;
 }
 
-.doc-fab {
+.fab-group {
     position: fixed;
     bottom: 28px;
     left: 28px;
     z-index: 90;
     display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.fab-btn {
+    display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 10px 16px;
-    border: 1px solid rgba(37, 99, 235, 0.25);
-    background: rgba(255, 255, 255, 0.95);
-    color: #2563eb;
-    border-radius: 999px;
+    justify-content: center;
+    width: 44px; height: 44px; padding: 0;
+    border-radius: 50%;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.15);
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(8px);
     transition: transform 0.15s, box-shadow 0.15s;
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    color: #2563eb;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.15);
 
     &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
+    }
+
+    &--doc {
+        &:hover { box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22); }
+    }
+
+    &--groupbuy {
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #ef4444;
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.15);
+        &:hover { box-shadow: 0 8px 24px rgba(239, 68, 68, 0.22); }
     }
 }
 </style>

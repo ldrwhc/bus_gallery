@@ -3,7 +3,7 @@
         <article v-for="brand in brands" :key="brand.id" class="brand-card">
             <header>
                 <div>
-                    <h3>{{ brand.name }}</h3>
+                    <h3>{{ brand.chnName || brand.name }}</h3>
                     <p class="meta">
                         车型 {{ brand.models?.length || 0 }}
                     </p>

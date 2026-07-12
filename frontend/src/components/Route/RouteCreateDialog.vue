@@ -86,7 +86,7 @@ const editingId = ref(null);
 const saving = ref(false);
 
 const defaultForm = () => ({
-    routeNumber: '', routeName: '', subType: null, parentRouteId: null,
+    routeNumber: '', subType: null, parentRouteId: null,
     startStop: '', endStop: '', downStartStop: '', downEndStop: '',
     isLoop: false, regionId: null, companyId: null, routeType: 'REGULAR',
     lineLengthKm: null, ticketType: null, ticketPrice: '', operatingHours: '',
@@ -113,7 +113,7 @@ const save = async () => {
     if (!form.routeNumber.trim()) { ElMessage.warning('请输入线路号'); return; }
     saving.value = true;
     try {
-        const payload = { ...form, routeNumber: form.routeNumber.trim(), routeName: form.routeName || null };
+        const payload = { ...form, routeNumber: form.routeNumber.trim() };
         const saved = await createRoute(payload);
         ElMessage.success('线路已创建');
         visible.value = false;

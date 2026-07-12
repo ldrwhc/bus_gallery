@@ -59,6 +59,10 @@ void AutocompleteField::setItems(const QList<CatalogItem> &items)
         names << displayName;
         m_nameToId[displayName] = item.id;
         m_nameToId[item.name] = item.id;
+        // Also index Chinese name (extra) for matching
+        if (!item.extra.isEmpty()) {
+            m_nameToId[item.extra] = item.id;
+        }
     }
     m_model->setStringList(names);
 }
@@ -111,6 +115,55 @@ QString AutocompleteField::text() const
 QString AutocompleteField::displayText() const
 {
     return m_edit->text().trimmed();
+}
+
+QString AutocompleteField::selectedExtra() const
+{
+    if (m_selectedId <= 0) return {};
+    for (const auto &item : m_items) {
+        if (item.id == m_selectedId)
+            return item.extra;
+    }
+    return {};
+}
+
+void AutocompleteField::setText(const QString &text)
+{
+    m_edit->setText(text);
+    evaluateMatch();
+}
+
+bool AutocompleteField::setTextFuzzy(const QString &text)
+{
+    if (text.isEmpty()) return false;
+    // 1. Exact match first
+    setText(text);
+    if (m_selectedId > 0) return true;
+
+    // 2. Contains match: text contains item name, or item name contains text
+    QString lower = text.toLower().trimmed();
+    for (const auto &item : m_items) {
+        QString itemLower = item.name.toLower().trimmed();
+        if (itemLower.contains(lower) || lower.contains(itemLower)) {
+            m_edit->setText(item.name);
+            m_selectedId = item.id;
+            evaluateMatch();
+            return true;
+        }
+    }
+
+    // 3. Try matching extra field (regionName for companies)
+    for (const auto &item : m_items) {
+        QString extraLower = item.extra.toLower().trimmed();
+        if (!extraLower.isEmpty() && (extraLower.contains(lower) || lower.contains(extraLower))) {
+            m_edit->setText(item.name);
+            m_selectedId = item.id;
+            evaluateMatch();
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void AutocompleteField::clear()

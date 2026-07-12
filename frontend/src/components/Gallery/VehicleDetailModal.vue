@@ -1484,7 +1484,7 @@ const extractVehicleField = (key) => {
     if (!vehicle.value) return undefined;
     switch (key) {
         case 'brandName':
-            return getValueByPaths(vehicle.value, ['model.brand.name', 'model.brandName', 'brand.name', 'brandName']);
+            return getValueByPaths(vehicle.value, ['model.brand.chnName', 'model.brandChnName', 'model.brand.name', 'model.brandName', 'brand.name', 'brandName']);
         case 'modelName':
             return getValueByPaths(vehicle.value, ['model.name', 'modelName']);
         case 'companyName':
@@ -1537,8 +1537,8 @@ const extractConfigField = (key) => {
     switch (key) {
         case 'brandName':
             return (
-                getValueByPaths(config.value, ['brand.name', 'brandName']) ||
-                getValueByPaths(vehicle.value, ['model.brand.name', 'brandName'])
+                getValueByPaths(config.value, ['brand.chnName', 'brandChnName', 'brand.name', 'brandName']) ||
+                getValueByPaths(vehicle.value, ['model.brand.chnName', 'model.brandChnName', 'model.brand.name', 'brandName'])
             );
         case 'modelName':
             return (

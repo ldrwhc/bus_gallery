@@ -21,6 +21,12 @@
 #include <QDateTime>
 #include <QTimer>
 #include <QCoreApplication>
+#include <QDataStream>
+#include <QNetworkCookieJar>
+#include <QSslConfiguration>
+#include <QSslSocket>
+#include <QInputDialog>
+#include <QDesktopServices>
 
 static QString draftPath();
 
@@ -50,6 +56,28 @@ MainWindow::MainWindow(ApiClient *client, QWidget *parent)
     });
     connect(m_catalog, &CatalogApi::companiesReady, [this](const QList<CatalogItem> &items) {
         m_companyField->setItems(items);
+    });
+
+    // Route autocomplete data
+    connect(m_catalog, &CatalogApi::routesReady, [this](const QList<CatalogItem> &items) {
+        m_routesList = items;
+        refreshRouteFields();
+    });
+    // Full route data for auto-fill when a route is selected
+    connect(m_catalog, &CatalogApi::routesDataReady, [this](const QList<RouteInfo> &routes) {
+        m_routesData.clear();
+        for (const auto &r : routes) {
+            m_routesData[r.id] = r;
+        }
+        // Auto-fill any existing rows that already have a matched route
+        for (auto &rw : m_routeRows) {
+            qint64 routeId = rw.routeField->selectedId();
+            if (routeId > 0 && m_routesData.contains(routeId)) {
+                const RouteInfo &info = m_routesData[routeId];
+                rw.startStopEdit->setText(info.startStop);
+                rw.endStopEdit->setText(info.endStop);
+            }
+        }
     });
 
     // Auto-fill config when model is selected
@@ -137,10 +165,11 @@ MainWindow::MainWindow(ApiClient *client, QWidget *parent)
         resetForm();
         m_progressLabel->setText(msg);
 
-        // Refresh catalog so newly created brands/models/companies appear immediately
+        // Refresh catalog so newly created brands/models/companies/routes appear immediately
         m_catalog->fetchBrands();
         m_catalog->fetchModels();
         m_catalog->fetchCompanies();
+        m_catalog->fetchRoutes();
     });
 
     connect(m_upload, &UploadApi::uploadError, this, [this](const QString &code, const QString &msg) {
@@ -153,6 +182,14 @@ MainWindow::MainWindow(ApiClient *client, QWidget *parent)
         m_progressLabel->setText(QString::fromUtf8("上传失败: ") + msg);
         QMessageBox::warning(this, QString::fromUtf8("上传失败"), msg);
     });
+
+    // Set up buspedia network manager with cookie jar & SSL
+    m_buspediaNam = new QNetworkAccessManager(this);
+    m_buspediaNam->setCookieJar(new QNetworkCookieJar(m_buspediaNam));
+    // Allow self-signed certs for resilience
+    QSslConfiguration sslConf = QSslConfiguration::defaultConfiguration();
+    sslConf.setPeerVerifyMode(QSslSocket::VerifyNone);
+    QSslConfiguration::setDefaultConfiguration(sslConf);
 
     // Try restore session
     QString token;
@@ -250,11 +287,19 @@ void MainWindow::setupUploadForm(QWidget *page)
     auto *basicGrid = new QFormLayout();
     basicGrid->setSpacing(8);
 
+    auto *plateRow = new QHBoxLayout();
     m_plateEdit = new QLineEdit(formWidget);
     m_plateEdit->setPlaceholderText(QString::fromUtf8("请输入车牌号（必填）"));
+    plateRow->addWidget(m_plateEdit, 1);
+    m_buspediaBtn = new QPushButton(QString::fromUtf8("爬取参数"), formWidget);
+    m_buspediaBtn->setFixedWidth(90);
+    m_buspediaBtn->setToolTip(QString::fromUtf8("从 buspedia.top 爬取车辆参数并自动填充"));
+    m_buspediaBtn->setProperty("accent", true);
+    connect(m_buspediaBtn, &QPushButton::clicked, this, &MainWindow::fetchFromBuspedia);
+    plateRow->addWidget(m_buspediaBtn);
     auto *plateLabel = new QLabel(QString::fromUtf8("车牌号 <span style='color:red'>*</span>"));
     plateLabel->setTextFormat(Qt::RichText);
-    basicGrid->addRow(plateLabel, m_plateEdit);
+    basicGrid->addRow(plateLabel, plateRow);
 
     m_customNumEdit = new QLineEdit(formWidget);
     m_customNumEdit->setPlaceholderText(QString::fromUtf8("请输入自编号（选填）"));
@@ -361,6 +406,23 @@ void MainWindow::setupUploadForm(QWidget *page)
 
     connect(m_fuelType, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::onFuelTypeChanged);
+
+    // ---- Section: Associated Routes ----
+    auto *sectionRoute = new QLabel(QString::fromUtf8("关联线路"));
+    sectionRoute->setProperty("section", true);
+    layout->addWidget(sectionRoute);
+
+    m_routesContainer = new QWidget(formWidget);
+    m_routesLayout = new QVBoxLayout(m_routesContainer);
+    m_routesLayout->setContentsMargins(0, 0, 0, 0);
+    m_routesLayout->setSpacing(6);
+    layout->addWidget(m_routesContainer);
+
+    m_addRouteBtn = new QPushButton(QString::fromUtf8("+ 添加关联线路"), formWidget);
+    m_addRouteBtn->setProperty("secondary", true);
+    m_addRouteBtn->setFixedWidth(160);
+    connect(m_addRouteBtn, &QPushButton::clicked, this, [this]() { addRouteRow(); });
+    layout->addWidget(m_addRouteBtn);
 
     // ---- Progress ----
     m_progress = new QProgressBar(formWidget);
@@ -488,6 +550,7 @@ void MainWindow::loadCatalog()
     m_catalog->fetchBrands();
     m_catalog->fetchModels();
     m_catalog->fetchCompanies();
+    m_catalog->fetchRoutes();  // pre-load routes for autocomplete
     // API regions are supplementary — static data already covers all of China.
     // The backend accepts regionProvince/regionCity strings directly in the
     // upload payload, so API region IDs are not required.
@@ -524,7 +587,7 @@ void MainWindow::submitUpload()
     if (!validateForm()) return;
 
     VehicleUpsertPayload payload;
-    payload.plateNumber = m_plateEdit->text().trimmed();
+    payload.plateNumber = m_plateEdit->text().trimmed().toUpper();
     payload.customNumber = m_customNumEdit->text().trimmed();
 
     payload.brandId = m_brandField->selectedId();
@@ -555,6 +618,22 @@ void MainWindow::submitUpload()
     payload.config.suspension = m_suspensionEdit->text().trimmed();
     payload.config.axle = m_axleEdit->text().trimmed();
     payload.config.stepType = m_stepTypeEdit->text().trimmed();
+
+    // Collect route assignments
+    for (const auto &row : m_routeRows) {
+        QString routeNumber = row.routeField->text();
+        if (routeNumber.isEmpty()) continue;
+        // Auto-append "路" if ends with digit (e.g. "468" -> "468路")
+        if (!routeNumber.isEmpty() && routeNumber.at(routeNumber.size() - 1).isDigit())
+            routeNumber += QString::fromUtf8("路");
+        RouteAssignment ra;
+        ra.routeId = row.routeField->selectedId();
+        ra.routeNumber = routeNumber;
+        ra.startStop = row.startStopEdit->text().trimmed();
+        ra.endStop = row.endStopEdit->text().trimmed();
+        ra.isCurrent = row.isCurrentCheck->isChecked();
+        payload.routes.append(ra);
+    }
 
     m_submitBtn->setEnabled(false);
     m_progress->setVisible(true);
@@ -589,6 +668,11 @@ void MainWindow::resetForm()
     m_progress->setVisible(false);
     m_progressLabel->clear();
 
+    // Clear route rows
+    while (!m_routeRows.isEmpty()) {
+        removeRouteRow(0);
+    }
+
     // Delete draft
     QFile::remove(draftPath());
 }
@@ -608,6 +692,406 @@ void MainWindow::onFuelTypeChanged(int index)
     if (!showMotor) m_motorEdit->clear();
 }
 
+void MainWindow::addRouteRow(const RouteAssignment &ra)
+{
+    auto *row = new QWidget(m_routesContainer);
+    row->setProperty("routeRow", true);
+    // Slightly raised card look
+    row->setStyleSheet(QString(
+        "QWidget[routeRow=\"true\"] {"
+        "  background: %1; border: 1px solid %2; border-radius: 8px; padding: 8px;"
+        "}"
+    ).arg(ThemeManager::color(Light::AltBg, Dark::AltBg),
+          ThemeManager::color(Light::Border, Dark::Border)));
+
+    auto *outerLayout = new QVBoxLayout(row);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+    outerLayout->setSpacing(4);
+
+    // Row 1: route number autocomplete + isCurrent + remove
+    auto *row1 = new QHBoxLayout();
+    row1->setSpacing(6);
+
+    auto *routeField = new AutocompleteField(
+        QString::fromUtf8("输入线路号搜索..."), row);
+    routeField->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    if (!m_routesList.isEmpty()) {
+        routeField->setItems(m_routesList);
+    }
+    // Pre-fill text if restoring from draft
+    if (!ra.routeNumber.isEmpty()) {
+        auto *edit = routeField->findChild<QLineEdit*>();
+        if (edit) edit->setText(ra.routeNumber);
+    }
+    row1->addWidget(routeField, 1);
+
+    auto *isCurrentCheck = new QCheckBox(QString::fromUtf8("当前"), row);
+    isCurrentCheck->setChecked(ra.isCurrent);
+    row1->addWidget(isCurrentCheck);
+
+    auto *removeBtn = new QPushButton(QString::fromUtf8("×"), row);
+    removeBtn->setFixedWidth(30);
+    removeBtn->setProperty("secondary", true);
+    removeBtn->setToolTip(QString::fromUtf8("移除此线路"));
+    connect(removeBtn, &QPushButton::clicked, this, [this, removeBtn]() {
+        for (int i = 0; i < m_routeRows.size(); ++i) {
+            if (m_routeRows[i].removeBtn == removeBtn) {
+                removeRouteRow(i);
+                return;
+            }
+        }
+    });
+    row1->addWidget(removeBtn);
+    outerLayout->addLayout(row1);
+
+    // Row 2: start stop — end stop
+    auto *row3 = new QHBoxLayout();
+    row3->setSpacing(8);
+    auto *startStopEdit = new QLineEdit(row);
+    startStopEdit->setPlaceholderText(QString::fromUtf8("起点站"));
+    row3->addWidget(startStopEdit);
+    auto *sepLabel = new QLabel(QString::fromUtf8("—"), row);
+    sepLabel->setFixedWidth(20);
+    sepLabel->setAlignment(Qt::AlignCenter);
+    sepLabel->setStyleSheet("color: #94a3b8; font-weight: bold; border: none; background: transparent;");
+    row3->addWidget(sepLabel);
+    auto *endStopEdit = new QLineEdit(row);
+    endStopEdit->setPlaceholderText(QString::fromUtf8("终点站"));
+    row3->addWidget(endStopEdit);
+    outerLayout->addLayout(row3);
+
+    m_routesLayout->addWidget(row);
+
+    RouteRowWidgets rw;
+    rw.container = row;
+    rw.routeField = routeField;
+    rw.startStopEdit = startStopEdit;
+    rw.endStopEdit = endStopEdit;
+    rw.isCurrentCheck = isCurrentCheck;
+    rw.removeBtn = removeBtn;
+    m_routeRows.append(rw);
+
+    // Auto-fill when a route is selected from the dropdown or matched exactly
+    connect(routeField, &AutocompleteField::valueChanged, this, [this, routeField, startStopEdit, endStopEdit]() {
+        qint64 routeId = routeField->selectedId();
+        if (routeId > 0 && m_routesData.contains(routeId)) {
+            const RouteInfo &info = m_routesData[routeId];
+            startStopEdit->setText(info.startStop);
+            endStopEdit->setText(info.endStop);
+        }
+    });
+
+    // Hook for draft auto-save
+    connect(routeField, &AutocompleteField::valueChanged, this, [this]() { m_draftTimer->start(); });
+    connect(startStopEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(endStopEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(isCurrentCheck, &QCheckBox::toggled, this, [this]() { m_draftTimer->start(); });
+}
+
+void MainWindow::removeRouteRow(int index)
+{
+    if (index < 0 || index >= m_routeRows.size()) return;
+    auto &row = m_routeRows[index];
+    m_routesLayout->removeWidget(row.container);
+    row.container->deleteLater();
+    m_routeRows.removeAt(index);
+}
+
+void MainWindow::refreshRouteFields()
+{
+    for (auto &rw : m_routeRows) {
+        rw.routeField->setItems(m_routesList);
+    }
+}
+
+// ---- Buspedia scraping ----
+// Uses api.buspedia.top/search to find the bus, then api.buspedia.top/bus/{id} for detail.
+// No browser needed.
+
+void MainWindow::fetchFromBuspedia()
+{
+    QString plate = m_plateEdit->text().trimmed().toUpper();
+    if (plate.isEmpty()) {
+        QMessageBox::warning(this, QString::fromUtf8("无车牌"),
+                             QString::fromUtf8("请先输入车牌号再爬取参数。"));
+        return;
+    }
+
+    // Remove middle dot, keep spaces for buspedia search
+    QString searchPlate = plate;
+    searchPlate.remove(QChar(0x00B7));
+    // URL-encode: spaces become + (quote_plus style)
+    QByteArray encoded = QUrl::toPercentEncoding(searchPlate, " ");
+    encoded.replace(' ', '+');
+
+    m_buspediaBtn->setEnabled(false);
+    m_buspediaBtn->setText(QString::fromUtf8("搜索中..."));
+    m_progressLabel->setText(QString::fromUtf8("正在 buspedia 搜索 %1...").arg(searchPlate));
+
+    QString searchUrl = QString("https://api.buspedia.top/search?name=%1").arg(QString::fromLatin1(encoded));
+    QNetworkRequest req{QUrl(searchUrl)};
+    req.setRawHeader("User-Agent", "Mozilla/5.0 BusGalleryDesktop/1.0");
+    req.setRawHeader("Accept", "application/json");
+    req.setRawHeader("Origin", "https://buspedia.top");
+    req.setRawHeader("Referer", "https://buspedia.top/");
+
+    QNetworkReply *reply = m_buspediaNam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, searchPlate]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            m_buspediaBtn->setEnabled(true);
+            m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
+            m_progressLabel->setText(QString::fromUtf8("搜索失败: %1").arg(reply->errorString()));
+            return;
+        }
+        QByteArray raw = reply->readAll();
+        // Decompress zlib
+        QByteArray json;
+        if (raw.size() >= 2 && (unsigned char)raw[0] == 0x78) {
+            quint32 estSize = quint32(raw.size()) * 10;
+            QByteArray header(4, '\0');
+            header[0] = (estSize >> 24) & 0xFF;
+            header[1] = (estSize >> 16) & 0xFF;
+            header[2] = (estSize >> 8) & 0xFF;
+            header[3] = estSize & 0xFF;
+            json = qUncompress(header + raw);
+        } else {
+            json = raw;
+        }
+        QJsonParseError parseErr;
+        QJsonDocument doc = QJsonDocument::fromJson(json, &parseErr);
+        if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+            m_buspediaBtn->setEnabled(true);
+            m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
+            m_progressLabel->setText(QString::fromUtf8("搜索解析失败"));
+            return;
+        }
+        // Search result: {"v": [{id, regist, comp, no, ...}]}
+        QJsonArray vehicles = doc.object()["v"].toArray();
+        if (vehicles.isEmpty()) {
+            m_buspediaBtn->setEnabled(true);
+            m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
+            m_progressLabel->setText(QString::fromUtf8("未找到 %1，请手动搜索").arg(searchPlate));
+            return;
+        }
+        QString slug = vehicles[0].toObject()["id"].toString();
+        if (slug.isEmpty()) {
+            m_buspediaBtn->setEnabled(true);
+            m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
+            m_progressLabel->setText(QString::fromUtf8("搜索结果无ID"));
+            return;
+        }
+        // Found — fetch detail via API
+        fetchBuspediaDetail(slug);
+    });
+}
+
+void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
+{
+    // Extract slug from URL like "https://buspedia.top/bus/7yiwti" or "/bus/7yiwti" or "7yiwti"
+    QString slug = detailUrl;
+    QRegularExpression slugRx(R"(/bus/([^/\s?]+))");
+    auto sm = slugRx.match(slug);
+    if (sm.hasMatch())
+        slug = sm.captured(1);
+    else if (slug.startsWith('/'))
+        slug = slug.mid(1);
+    if (slug.isEmpty()) {
+        m_progressLabel->setText(QString::fromUtf8("无法解析 URL，请粘贴完整的 buspedia 车辆详情链接"));
+        return;
+    }
+
+    m_buspediaBtn->setEnabled(false);
+    m_buspediaBtn->setText(QString::fromUtf8("获取中..."));
+    m_progressLabel->setText(QString::fromUtf8("正在从 buspedia API 获取数据..."));
+
+    QString apiUrl = QString("https://api.buspedia.top/bus/%1").arg(slug);
+    QNetworkRequest req{QUrl(apiUrl)};
+    req.setRawHeader("User-Agent", "Mozilla/5.0 BusGalleryDesktop/1.0");
+    req.setRawHeader("Accept", "application/json");
+    req.setRawHeader("Origin", "https://buspedia.top");
+    req.setRawHeader("Referer", "https://buspedia.top/");
+
+    QNetworkReply *reply = m_buspediaNam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        m_buspediaBtn->setEnabled(true);
+        m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
+
+        if (reply->error() != QNetworkReply::NoError) {
+            m_progressLabel->setText(QString::fromUtf8("获取失败: %1").arg(reply->errorString()));
+            return;
+        }
+
+        QByteArray raw = reply->readAll();
+        // Decompress zlib (magic bytes: 78 9c or 78 01)
+        QByteArray json;
+        if (raw.size() >= 2 && (unsigned char)raw[0] == 0x78) {
+            // Prepend expected uncompressed size in big-endian for Qt's qUncompress
+            // Use a generous size estimate
+            quint32 estSize = quint32(raw.size()) * 10;
+            QByteArray header(4, '\0');
+            header[0] = (estSize >> 24) & 0xFF;
+            header[1] = (estSize >> 16) & 0xFF;
+            header[2] = (estSize >> 8) & 0xFF;
+            header[3] = estSize & 0xFF;
+            json = qUncompress(header + raw);
+        } else {
+            json = raw;
+        }
+
+        if (json.isEmpty()) {
+            m_progressLabel->setText(QString::fromUtf8("获取失败: 返回数据为空"));
+            return;
+        }
+
+        QJsonParseError parseErr;
+        QJsonDocument doc = QJsonDocument::fromJson(json, &parseErr);
+        if (parseErr.error != QJsonParseError::NoError) {
+            m_progressLabel->setText(QString::fromUtf8("解析失败: %1").arg(parseErr.errorString()));
+            return;
+        }
+
+        QJsonObject root = doc.object();
+        QJsonObject veh = root["veh"].toObject();
+        QJsonObject model = root["model"].toObject();
+        QJsonArray manufArr = model["manuf"].toArray();
+
+        int filled = 0;
+        auto setAcText = [&](AutocompleteField *f, const QString &t) {
+            if (t.isEmpty()) return;
+            f->setText(t); ++filled;
+        };
+        auto setLine = [&](QLineEdit *ed, const QString &t) {
+            if (!t.isEmpty()) { ed->setText(t); ++filled; }
+        };
+
+        // Brand — manuf is an array of {name, slug, router}
+        QString brandName;
+        for (const auto &mv : manufArr) {
+            QJsonObject m = mv.toObject();
+            if (m.contains("name") && !m["name"].toString().isEmpty()) {
+                brandName = m["name"].toString();
+                break;
+            }
+        }
+        if (!brandName.isEmpty())
+            setAcText(m_brandField, brandName);
+
+        // Model code
+        QString modelCode = model["model"].toString();
+        if (!modelCode.isEmpty())
+            setAcText(m_modelField, modelCode);
+
+        // Engine / Motor
+        if (model.contains("ice"))
+            setLine(m_engineEdit, model["ice"].toString());
+        if (model.contains("motor"))
+            setLine(m_motorEdit, model["motor"].toString());
+        if (model.contains("trans"))
+            setLine(m_transmissionEdit, model["trans"].toString());
+        if (model.contains("suspension"))
+            setLine(m_suspensionEdit, model["suspension"].toString());
+        if (model.contains("step"))
+            setLine(m_stepTypeEdit, model["step"].toString());
+
+        // Axle from meta array (e.g. {"item": "车桥品牌", "value": "前ZF RL-75C/..."})
+        QJsonArray metaArr = model["meta"].toArray();
+        for (const auto &mv : metaArr) {
+            QJsonObject m = mv.toObject();
+            if (m["item"].toString() == QString::fromUtf8("车桥品牌")) {
+                setLine(m_axleEdit, m["value"].toString());
+                break;
+            }
+        }
+
+        // Fuel type
+        if (model.contains("fuel")) {
+            QString fuel = model["fuel"].toString();
+            fuel.replace(",", "+").replace(QString::fromUtf8("，"), "+").remove(' ');
+            for (int i = 0; i < m_fuelType->count(); ++i) {
+                if (m_fuelType->itemText(i) == fuel) {
+                    m_fuelType->setCurrentIndex(i); ++filled; break;
+                }
+            }
+            if (m_fuelType->currentIndex() == 0 && !fuel.isEmpty()) {
+                for (int i = 0; i < m_fuelType->count(); ++i) {
+                    QString item = m_fuelType->itemText(i);
+                    if (item.isEmpty()) continue;
+                    if (fuel.contains(item) || item.contains(fuel)) {
+                        m_fuelType->setCurrentIndex(i); ++filled; break;
+                    }
+                }
+            }
+        }
+
+        // Vehicle fields
+        if (veh.contains("regist") && !veh["regist"].toString().isEmpty())
+            m_plateEdit->setText(veh["regist"].toString());
+
+        // Dates
+        auto applyDateStr = [&](const QString &dateStr, QDateEdit *editor) {
+            if (dateStr.length() >= 7) {
+                QDate d = QDate::fromString(dateStr.left(7) + "-01", "yyyy-MM-dd");
+                if (d.isValid()) { editor->setDate(d); ++filled; }
+            }
+        };
+        if (veh.contains("date_manuf"))
+            applyDateStr(veh["date_manuf"].toString(), m_factoryDate);
+        if (veh.contains("date_serve"))
+            applyDateStr(veh["date_serve"].toString(), m_launchDate);
+
+        // Company — also auto-fill region from database
+        QString regionNote;
+        QJsonObject comp = veh["comp"].toObject();
+        if (comp.contains("name")) {
+            QString companyName = comp["name"].toString();
+            if (!companyName.isEmpty()) {
+                m_companyField->setTextFuzzy(companyName);
+                ++filled;
+                qint64 cid = m_companyField->selectedId();
+                if (cid > 0) {
+                    QString regionName = m_companyField->selectedExtra();
+                    if (!regionName.isEmpty()) {
+                        bool ok = m_regionPicker->selectByCityName(regionName);
+                        regionNote = ok
+                            ? QString::fromUtf8("，地区已自动填充: %1").arg(m_regionPicker->provinceName() + " / " + m_regionPicker->cityName())
+                            : QString::fromUtf8("，⚠ 地区 %1 未在列表中，请手动选择").arg(regionName);
+                    } else {
+                        // Debug: print what's in the items list
+                        QString dbg;
+                        QList<CatalogItem> items = m_companyField->items();
+                        for (const auto &it : items) {
+                            if (it.id == cid)
+                                dbg = QString::fromUtf8(" name=[%1] extra=[%2]").arg(it.name, it.extra);
+                        }
+                        regionNote = QString::fromUtf8("，⚠ 公司无地区数据(id=%1)%2").arg(cid).arg(dbg);
+                    }
+                } else {
+                    regionNote = QString::fromUtf8("，⚠ 公司 %1 未匹配到数据库，请手动选择").arg(companyName);
+                }
+            }
+        }
+
+        // Fleet number — directly on veh object
+        if (veh.contains("no") && !veh["no"].toString().isEmpty())
+            setLine(m_customNumEdit, veh["no"].toString());
+
+        m_progressLabel->setStyleSheet(QString("color: %1;")
+            .arg(ThemeManager::color(Light::Success, Dark::Success)));
+        m_progressLabel->setText(
+            QString::fromUtf8("已从 buspedia API 提取 %1 个字段%2，请核对后提交。").arg(filled).arg(regionNote));
+
+        // Show region status persistently in toolbar & status bar
+        m_statusConn->setText(regionNote.isEmpty()
+            ? QString::fromUtf8("爬取完成")
+            : QString::fromUtf8("爬取完成%1").arg(regionNote));
+        statusBar()->showMessage(regionNote.isEmpty()
+            ? QString::fromUtf8("爬取完成，请核对后提交")
+            : QString::fromUtf8("爬取完成%1，请核对后提交").arg(regionNote), 10000);
+    });
+}
+
 static QString draftPath()
 {
     return QCoreApplication::applicationDirPath() + "/draft.json";
@@ -616,7 +1100,7 @@ static QString draftPath()
 QJsonObject MainWindow::formToJson() const
 {
     QJsonObject o;
-    o["plateNumber"] = m_plateEdit->text();
+    o["plateNumber"] = m_plateEdit->text().trimmed().toUpper();
     o["customNumber"] = m_customNumEdit->text();
     o["brandText"] = m_brandField->displayText();
     o["brandId"] = m_brandField->selectedId();
@@ -638,6 +1122,24 @@ QJsonObject MainWindow::formToJson() const
     o["suspension"] = m_suspensionEdit->text();
     o["axle"] = m_axleEdit->text();
     o["stepType"] = m_stepTypeEdit->text();
+
+    // Save route assignments
+    QJsonArray routesArr;
+    for (const auto &row : m_routeRows) {
+        QString rn = row.routeField->text();
+        if (rn.isEmpty()) continue;
+        if (!rn.isEmpty() && rn.at(rn.size() - 1).isDigit())
+            rn += QString::fromUtf8("路");
+        QJsonObject ro;
+        ro["routeId"] = row.routeField->selectedId();
+        ro["routeNumber"] = rn;
+        ro["startStop"] = row.startStopEdit->text().trimmed();
+        ro["endStop"] = row.endStopEdit->text().trimmed();
+        ro["isCurrent"] = row.isCurrentCheck->isChecked();
+        routesArr.append(ro);
+    }
+    o["routes"] = routesArr;
+
     o["savedAt"] = QDateTime::currentDateTime().toString(Qt::ISODate);
     return o;
 }
@@ -680,6 +1182,22 @@ void MainWindow::formFromJson(const QJsonObject &o)
     m_suspensionEdit->setText(o["suspension"].toString());
     m_axleEdit->setText(o["axle"].toString());
     m_stepTypeEdit->setText(o["stepType"].toString());
+
+    // Restore route assignments
+    while (!m_routeRows.isEmpty()) {
+        removeRouteRow(0);
+    }
+    QJsonArray routesArr = o["routes"].toArray();
+    for (int i = 0; i < routesArr.size(); ++i) {
+        QJsonObject ro = routesArr[i].toObject();
+        RouteAssignment ra;
+        ra.routeId = static_cast<qint64>(ro["routeId"].toDouble());
+        ra.routeNumber = ro["routeNumber"].toString();
+        ra.startStop = ro["startStop"].toString();
+        ra.endStop = ro["endStop"].toString();
+        ra.isCurrent = ro["isCurrent"].toBool(true);
+        addRouteRow(ra);
+    }
 }
 
 void MainWindow::saveDraft()

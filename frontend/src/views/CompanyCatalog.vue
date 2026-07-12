@@ -159,6 +159,7 @@
                             <table class="vehicle-overlay__table">
                                 <thead>
                                     <tr>
+                                        <th>年份</th>
                                         <th>车牌</th>
                                         <th>自编号</th>
                                         <th>照片</th>
@@ -166,12 +167,15 @@
                                 </thead>
                                 <tbody>
                                     <tr v-if="vehicleListLoading">
-                                        <td colspan="3">正在加载...</td>
+                                        <td colspan="4">正在加载...</td>
                                     </tr>
                                     <tr v-else-if="!groupedVehicleRows.length">
-                                        <td colspan="3">暂无车辆</td>
+                                        <td colspan="4">暂无车辆</td>
                                     </tr>
                                     <tr v-for="row in groupedVehicleRows" :key="row.key">
+                                        <td>
+                                            <span class="year-tag">{{ row.year }}</span>
+                                        </td>
                                         <td>
                                             <span class="plate">{{ row.plate }}</span>
                                         </td>
@@ -321,21 +325,26 @@ const groupedVehicleRows = computed(() => {
     const map = new Map();
     vehicleListItems.value.forEach((detail, index) => {
         const plate = detail.vehicle?.plateNumber?.trim() || '未上牌';
-        if (!map.has(plate)) {
-            map.set(plate, []);
+        const key = plate;
+        if (!map.has(key)) {
+            map.set(key, []);
         }
-        map.get(plate).push({ detail, index });
+        map.get(key).push({ detail, index });
     });
-    return Array.from(map.entries()).map(([plate, entries], groupIndex) => ({
-        key: `${plate}-${groupIndex}`,
-        plate,
-        records: entries.map(({ detail, index }) => ({
-            id: detail.vehicle?.id || `${plate}-${index}`,
-            customNumber: detail.vehicle?.customNumber || '无自编号',
-            vehicle: detail.vehicle,
-            images: detail.images || []
-        }))
-    }));
+    return Array.from(map.entries()).map(([plate, entries], groupIndex) => {
+        const years = [...new Set(entries.map(({ detail }) => formatYearValue(detail.vehicle?.launchDate)))].join(', ');
+        return {
+            key: `${plate}-${groupIndex}`,
+            plate,
+            year: years,
+            records: entries.map(({ detail, index }) => ({
+                id: detail.vehicle?.id || `${plate}-${index}`,
+                customNumber: detail.vehicle?.customNumber || '无自编号',
+                vehicle: detail.vehicle,
+                images: detail.images || []
+            }))
+        };
+    });
 });
 
 const resolveImage = (images = []) => {
@@ -360,8 +369,17 @@ const brandNameMap = computed(() => {
     return map;
 });
 
+const brandDisplayMap = computed(() => {
+    const brands = store.state.brands.list || [];
+    const map = {};
+    brands.forEach((b) => {
+        if (b.name) map[b.name] = b.chnName || b.name;
+    });
+    return map;
+});
+
 const resolveModelBrand = (model) => {
-    return model.brandName || brandNameMap.value[model.id] || '品牌待补充';
+    return brandDisplayMap.value[model.brandName] || model.brandName || brandNameMap.value[model.id] || '品牌待补充';
 };
 
 const regionsById = computed(() => {
@@ -523,18 +541,21 @@ const loadVehicleListPage = async (targetPage) => {
     const page = Math.max(1, Number(targetPage) || 1);
     vehicleListLoading.value = true;
     try {
-        // Use cached vehicles filtered by modelId + year
-        const yearFilter = vehicleListYear.value;
         let filtered = companyVehicles.value.filter(record => {
             const vehicle = record?.vehicle;
             if (!vehicle) return false;
-            const modelIdMatch = vehicle.model?.id === vehicleListModelId.value;
-            if (!modelIdMatch) return false;
-            if (yearFilter) {
-                const recordYear = formatYearValue(vehicle?.launchDate);
-                return recordYear === yearFilter;
-            }
-            return true;
+            return vehicle.model?.id === vehicleListModelId.value;
+        });
+
+        // Sort by launch year ascending
+        filtered.sort((a, b) => {
+            const ya = formatYearValue(a?.vehicle?.launchDate);
+            const yb = formatYearValue(b?.vehicle?.launchDate);
+            const na = Number(ya), nb = Number(yb);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            if (!isNaN(na)) return -1;
+            if (!isNaN(nb)) return 1;
+            return ya.localeCompare(yb);
         });
 
         // Client-side pagination
@@ -551,9 +572,9 @@ const loadVehicleListPage = async (targetPage) => {
 
 const openVehicleList = (year, item) => {
     if (!item?.modelId) return;
-    vehicleListTitle.value = `${item.modelName} · ${year}`;
+    vehicleListTitle.value = item.modelName;
     vehicleListModelId.value = Number(item.modelId);
-    vehicleListYear.value = year || null;
+    vehicleListYear.value = null;
     vehicleListPage.value = 1;
     vehicleListTotal.value = 0;
     vehicleListHasNext.value = false;
@@ -623,6 +644,7 @@ watch(
 onMounted(() => {
     store.dispatch('models/loadModelCatalog');
     store.dispatch('regions/loadRegions');
+    store.dispatch('brands/loadBrands');
 });
 </script>
 
@@ -1068,6 +1090,16 @@ onMounted(() => {
 .plate {
     font-weight: 600;
     color: #1f2937;
+}
+
+.year-tag {
+    background: #eef2ff;
+    color: #1d4ed8;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .code {

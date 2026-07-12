@@ -690,7 +690,6 @@ DEALLOCATE PREPARE stmt;
 CREATE TABLE IF NOT EXISTS `bus_route` (
   `id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `route_number`    VARCHAR(32)     NOT NULL COMMENT 'route number',
-  `route_name`      VARCHAR(200)    DEFAULT NULL COMMENT 'full route name',
   `sub_type`        VARCHAR(16)     DEFAULT NULL COMMENT 'MAIN / INTERVAL / BRANCH / EXPRESS / NIGHT / DIRECT',
   `parent_route_id` BIGINT UNSIGNED DEFAULT NULL,
   `start_stop`      VARCHAR(128)    DEFAULT NULL,

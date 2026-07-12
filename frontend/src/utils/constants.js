@@ -8,7 +8,7 @@ export const NAV_LINKS = [
     { label: '品牌', name: 'BrandCatalog', path: '/brands' },
     { label: '车型', name: 'ModelCatalog', path: '/models' },
     { label: '线路', name: 'RouteCatalog', path: '/routes' },
-    { label: '拼团', name: 'GroupBuyMarket', path: '/group-buy' },
+    { label: '对比', name: 'Compare', path: '/compare' },
     { label: '上传', name: 'Upload', path: '/upload', requiresAuth: true }
 ];
 

@@ -138,3 +138,48 @@ void RegionPicker::onCityClicked(int row)
     }
     emit regionSelected(m_regionId, m_province, m_city);
 }
+
+bool RegionPicker::selectByCityName(const QString &cityName)
+{
+    if (cityName.isEmpty() || m_regions.isEmpty())
+        return false;
+
+    // Normalize: strip "市" suffix for matching
+    QString target = cityName;
+    if (target.endsWith(QString::fromUtf8("市")))
+        target.chop(1);
+
+    // 直辖市: province name == city name
+    static const QStringList municipalities = {"北京", "上海", "天津", "重庆"};
+
+    for (int pi = 0; pi < m_regions.size(); ++pi) {
+        const auto &province = m_regions[pi];
+        QString provBase = province.name;
+        if (provBase.endsWith(QString::fromUtf8("市")) || provBase.endsWith(QString::fromUtf8("省")))
+            provBase.chop(1);
+
+        for (int ci = 0; ci < province.children.size(); ++ci) {
+            const auto &city = province.children[ci];
+            QString cityBase = city.name;
+            if (cityBase.endsWith(QString::fromUtf8("市")))
+                cityBase.chop(1);
+
+            if (cityBase == target || city.name == cityName) {
+                // For 直辖市, province should equal city
+                m_selectedProvince = pi;
+                if (municipalities.contains(provBase)) {
+                    m_province = city.name;
+                    m_city = city.name;
+                } else {
+                    m_province = province.name;
+                    m_city = city.name;
+                }
+                m_regionId = city.id;
+                m_btn->setText(m_province + " / " + m_city);
+                emit regionSelected(m_regionId, m_province, m_city);
+                return true;
+            }
+        }
+    }
+    return false;
+}

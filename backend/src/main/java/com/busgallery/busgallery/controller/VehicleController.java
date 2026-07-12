@@ -354,9 +354,16 @@ public class VehicleController {
             if (routeId == null && ra.getRouteNumber() != null && !ra.getRouteNumber().isBlank()) {
                 com.busgallery.busgallery.entity.BusRoute newRoute = new com.busgallery.busgallery.entity.BusRoute();
                 newRoute.setRouteNumber(ra.getRouteNumber().trim());
-                newRoute.setRouteName(ra.getRouteName());
                 newRoute.setRouteType("REGULAR");
                 newRoute.setIsActive(true);
+                newRoute.setStartStop(ra.getStartStop());
+                newRoute.setEndStop(ra.getEndStop());
+                // Inherit region/company from the vehicle
+                com.busgallery.busgallery.entity.Vehicle vh = vehicleService.findById(vehicleId);
+                if (vh != null) {
+                    if (vh.getRegion() != null) newRoute.setRegion(vh.getRegion());
+                    if (vh.getCompany() != null) newRoute.setCompany(vh.getCompany());
+                }
                 busRouteMapper.insert(newRoute);
                 routeId = newRoute.getId();
             }
@@ -444,6 +451,17 @@ public class VehicleController {
         if (detail != null && detail.getVehicle() != null) {
             detail.getVehicle().setRoutes(buildRouteBriefs(vehicleId));
         }
+        // Fill routeNumber for images that have routeId set
+        if (detail != null && detail.getImages() != null) {
+            for (ImageDTO imgDto : detail.getImages()) {
+                if (imgDto.getRouteId() != null && imgDto.getRouteNumber() == null) {
+                    com.busgallery.busgallery.entity.BusRoute br = busRouteMapper.selectById(imgDto.getRouteId());
+                    if (br != null) {
+                        imgDto.setRouteNumber(br.getRouteNumber());
+                    }
+                }
+            }
+        }
         return detail;
     }
 
@@ -458,7 +476,6 @@ public class VehicleController {
                 com.busgallery.busgallery.entity.BusRoute br = vr.getRoute();
                 rb.setRouteId(br.getId());
                 rb.setRouteNumber(br.getRouteNumber());
-                rb.setRouteName(br.getRouteName());
                 rb.setSubType(br.getSubType());
                 rb.setStartStop(br.getStartStop());
                 rb.setEndStop(br.getEndStop());
@@ -743,7 +760,8 @@ public class VehicleController {
     public static class RouteAssignment {
         private Long routeId;
         private String routeNumber;
-        private String routeName;
+        private String startStop;
+        private String endStop;
         private Boolean isCurrent;
         private String remark;
     }
@@ -773,7 +791,6 @@ public class VehicleController {
     public static class RouteBrief {
         private Long routeId;
         private String routeNumber;
-        private String routeName;
         private String subType;
         private String direction;
         private String startStop;

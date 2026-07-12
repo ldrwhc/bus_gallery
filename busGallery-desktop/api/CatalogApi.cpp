@@ -70,3 +70,44 @@ void CatalogApi::fetchCompanies()
             emit catalogError("companies", msg);
         });
 }
+
+void CatalogApi::fetchRoutes()
+{
+    // Pre-load active routes for autocomplete (up to 500)
+    QString path = Config::ROUTES_SEARCH + "?size=500&isActive=true";
+    m_client->get(path,
+        [this](int, const QJsonObject &json) {
+            QList<CatalogItem> items;
+            QList<RouteInfo> routeData;
+            QJsonArray records = json["records"].toArray();
+            for (const auto &val : records) {
+                QJsonObject obj = val.toObject();
+                qint64 id = obj["id"].toVariant().toLongLong();
+
+                // Autocomplete items
+                CatalogItem item;
+                item.id = id;
+                item.name = obj["routeNumber"].toString();
+                QString startStop = obj["startStop"].toString();
+                QString endStop = obj["endStop"].toString();
+                if (!startStop.isEmpty() || !endStop.isEmpty()) {
+                    item.extra = startStop + " - " + endStop;
+                }
+                items.append(item);
+
+                // Full route data for auto-fill
+                RouteInfo ri;
+                ri.id = id;
+                ri.routeNumber = obj["routeNumber"].toString();
+                ri.startStop = startStop;
+                ri.endStop = endStop;
+                ri.routeType = obj["routeType"].toString();
+                routeData.append(ri);
+            }
+            emit routesReady(items);
+            emit routesDataReady(routeData);
+        },
+        [this](int, const QString &, const QString &msg) {
+            emit catalogError("routes", msg);
+        });
+}

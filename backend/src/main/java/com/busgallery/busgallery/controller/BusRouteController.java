@@ -40,12 +40,17 @@ public class BusRouteController {
                                   @RequestParam(required = false) String routeType,
                                   @RequestParam(required = false) String keyword,
                                   @RequestParam(required = false) Boolean isActive) {
-        int pageSize = Math.max(1, Math.min(size, 50));
+        int pageSize = Math.max(1, Math.min(size, 200));
         int offset = Math.max(0, (Math.max(1, page) - 1) * pageSize);
         List<BusRoute> records = busRouteService.queryPage(offset, pageSize, regionId, companyId,
                 routeType, StringUtils.hasText(keyword) ? keyword.trim() : null, isActive);
         long total = busRouteService.count(regionId, companyId, routeType,
                 StringUtils.hasText(keyword) ? keyword.trim() : null, isActive);
+        // Touch lazy-loaded relationships so Jackson can serialize them
+        records.forEach(r -> {
+            if (r.getCompany() != null) r.getCompany().getName();
+            if (r.getRegion() != null) r.getRegion().getName();
+        });
         return new RoutePageResponse(records, total, page, pageSize);
     }
 
@@ -101,7 +106,6 @@ public class BusRouteController {
     @Data
     public static class RouteRequest {
         private String routeNumber;
-        private String routeName;
         private String subType;
         private Long parentRouteId;
         private String startStop;
@@ -124,7 +128,6 @@ public class BusRouteController {
         public BusRoute toRoute() {
             BusRoute r = new BusRoute();
             r.setRouteNumber(routeNumber);
-            r.setRouteName(routeName);
             r.setSubType(subType);
             r.setStartStop(startStop);
             r.setEndStop(endStop);

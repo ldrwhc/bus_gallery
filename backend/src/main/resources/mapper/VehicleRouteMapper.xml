@@ -15,7 +15,6 @@
         <association property="route" javaType="com.busgallery.busgallery.entity.BusRoute">
             <id property="id" column="r_id"/>
             <result property="routeNumber" column="r_route_number"/>
-            <result property="routeName" column="r_route_name"/>
             <result property="subType" column="r_sub_type"/>
             <result property="startStop" column="r_start_stop"/>
             <result property="endStop" column="r_end_stop"/>
@@ -30,7 +29,7 @@
         SELECT
             vr.id, vr.is_current, vr.remark, vr.created_at,
             br.id AS r_id, br.route_number AS r_route_number,
-            br.route_name AS r_route_name, br.sub_type AS r_sub_type,
+            br.sub_type AS r_sub_type,
             br.start_stop AS r_start_stop, br.end_stop AS r_end_stop,
             br.down_start_stop AS r_down_start_stop,
             br.down_end_stop AS r_down_end_stop,
@@ -46,7 +45,7 @@
             vr.id, vr.is_current, vr.remark, vr.created_at,
             v.id AS v_id, v.plate_number AS v_plate_number,
             br.id AS r_id, br.route_number AS r_route_number,
-            br.route_name AS r_route_name, br.sub_type AS r_sub_type,
+            br.sub_type AS r_sub_type,
             br.start_stop AS r_start_stop, br.end_stop AS r_end_stop,
             br.down_start_stop AS r_down_start_stop,
             br.down_end_stop AS r_down_end_stop,
@@ -62,7 +61,7 @@
         SELECT
             vr.id, vr.is_current, vr.remark, vr.created_at,
             br.id AS r_id, br.route_number AS r_route_number,
-            br.route_name AS r_route_name, br.sub_type AS r_sub_type,
+            br.sub_type AS r_sub_type,
             br.start_stop AS r_start_stop, br.end_stop AS r_end_stop,
             br.down_start_stop AS r_down_start_stop,
             br.down_end_stop AS r_down_end_stop,

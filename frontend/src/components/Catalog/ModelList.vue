@@ -5,7 +5,7 @@
                 <div>
                     <h3>{{ model.name }}</h3>
                     <p class="meta">
-                        品牌：{{ model.brandName || '未知' }}
+                        品牌：{{ brandDisplayMap[model.brandName] || model.brandName || '未知' }}
                     </p>
                 </div>
                 <button class="ghost-btn ghost-btn--sm" type="button" @click="$emit('select-model', model)">
@@ -28,6 +28,18 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
+import { useStore } from 'vuex';
+
+const store = useStore();
+const brandDisplayMap = computed(() => {
+    const brands = store.state.brands.list || [];
+    const map = {};
+    brands.forEach((b) => {
+        if (b.name) map[b.name] = b.chnName || b.name;
+    });
+    return map;
+});
 import { FALLBACK_IMAGE } from '@/utils/constants';
 
 defineProps({

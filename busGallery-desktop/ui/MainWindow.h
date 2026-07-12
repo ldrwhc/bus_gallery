@@ -10,6 +10,8 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QDateEdit>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 #include "api/ApiClient.h"
 #include "api/AuthApi.h"
 #include "api/CatalogApi.h"
@@ -36,6 +38,11 @@ private slots:
     void onFuelTypeChanged(int index);
     void saveDraft();
     void loadDraft();
+    void addRouteRow(const RouteAssignment &ra = RouteAssignment());
+    void removeRouteRow(int index);
+    void refreshRouteFields();
+    void fetchFromBuspedia();
+    void fetchBuspediaDetail(const QString &detailUrl);
 
 private:
     void setupUi();
@@ -63,6 +70,7 @@ private:
     // Upload form widgets
     ImageDropZone *m_imageDrop;
     QLineEdit *m_plateEdit;
+    QPushButton *m_buspediaBtn;
     QLineEdit *m_customNumEdit;
     AutocompleteField *m_brandField;
     AutocompleteField *m_modelField;
@@ -85,6 +93,23 @@ private:
     QPushButton *m_submitBtn;
     QPushButton *m_resetBtn;
 
+    // Route rows
+    QWidget *m_routesContainer;
+    QVBoxLayout *m_routesLayout;
+    QPushButton *m_addRouteBtn;
+    QList<CatalogItem> m_routesList;        // pre-loaded active routes for autocomplete
+    QMap<qint64, RouteInfo> m_routesData;   // full route details keyed by id, for auto-fill
+    struct RouteRowWidgets {
+        QWidget *container;
+        AutocompleteField *routeField;
+        QLineEdit *startStopEdit;
+        QLineEdit *endStopEdit;
+        QCheckBox *isCurrentCheck;
+        QPushButton *removeBtn;
+    };
+    QList<RouteRowWidgets> m_routeRows;
+
+    QNetworkAccessManager *m_buspediaNam;  // for buspedia.top scraping
     QTimer *m_draftTimer;
     bool m_suppressDraft = true; // don't save while loading draft
 };

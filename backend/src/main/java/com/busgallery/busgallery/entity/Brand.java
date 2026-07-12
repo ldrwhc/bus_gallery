@@ -22,10 +22,10 @@ public class Brand {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 128, unique = true)
+    @Column(nullable = false, length = 128, unique = true, columnDefinition = "VARCHAR(128) COMMENT '品牌缩写/代码'")
     private String name;
 
-    @Column(name = "chn_name", length = 200)
+    @Column(name = "chn_name", length = 200, columnDefinition = "VARCHAR(200) COMMENT '品牌中文全称'")
     private String chnName;
 
     @Column(length = 255)

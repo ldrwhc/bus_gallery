@@ -37,6 +37,18 @@ public class VehicleUpsertPayload {
 
     private VehicleConfigPayload config;
     private List<Long> imageIds;
+    private List<RouteAssignmentPayload> routes;
+
+    @Data
+    public static class RouteAssignmentPayload {
+        private Long routeId;
+        private String routeNumber;
+        private String routeName;
+        private String startStop;
+        private String endStop;
+        private Boolean isCurrent;
+        private String remark;
+    }
 
     public void validate() {
         if (!StringUtils.hasText(plateNumber)) {

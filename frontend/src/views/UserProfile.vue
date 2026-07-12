@@ -107,15 +107,23 @@
                 <article v-for="image in images" :key="image.id" class="item" @click="openImage(image)">
                     <img :src="image.thumbnailUrl" :alt="image.objectName || 'upload'" />
                     <p class="muted">{{ formatDate(image.createTime) }}</p>
-                    <button
-                        v-if="isSelf"
-                        class="edit-btn"
-                        type="button"
-                        :disabled="!image.vehicleId"
-                        @click.stop="openEditDialog(image)"
-                    >
-                        {{ resolveEditButtonText(image) }}
-                    </button>
+                    <div v-if="isSelf" class="item-actions">
+                        <button
+                            class="edit-btn"
+                            type="button"
+                            :disabled="!image.vehicleId"
+                            @click.stop="openEditDialog(image)"
+                        >
+                            {{ resolveEditButtonText(image) }}
+                        </button>
+                        <button
+                            class="delete-img-btn"
+                            type="button"
+                            @click.stop="confirmDeleteImage(image)"
+                        >
+                            删除
+                        </button>
+                    </div>
                 </article>
             </div>
         </section>
@@ -337,12 +345,13 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Check, Close, EditPen } from '@element-plus/icons-vue';
 import { fetchUserImages, fetchUserProfile, updateMyDisplayName } from '@/api/users';
+import { deleteImage } from '@/api/images';
 import { fetchFavorites } from '@/api/vehicles';
 import { fetchReviewInbox, submitVehicleUpdateReview } from '@/api/reviews';
 import { fetchRoutes } from '@/api/routes';
@@ -979,11 +988,41 @@ const openEditDialog = async (image) => {
     };
     editForm.routes = (Array.isArray(vehicle.routes) ? vehicle.routes : []).map(vr => ({
         routeId: vr.routeId,
+        routeNumber: vr.routeNumber || '',
         isCurrent: vr.isCurrent != null ? vr.isCurrent : true,
         remark: ''
     }));
     editTarget.value = { imageId: image.id, vehicleId: image.vehicleId };
     editVisible.value = true;
+};
+
+const confirmDeleteImage = async (image) => {
+    if (!isSelf.value || !image?.id) return;
+    const vehicleInfo = image.vehiclePlateNumber
+        ? `关联车辆：${image.vehiclePlateNumber}${image.modelName ? ' · ' + image.modelName : ''}`
+        : (image.vehicleId ? `已关联车辆 (ID: ${image.vehicleId})` : '未关联车辆');
+    const message = h('div', { style: 'text-align:center' }, [
+        h('img', { src: image.thumbnailUrl, style: 'width:100%;max-width:260px;border-radius:8px;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto' }),
+        h('p', { style: 'margin:4px 0;color:#64748b;font-size:13px' }, formatDate(image.createTime)),
+        h('p', { style: 'margin:4px 0;font-weight:600' }, vehicleInfo),
+        h('p', { style: 'margin:8px 0 0;color:#b91c1c;font-size:13px' }, '删除后不可恢复，确定要删除这张图片吗？'),
+    ]);
+    try {
+        await ElMessageBox.confirm(
+            message,
+            '确认删除',
+            { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning', dangerouslyUseHTMLString: false }
+        );
+    } catch {
+        return; // user cancelled
+    }
+    try {
+        await deleteImage(image.id);
+        ElMessage.success('图片已删除');
+        await loadImages();
+    } catch (error) {
+        ElMessage.error(error?.message || '删除失败');
+    }
 };
 
 const cleanText = (value) => {
@@ -1261,8 +1300,11 @@ onBeforeUnmount(() => {
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
 .item { background: #f8fafc; border-radius: 14px; padding: 10px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2); }
 .item img { width: 100%; aspect-ratio: 16 / 10; height: auto; object-fit: cover; border-radius: 10px; margin-bottom: 8px; display: block; }
-.edit-btn { width: 100%; border: 1px solid rgba(37, 99, 235, 0.28); background: rgba(37, 99, 235, 0.08); color: #1d4ed8; border-radius: 10px; padding: 6px; font-size: 12px; cursor: pointer; }
+.edit-btn { flex: 1; border: 1px solid rgba(37, 99, 235, 0.28); background: rgba(37, 99, 235, 0.08); color: #1d4ed8; border-radius: 10px; padding: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .edit-btn:disabled { cursor: not-allowed; color: #94a3b8; border-color: #e2e8f0; background: #f8fafc; }
+.delete-img-btn { flex: 1; border: 1px solid rgba(220, 38, 38, 0.28); background: rgba(220, 38, 38, 0.06); color: #b91c1c; border-radius: 10px; padding: 6px; font-size: 12px; cursor: pointer; transition: background .15s; white-space: nowrap; }
+.delete-img-btn:hover { background: rgba(220, 38, 38, 0.14); }
+.item-actions { display: flex; gap: 6px; margin-top: 6px; }
 .state { text-align: center; padding: 40px 0; color: #94a3b8; }
 
 @media (max-width: 768px) {

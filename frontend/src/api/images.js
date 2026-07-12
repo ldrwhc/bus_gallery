@@ -61,3 +61,6 @@ export const fetchLatestImages = (params = {}) =>
 
 export const fetchImageDetail = (imageId) =>
     http.get(`/images/${imageId}`);
+
+export const deleteImage = (imageId) =>
+    http.delete(`/images/${imageId}`);

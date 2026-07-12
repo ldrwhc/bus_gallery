@@ -15,12 +15,18 @@ struct CatalogItem {
         CatalogItem item;
         item.id = obj["id"].toVariant().toLongLong();
         item.name = obj["name"].toString();
-        if (obj.contains("brandName"))
-            item.extra = obj["brandName"].toString();
-        else if (obj.contains("chnName"))
+        // Prefer Chinese brand name, then English, then region
+        if (obj.contains("brandChnName") && !obj["brandChnName"].toString().isEmpty())
+            item.extra = obj["brandChnName"].toString();
+        else if (obj.contains("chnName") && !obj["chnName"].toString().isEmpty())
             item.extra = obj["chnName"].toString();
+        else if (obj.contains("brandName"))
+            item.extra = obj["brandName"].toString();
         else if (obj.contains("regionName"))
             item.extra = obj["regionName"].toString();
+        // Company entity: region is nested {name: "北京市"}
+        else if (obj.contains("region") && obj["region"].isObject())
+            item.extra = obj["region"].toObject()["name"].toString();
         return item;
     }
 };

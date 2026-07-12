@@ -37,7 +37,7 @@
                         <div class="model-block__header">
                             <div>
                                 <h2>{{ model.name }}</h2>
-                                <p class="tag">{{ model.brandName || brandNameMap[model.id] || '品牌待补全' }}</p>
+                                <p class="tag">{{ brandDisplayMap[model.brandName] || model.brandName || '品牌待补全' }}</p>
                             </div>
                             <button
                                 class="pill-btn"
@@ -77,7 +77,7 @@
                 <div class="detail-summary">
                     <p class="eyebrow">Model Detail</p>
                     <h1>{{ modelDetail.name }}</h1>
-                    <p class="subtitle">{{ modelDetail.brand?.name || brandNameMap[selectedModelId] || '品牌待补全' }}</p>
+                    <p class="subtitle">{{ modelDetail.brand?.chnName || modelDetail.brand?.name || brandNameMap[selectedModelId] || '品牌待补全' }}</p>
                 </div>
 
                 <section v-if="summaryLoading && !modelCompanySummaries.length" class="state state--loading">
@@ -411,6 +411,15 @@ const brandNameMap = computed(() => {
     return map;
 });
 
+const brandDisplayMap = computed(() => {
+    const brands = store.state.brands.list || [];
+    const map = {};
+    brands.forEach((b) => {
+        if (b.name) map[b.name] = b.chnName || b.name;
+    });
+    return map;
+});
+
 const regionsById = computed(() => {
     const map = {};
     const regions = store.state.regions.list || [];
@@ -599,6 +608,7 @@ watch(
 
 onMounted(() => {
     store.dispatch('regions/loadRegions');
+    store.dispatch('brands/loadBrands');
 });
 </script>
 

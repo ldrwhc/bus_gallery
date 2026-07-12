@@ -27,6 +27,11 @@ public interface BrandMapper {
     Brand selectByName(@Param("name") String name);
 
     /**
+     * selectByChnName — 按中文全称查找品牌。
+     */
+    Brand selectByChnName(@Param("chnName") String chnName);
+
+    /**
      * selectAll方法用于处理selectAll相关的业务逻辑。
      * @return 返回List<Brand>类型结果。
      */
