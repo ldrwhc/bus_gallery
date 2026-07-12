@@ -358,14 +358,14 @@ public class VehicleServiceImpl implements VehicleService {
             throw new IllegalArgumentException("车型名称不能为空");
         }
 
-        Long resolvedBrandId = resolveBrandId(brandId, brandName);
+        Long resolvedBrandId = resolveBrandId(brandId, brandName, modelName);
         Long modelId = findOrCreateModel(resolvedBrandId, modelName.trim());
         Model model = new Model();
         model.setId(modelId);
         vehicle.setModel(model);
     }
 
-    private Long resolveBrandId(Long brandId, String brandName) {
+    private Long resolveBrandId(Long brandId, String brandName, String modelName) {
         if (brandId != null) {
             Brand brand = brandMapper.selectById(brandId);
             if (brand != null) {
@@ -378,7 +378,7 @@ public class VehicleServiceImpl implements VehicleService {
         if (!StringUtils.hasText(brandName)) {
             throw new IllegalArgumentException("品牌名称不能为空");
         }
-        return findOrCreateBrand(brandName.trim());
+        return findOrCreateBrand(brandName.trim(), modelName);
     }
 
     private void ensureCompanyExists(Vehicle vehicle, String companyName) {
@@ -402,22 +402,52 @@ public class VehicleServiceImpl implements VehicleService {
         vehicle.setCompany(company);
     }
 
-    private Long findOrCreateBrand(String brandName) {
+    private Long findOrCreateBrand(String brandName, String modelName) {
         // 1. Exact match on name (abbreviation like "BJ")
         Brand existing = brandMapper.selectByName(brandName);
         if (existing != null) {
             return existing.getId();
         }
-        // 2. Try chnName (user might have entered Chinese name like "福田")
+        // 2. Try chnName (user might have entered Chinese name like "比亚迪")
         existing = brandMapper.selectByChnName(brandName);
         if (existing != null) {
             return existing.getId();
         }
-        // 3. Create new — user input goes to name, chnName stays null
+        // 3. Extract English brand code from model name prefix (e.g., "CK6120LGEV" → "CK")
+        String brandCode = extractBrandCodeFromModel(modelName);
+
+        // 4. If we have a code, try finding by that code too
+        if (brandCode != null) {
+            existing = brandMapper.selectByName(brandCode);
+            if (existing != null) return existing.getId();
+        }
+
+        // 5. Create new brand
+        //    - name = English code extracted from model (e.g., "CK")
+        //    - chnName = user's Chinese input (e.g., "比亚迪")
         Brand brand = new Brand();
-        brand.setName(brandName);
+        brand.setName(brandCode != null ? brandCode : brandName);
+        brand.setChnName(brandName);
         brandMapper.insert(brand);
         return brand.getId();
+    }
+
+    /**
+     * Extract the leading English letters from a model name as the brand code.
+     * E.g., "CK6120LGEV" → "CK", "ZK6125BEVG" → "ZK", "XML6125" → "XML".
+     * Returns null if no leading letters are found.
+     */
+    private String extractBrandCodeFromModel(String modelName) {
+        if (!StringUtils.hasText(modelName)) return null;
+        StringBuilder sb = new StringBuilder();
+        for (char c : modelName.trim().toCharArray()) {
+            if (Character.isLetter(c)) {
+                sb.append(Character.toUpperCase(c));
+            } else {
+                break;
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 
     private Long findOrCreateModel(Long brandId, String modelName) {

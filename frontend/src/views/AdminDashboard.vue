@@ -190,7 +190,7 @@
                                 </el-button>
                             </div>
                         </div>
-                        <el-table :data="modelRows" stripe @selection-change="handleModelSelectionChange">
+                        <el-table :data="paginatedModelRows" stripe @selection-change="handleModelSelectionChange">
                             <el-table-column type="selection" width="48" />
                             <el-table-column prop="id" label="ID" width="80" />
                             <el-table-column prop="name" label="车型名" min-width="180" />
@@ -206,6 +206,9 @@
                                 </template>
                             </el-table-column>
                         </el-table>
+                        <div v-if="modelRows.length > modelPageSize" style="margin-top:14px;display:flex;justify-content:center">
+                            <el-pagination background layout="prev, pager, next, total" :current-page="modelPage" :page-size="modelPageSize" :total="modelRows.length" @current-change="(p) => modelPage = p" />
+                        </div>
                     </el-tab-pane>
 
                     <el-tab-pane label="线路表" name="routes">
@@ -827,6 +830,13 @@ const regionRows = ref([]);
 const companyRows = ref([]);
 const brandRows = ref([]);
 const modelRows = ref([]);
+const modelPage = ref(1);
+const modelPageSize = 20;
+
+const paginatedModelRows = computed(() => {
+    const start = (modelPage.value - 1) * modelPageSize;
+    return modelRows.value.slice(start, start + modelPageSize);
+});
 const selectedRegionIds = ref([]);
 const selectedCompanyIds = ref([]);
 const selectedBrandIds = ref([]);
@@ -1671,6 +1681,7 @@ const refreshTabData = async (tab) => {
 };
 
 watch(activeTab, async (tab) => {
+    modelPage.value = 1;
     try {
         await refreshTabData(tab);
     } catch (error) {
