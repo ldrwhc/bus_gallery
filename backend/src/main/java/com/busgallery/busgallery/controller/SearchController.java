@@ -79,19 +79,32 @@ public class SearchController {
                     .collect(Collectors.toList())));
         }
 
-        // --- Companies (uses FULLTEXT via CompanyMapper.searchByKeyword) ---
-        if (all || "companies".equals(scope)) {
-            List<Company> matched = companyMapper.searchByKeyword(kw, PREVIEW_LIMIT);
-            result.setCompanies(new SearchCategory(matched.size(), matched.stream()
-                    .map(SearchItem::ofCompany)
+        // --- Regions (FULLTEXT; searched first so companies can use region matches) ---
+        List<Region> matchedRegions = Collections.emptyList();
+        if (all || "regions".equals(scope)) {
+            matchedRegions = regionMapper.searchByKeyword(kw, PREVIEW_LIMIT);
+            result.setRegions(new SearchCategory(matchedRegions.size(), matchedRegions.stream()
+                    .map(SearchItem::ofRegion)
                     .collect(Collectors.toList())));
         }
 
-        // --- Regions (uses FULLTEXT via RegionMapper.searchByKeyword) ---
-        if (all || "regions".equals(scope)) {
-            List<Region> matched = regionMapper.searchByKeyword(kw, PREVIEW_LIMIT);
-            result.setRegions(new SearchCategory(matched.size(), matched.stream()
-                    .map(SearchItem::ofRegion)
+        // --- Companies (FULLTEXT on name + companies in matching regions) ---
+        if (all || "companies".equals(scope)) {
+            Set<Company> companySet = new LinkedHashSet<>(companyMapper.searchByKeyword(kw, PREVIEW_LIMIT));
+            // Also include companies from matched regions
+            if (companySet.size() < PREVIEW_LIMIT) {
+                for (Region region : matchedRegions) {
+                    if (companySet.size() >= PREVIEW_LIMIT) break;
+                    List<Company> regionCompanies = companyMapper.selectByRegionId(region.getId());
+                    for (Company c : regionCompanies) {
+                        if (companySet.size() >= PREVIEW_LIMIT) break;
+                        companySet.add(c);
+                    }
+                }
+            }
+            List<Company> matched = new ArrayList<>(companySet);
+            result.setCompanies(new SearchCategory(matched.size(), matched.stream()
+                    .map(SearchItem::ofCompany)
                     .collect(Collectors.toList())));
         }
 
