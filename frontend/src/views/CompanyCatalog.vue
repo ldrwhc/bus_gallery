@@ -836,32 +836,33 @@ onMounted(() => {
 
 .filter-bar {
     background: #fff;
-    border-radius: 18px;
-    padding: 16px 20px;
-    margin-bottom: 24px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.05);
 }
 
 .filter-label {
-    margin: 0 0 8px;
-    font-size: 0.9rem;
+    margin: 0 0 6px;
+    font-size: 0.8rem;
     color: #475569;
 }
 
 .chip-row {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     overflow-x: auto;
 }
 
 .filter-chip {
     border: 1px solid rgba(37, 99, 235, 0.2);
     border-radius: 999px;
-    padding: 6px 16px;
+    padding: 4px 12px;
+    font-size: 0.8rem;
     background: transparent;
     color: #2563eb;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
 
     &.active,
     &:hover {
@@ -874,73 +875,74 @@ onMounted(() => {
 .company-list {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
 }
 
 .company-block {
     background: #fff;
-    border-radius: 24px;
-    padding: 28px;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
 }
 
 .company-block__header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 18px;
+    align-items: center;
+    margin-bottom: 10px;
+    h2 { font-size: 1rem; margin: 0; }
 }
 
 .tag {
     display: inline-flex;
     align-items: center;
-    padding: 4px 12px;
-    background: rgba(37, 99, 235, 0.1);
+    padding: 2px 8px;
+    background: rgba(37, 99, 235, 0.08);
     border-radius: 999px;
-    font-size: 0.85rem;
-    color: #2563eb;
-}
+    font-size: 0.75rem;
+    color: #2563eb;}
 .batch-tag {
     display: inline-flex;
     align-items: center;
-    padding: 3px 10px;
+    padding: 2px 8px;
     background: #f0fdf4;
     border-radius: 999px;
-    font-size: 0.78rem;
+    font-size: 0.7rem;
     color: #15803d;
-    margin-top: 6px;
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 .model-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
 }
 
 .model-card {
     border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 12px;
+    border-radius: 12px;
+    padding: 10px;
     background: #fdfdfd;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    transition: all 0.2s;
+    gap: 8px;
+    transition: border-color 0.15s;
 
     &:hover {
         border-color: #bfdbfe;
-        box-shadow: 0 10px 30px rgba(59, 130, 246, 0.15);
     }
 
     img {
         width: 100%;
-        height: 120px;
+        height: 100px;
         object-fit: cover;
-        border-radius: 12px;
+        border-radius: 8px;
+        background: #f1f5f9;
     }
 }
 
 .model-name {
+    font-size: 0.85rem;
     font-weight: 600;
 }
 
@@ -949,6 +951,7 @@ onMounted(() => {
     background: none;
     color: #2563eb;
     font-weight: 600;
+    font-size: 0.83rem;
     cursor: pointer;
     text-align: left;
 }
@@ -1006,17 +1009,17 @@ onMounted(() => {
 .detail-filters {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-bottom: 24px;
-    padding: 16px 20px;
+    gap: 6px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
     background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
 }
 .filter-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 .filter-row__label {
     font-size: 0.8rem;
@@ -1195,11 +1198,12 @@ onMounted(() => {
 .filter-chip {
     border: 1px solid rgba(37, 99, 235, 0.2);
     border-radius: 999px;
-    padding: 6px 12px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
     background: #fff;
     color: #2563eb;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 
     &.active,
     &:hover {
