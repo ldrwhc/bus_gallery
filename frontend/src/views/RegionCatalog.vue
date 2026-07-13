@@ -5,41 +5,52 @@
                 <div>
                     <p class="eyebrow">Region</p>
                     <h1>按地区查看公交公司</h1>
-                    <p class="subtitle">覆盖 {{ cityCatalog.length }} 个地级市 / {{ totalCompanies }} 家公交企业</p>
+                    <p class="subtitle">覆盖 {{ cityCount }} 个地级市 / {{ totalCompanies }} 家公交企业</p>
                 </div>
             </header>
 
             <div v-if="loading" class="state state--loading">正在加载地区数据...</div>
-            <div v-else-if="!cityCatalog.length" class="state state--empty">暂无地区数据</div>
+            <div v-else-if="!provinceTree.length" class="state state--empty">暂无地区数据</div>
 
-            <!-- Split layout: sidebar + main -->
             <div v-else class="split-layout">
-                <!-- Sidebar: region list -->
+                <!-- Sidebar: province → city tree -->
                 <aside class="split-sidebar">
-                    <p class="sidebar-label">地级市</p>
+                    <p class="sidebar-label">地区</p>
                     <nav class="sidebar-nav">
-                        <button
-                            v-for="city in cityCatalog" :key="city.id"
-                            :class="['sidebar-item', { active: city.id === activeRegionId }]"
-                            @click="activeRegionId = city.id"
-                        >
-                            <span class="si-name">{{ city.name }}</span>
-                            <span class="si-count">{{ city.companies?.length || 0 }}</span>
-                        </button>
+                        <div v-for="prov in provinceTree" :key="prov.id" class="tree-group">
+                            <button
+                                :class="['tree-prov', { open: prov.expanded }]"
+                                @click="prov.expanded = !prov.expanded"
+                            >
+                                <span class="tp-arrow">{{ prov.expanded ? '▾' : '▸' }}</span>
+                                <span class="tp-name">{{ prov.name }}</span>
+                                <span class="tp-count">{{ prov.cities.length }}</span>
+                            </button>
+                            <div v-if="prov.expanded" class="tree-cities">
+                                <button
+                                    v-for="city in prov.cities" :key="city.id"
+                                    :class="['tree-city', { active: city.id === activeCityId }]"
+                                    @click="selectCity(city)"
+                                >
+                                    <span class="tc-name">{{ city.name }}</span>
+                                    <span class="tc-count">{{ city.companyCount || 0 }}</span>
+                                </button>
+                            </div>
+                        </div>
                     </nav>
                 </aside>
 
-                <!-- Main: companies of selected region -->
+                <!-- Main: companies -->
                 <section class="split-main">
-                    <template v-if="activeRegion">
+                    <template v-if="activeCity">
                         <header class="main-header">
-                            <h2>{{ activeRegion.name }}</h2>
-                            <p class="main-meta">{{ activeRegion.companies?.length || 0 }} 家公交公司</p>
+                            <h2>{{ activeCity.name }}</h2>
+                            <p class="main-meta">{{ activeCity.companyCount || 0 }} 家公交公司</p>
                         </header>
 
-                        <div v-if="activeRegion.companies?.length" class="company-grid">
+                        <div v-if="activeCity.companies?.length" class="company-grid">
                             <article
-                                v-for="company in activeRegion.companies" :key="company.id"
+                                v-for="company in activeCity.companies" :key="company.id"
                                 class="company-card"
                                 @click="goCompany(company.id)"
                             >
@@ -56,9 +67,8 @@
                         <p v-else class="empty-meta">暂无公司数据</p>
                     </template>
 
-                    <!-- Default: first region or empty prompt -->
                     <div v-else class="main-empty">
-                        <p>← 从左侧选择一个地区查看详情</p>
+                        <p>← 从左侧选择一个城市查看详情</p>
                     </div>
                 </section>
             </div>
@@ -67,7 +77,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch, reactive } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
@@ -76,55 +86,108 @@ const store = useStore();
 const route = useRoute();
 const router = useRouter();
 
-const activeRegionId = ref(null);
-const catalog = computed(() => store.state.regions.catalog);
-
-const isProvinceName = (name = '') => {
-    const n = (name || '').trim();
-    if (!n) return false;
-    return n.endsWith('省') || n.includes('自治区') || n.endsWith('特别行政区') || n.endsWith('兵团');
-};
-
-const cityCatalog = computed(() =>
-    catalog.value.filter((r) => r?.name && !isProvinceName(r.name) && (r.companies?.length || 0) > 0)
-);
-
-const loading = computed(() => store.state.regions.catalogLoading);
-
-const totalCompanies = computed(() =>
-    cityCatalog.value.reduce((sum, r) => sum + (r.companies?.length || 0), 0)
-);
-
-const activeRegion = computed(() =>
-    cityCatalog.value.find((r) => r.id === activeRegionId.value) || null
-);
-
+const activeCityId = ref(null);
 const placeholderLogo = placeholderBus;
+const expandedProvinceIds = ref([]);
+
+// Raw data
+const allRegions = computed(() => store.state.regions.list || []);
+const catalog = computed(() => store.state.regions.catalog || []);
+const loading = computed(() => store.state.regions.loading || store.state.regions.catalogLoading);
+
+// Build catalog map: cityId → { companies, companyCount }
+const catalogByCityId = computed(() => {
+    const map = {};
+    catalog.value.forEach((r) => {
+        if (r?.companies?.length) {
+            map[r.id] = { companies: r.companies, companyCount: r.companies.length };
+        }
+    });
+    return map;
+});
+
+// Build province tree
+const provinceTree = computed(() => {
+    const provinces = allRegions.value.filter((r) => r.level === 1 || r.regionType === 'PROVINCE');
+    return provinces.map((prov) => {
+        const cities = allRegions.value
+            .filter((r) => r.provinceId === prov.id && r.id !== prov.id)
+            .map((city) => ({
+                ...city,
+                companyCount: catalogByCityId.value[city.id]?.companyCount || 0,
+                companies: catalogByCityId.value[city.id]?.companies || []
+            }));
+        return {
+            ...prov,
+            cities,
+            expanded: expandedProvinceIds.value.includes(prov.id)
+        };
+    }).filter((prov) => prov.cities.length > 0);
+});
+
+const cityCount = computed(() => {
+    let n = 0;
+    provinceTree.value.forEach((p) => { n += p.cities.length; });
+    return n;
+});
+
+const totalCompanies = computed(() => {
+    let n = 0;
+    provinceTree.value.forEach((p) => {
+        p.cities.forEach((c) => { n += c.companyCount || 0; });
+    });
+    return n;
+});
+
+const activeCity = computed(() => {
+    if (!activeCityId.value) return null;
+    for (const prov of provinceTree.value) {
+        const city = prov.cities.find((c) => c.id === activeCityId.value);
+        if (city) return city;
+    }
+    return null;
+});
+
+const selectCity = (city) => {
+    activeCityId.value = city.id;
+    router.replace({ name: 'RegionCatalog', params: { regionId: city.id } }).catch(() => {});
+};
 
 const goCompany = (companyId) => {
     router.push({ name: 'CompanyCatalog', params: { companyId } });
 };
 
-// Sync from route param or default to first city
-watch(cityCatalog, (list) => {
-    if (!list.length) return;
-    const routeId = route.params.regionId ? Number(route.params.regionId) : null;
-    if (routeId && list.some((r) => r.id === routeId)) {
-        activeRegionId.value = routeId;
-    } else if (!activeRegionId.value || !list.some((r) => r.id === activeRegionId.value)) {
-        activeRegionId.value = list[0].id;
+// Expand province containing the active city
+const expandProvinceForCity = (cityId) => {
+    for (const prov of provinceTree.value) {
+        if (prov.cities.some((c) => c.id === cityId)) {
+            if (!expandedProvinceIds.value.includes(prov.id)) {
+                expandedProvinceIds.value.push(prov.id);
+            }
+            return;
+        }
     }
-}, { immediate: true });
+};
 
+// Route sync
 watch(() => route.params.regionId, (id) => {
     const num = id ? Number(id) : null;
-    if (num && cityCatalog.value.some((r) => r.id === num)) {
-        activeRegionId.value = num;
+    if (num) {
+        expandProvinceForCity(num);
+        activeCityId.value = num;
     }
 });
 
-onMounted(() => {
-    store.dispatch('regions/loadRegionCatalog');
+onMounted(async () => {
+    await Promise.all([
+        store.dispatch('regions/loadRegions'),
+        store.dispatch('regions/loadRegionCatalog')
+    ]);
+    const routeId = route.params.regionId ? Number(route.params.regionId) : null;
+    if (routeId) {
+        expandProvinceForCity(routeId);
+        activeCityId.value = routeId;
+    }
 });
 </script>
 
@@ -148,49 +211,62 @@ onMounted(() => {
 
 // ---- Sidebar ----
 .split-sidebar {
-    width: 200px; flex-shrink: 0;
-    background: #fff; border-radius: 14px; padding: 16px 0;
+    width: 220px; flex-shrink: 0;
+    background: #fff; border-radius: 14px; padding: 12px 0;
     box-shadow: 0 4px 16px rgba(15,23,42,0.04);
-    position: sticky; top: 20px;
+    position: sticky; top: 20px; max-height: calc(100vh - 60px); overflow-y: auto;
 }
-.sidebar-label { padding: 0 16px 10px; font-size: 0.75rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
+.sidebar-label { padding: 0 16px 8px; font-size: 0.72rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
 .sidebar-nav { display: flex; flex-direction: column; }
-.sidebar-item {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 16px; border: none; background: transparent; cursor: pointer;
-    font-size: 0.9rem; color: #374151; text-align: left; width: 100%;
-    transition: background 0.15s;
-    &:hover { background: #f1f5f9; }
-    &.active { background: #eff6ff; color: #2563eb; font-weight: 600;
-        .si-count { background: #2563eb; color: #fff; }
-    }
+
+// Tree: province
+.tree-group { border-bottom: 1px solid #f1f5f9; }
+.tree-prov {
+    display: flex; align-items: center; gap: 6px;
+    width: 100%; padding: 10px 14px; border: none; background: transparent;
+    cursor: pointer; font-size: 0.88rem; color: #1e293b; font-weight: 600;
+    text-align: left; transition: background 0.12s;
+    &:hover { background: #f8fafc; }
 }
-.si-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.si-count {
-    font-size: 0.72rem; min-width: 22px; height: 22px; border-radius: 11px;
-    background: #f1f5f9; color: #64748b;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+.tp-arrow { font-size: 0.7rem; color: #94a3b8; width: 14px; flex-shrink: 0; transition: transform 0.15s; }
+.tp-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-count {
+    font-size: 0.68rem; min-width: 20px; height: 20px; border-radius: 10px;
+    background: #e2e8f0; color: #64748b; display: flex; align-items: center; justify-content: center;
 }
 
-// ---- Main area ----
+// Tree: city
+.tree-cities { background: #fafbfc; }
+.tree-city {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 8px 14px 8px 34px; border: none; background: transparent;
+    cursor: pointer; font-size: 0.85rem; color: #475569; text-align: left;
+    transition: background 0.12s;
+    &:hover { background: #f1f5f9; }
+    &.active { background: #eff6ff; color: #2563eb; font-weight: 600;
+        .tc-count { background: #2563eb; color: #fff; }
+    }
+}
+.tc-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-count {
+    font-size: 0.68rem; min-width: 20px; height: 20px; border-radius: 10px;
+    background: #e2e8f0; color: #64748b; display: flex; align-items: center; justify-content: center;
+}
+
+// ---- Main ----
 .split-main {
     flex: 1; min-width: 0;
     background: #fff; border-radius: 14px; padding: 24px;
-    box-shadow: 0 4px 16px rgba(15,23,42,0.04);
-    min-height: 400px;
+    box-shadow: 0 4px 16px rgba(15,23,42,0.04); min-height: 400px;
 }
 .main-header { margin-bottom: 18px;
-    h2 { margin: 0 0 2px; font-size: 1.25rem; color: #111827; }
+    h2 { margin: 0 0 2px; font-size: 1.2rem; color: #111827; }
 }
 .main-meta { margin: 0; font-size: 0.85rem; color: #6b7280; }
 .main-empty { display: flex; align-items: center; justify-content: center; height: 300px; color: #9ca3af; font-size: 0.95rem; }
 
-// ---- Company grid ----
-.company-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
-}
+// Company grid
+.company-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
 .company-card {
     display: flex; align-items: center; gap: 10px;
     padding: 10px; border-radius: 10px; background: #f8fafc;
@@ -202,25 +278,17 @@ onMounted(() => {
 .cc-info { min-width: 0; }
 .company-name { font-weight: 600; font-size: 0.88rem; margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .company-meta { margin: 0; font-size: 0.75rem; color: #94a3b8; }
-
 .empty-meta { color: #94a3b8; font-size: 0.9rem; }
 
-// ---- State ----
+// State
 .state { text-align: center; padding: 64px; color: #94a3b8;
     &--loading { color: #2563eb; }
 }
 
-// ---- Responsive ----
+// Responsive
 @media (max-width: 700px) {
     .split-layout { flex-direction: column; }
-    .split-sidebar { width: 100%; position: static; padding: 12px 0; }
-    .sidebar-nav { flex-direction: row; flex-wrap: wrap; padding: 0 8px; gap: 4px; }
-    .sidebar-item { width: auto; padding: 8px 14px; border-radius: 8px;
-        &.active { border-radius: 8px; }
-    }
-    .si-count { display: none; }
-    .sidebar-label { padding-bottom: 6px; }
+    .split-sidebar { width: 100%; position: static; max-height: none; }
     .company-grid { grid-template-columns: 1fr; }
 }
 </style>
-
