@@ -194,12 +194,6 @@ onMounted(() => {
     padding: 32px 24px 72px;
 }
 
-.catalog-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 24px;
-}
-
 .filter-bar {
     background: #fff;
     border-radius: 18px;
@@ -237,16 +231,26 @@ onMounted(() => {
     }
 }
 
+.catalog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; color: #111827; }
+}
+
 .eyebrow {
     text-transform: uppercase;
-    letter-spacing: 0.25em;
-    font-size: 0.75rem;
-    color: #818cf8;
-    margin-bottom: 8px;
+    letter-spacing: 0.3em;
+    font-size: 0.72rem;
+    color: #9ca3af;
+    margin: 0 0 4px;
 }
 
 .subtitle {
-    color: #4c51bf;
+    margin: 0;
+    font-size: 0.9rem;
+    color: #6b7280;
 }
 
 .brand-list {

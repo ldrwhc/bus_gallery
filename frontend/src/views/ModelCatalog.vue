@@ -635,6 +635,21 @@ onMounted(() => {
     align-items: flex-start;
     gap: 12px;
     flex-wrap: wrap;
+    h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; color: #111827; }
+}
+
+.eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    font-size: 0.72rem;
+    color: #9ca3af;
+    margin: 0 0 4px;
+}
+
+.subtitle {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #6b7280;
 }
 
 .ghost-btn {
