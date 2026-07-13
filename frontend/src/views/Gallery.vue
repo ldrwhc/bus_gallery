@@ -13,6 +13,7 @@
                     <p v-else class="description">
                         关键词 <mark>{{ filters.keyword }}</mark> · 找到
                         <strong>{{ pagination.total || 0 }}</strong> 辆车
+                        <template v-if="routeResults.total"> · <strong>{{ routeResults.total }}</strong> 条线路</template>
                     </p>
                 </div>
 
@@ -45,7 +46,7 @@
                     <button
                         v-for="item in searchFacets.brands.items" :key="'b-'+item.id"
                         class="facet-tag"
-                        @click="searchInput = item.title; handleSearchSubmit()"
+                        @click="appendFacet(item.title)"
                     >{{ item.title }}</button>
                 </div>
                 <div v-if="searchFacets.companies?.items?.length" class="facet-row">
@@ -53,7 +54,7 @@
                     <button
                         v-for="item in searchFacets.companies.items" :key="'c-'+item.id"
                         class="facet-tag"
-                        @click="searchInput = item.title; handleSearchSubmit()"
+                        @click="appendFacet(item.title)"
                     >{{ item.title }}</button>
                 </div>
                 <div v-if="searchFacets.regions?.items?.length" class="facet-row">
@@ -61,7 +62,7 @@
                     <button
                         v-for="item in searchFacets.regions.items" :key="'rg-'+item.id"
                         class="facet-tag"
-                        @click="searchInput = item.title; handleSearchSubmit()"
+                        @click="appendFacet(item.title)"
                     >{{ item.title }}</button>
                 </div>
             </section>
@@ -100,6 +101,21 @@
                         :variants="item.variants" :variant-count="item.variantCount"
                         @view-detail="openVehicleDetail"
                     />
+                </div>
+
+                <!-- Route results (search mode) -->
+                <div v-if="isSearchMode && routeResults.total" class="route-results">
+                    <h3 class="route-head">🚌 相关线路 ({{ routeResults.total }})</h3>
+                    <div class="route-list">
+                        <div
+                            v-for="r in routeResults.items" :key="'rt-'+r.id"
+                            class="route-item"
+                            @click="$router.push({ name: 'RouteCatalog' })"
+                        >
+                            <span class="route-number">{{ r.title }}</span>
+                            <span v-if="r.subtitle" class="route-stops">{{ r.subtitle }}</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div v-if="pagination.total > pageSize" class="pagination-wrap">
@@ -141,6 +157,7 @@ const router = useRouter();
 
 const searchInput = ref('');
 const searchFacets = ref({});
+const routeResults = ref({ total: 0, items: [] });
 
 const filters = reactive({
     regionId: null,
@@ -278,11 +295,18 @@ const loadGalleryByRoute = async (page, keyword) => {
 };
 
 const fetchSearchFacets = async (kw) => {
-    if (!kw) { searchFacets.value = {}; return; }
+    if (!kw) { searchFacets.value = {}; routeResults.value = { total: 0, items: [] }; return; }
     try {
         const resp = await searchAll(kw, 'all');
         searchFacets.value = resp || {};
-    } catch { searchFacets.value = {}; }
+        routeResults.value = resp?.routes || { total: 0, items: [] };
+    } catch { searchFacets.value = {}; routeResults.value = { total: 0, items: [] }; }
+};
+
+const appendFacet = (term) => {
+    const current = searchInput.value.trim();
+    searchInput.value = current ? `${current} ${term}` : term;
+    handleSearchSubmit();
 };
 
 const openVehicleDetail = async (vehicleId) => {
@@ -422,6 +446,22 @@ watch(
 .primary-btn { background: #2563eb; color: #fff; &:hover { background: #1d4ed8; } }
 .ghost-btn { background: rgba(37,99,235,0.08); color: #2563eb; &:hover { background: rgba(37,99,235,0.15); } }
 
+// ---- Route results ----
+.route-results {
+    margin-top: 24px; padding-top: 20px; border-top: 1px solid #e5e7eb;
+}
+.route-head { margin: 0 0 10px; font-size: 0.95rem; color: #374151; }
+.route-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.route-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 10px; background: #f8fafc;
+    border: 1px solid #e2e8f0; cursor: pointer;
+    &:hover { background: #f1f5f9; }
+}
+.route-number { font-weight: 700; color: #1e40af; font-size: 0.9rem; white-space: nowrap; }
+.route-stops { color: #6b7280; font-size: 0.8rem; }
+
+// ---- Media ----
 @media (max-width: 900px) {
     .hero { padding: 28px; gap: 16px; flex-direction: column; text-align: center;
         &__visual { flex: 0 0 auto; width: 100%; max-width: 200px; }
