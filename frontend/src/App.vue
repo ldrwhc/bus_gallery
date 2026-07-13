@@ -11,8 +11,12 @@
 <script setup>
 import BasicLayout from '@/layout/BasicLayout.vue';
 
-const resolveRouteKey = (route) =>
-    route?.name === 'Login' || route?.name === 'Register' ? 'auth-portal' : route?.fullPath;
+const resolveRouteKey = (route) => {
+    if (!route?.name) return route?.fullPath || 'default';
+    // Use route name as key so param-only changes don't remount the component
+    if (route.name === 'Login' || route.name === 'Register') return 'auth-portal';
+    return route.name;
+};
 </script>
 
 <style>
