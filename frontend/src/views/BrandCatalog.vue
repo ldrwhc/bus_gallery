@@ -38,7 +38,7 @@
             <section v-else class="brand-list">
                 <article v-for="brand in filteredBrands" :key="brand.id" class="brand-card">
                     <div class="brand-card__header">
-                        <div>
+                        <div class="brand-card__title">
                             <h2>{{ brand.chnName || brand.name }}</h2>
                             <p class="tag">车型 {{ brand.models?.length || 0 }}</p>
                         </div>
@@ -272,8 +272,14 @@ onMounted(() => {
     margin-bottom: 16px;
 }
 
+.brand-card__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    h2 { margin: 0; }
+}
+
 .tag {
-    margin-top: 6px;
     display: inline-flex;
     padding: 4px 12px;
     border-radius: 999px;
