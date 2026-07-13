@@ -19,14 +19,14 @@
                     <nav class="sidebar-nav">
                         <div v-for="prov in provinceTree" :key="prov.id" class="tree-group">
                             <button
-                                :class="['tree-prov', { open: prov.expanded }]"
-                                @click="prov.expanded = !prov.expanded"
+                                :class="['tree-prov', { open: expandedProvinceIds.includes(prov.id) }]"
+                                @click="toggleProvince(prov.id)"
                             >
                                 <span class="tp-arrow">{{ prov.expanded ? '▾' : '▸' }}</span>
                                 <span class="tp-name">{{ prov.name }}</span>
                                 <span class="tp-count">{{ prov.cities.length }}</span>
                             </button>
-                            <div v-if="prov.expanded" class="tree-cities">
+                            <div v-if="expandedProvinceIds.includes(prov.id)" class="tree-cities">
                                 <button
                                     v-for="city in prov.cities" :key="city.id"
                                     :class="['tree-city', { active: city.id === activeCityId }]"
@@ -117,11 +117,7 @@ const provinceTree = computed(() => {
                 companyCount: catalogByCityId.value[city.id]?.companyCount || 0,
                 companies: catalogByCityId.value[city.id]?.companies || []
             }));
-        return {
-            ...prov,
-            cities,
-            expanded: expandedProvinceIds.value.includes(prov.id)
-        };
+        return { ...prov, cities };
     }).filter((prov) => prov.cities.length > 0);
 });
 
@@ -147,6 +143,12 @@ const activeCity = computed(() => {
     }
     return null;
 });
+
+const toggleProvince = (id) => {
+    const idx = expandedProvinceIds.value.indexOf(id);
+    if (idx >= 0) expandedProvinceIds.value.splice(idx, 1);
+    else expandedProvinceIds.value.push(id);
+};
 
 const selectCity = (city) => {
     activeCityId.value = city.id;
