@@ -151,7 +151,9 @@ const toggleProvince = (id) => {
 };
 
 const selectCity = (city) => {
+    if (activeCityId.value === city.id) return; // no-op if already selected
     activeCityId.value = city.id;
+    // Sync URL silently (no data reload — just for deep linking)
     router.replace({ name: 'RegionCatalog', params: { regionId: city.id } }).catch(() => {});
 };
 
@@ -171,24 +173,28 @@ const expandProvinceForCity = (cityId) => {
     }
 };
 
-// Route sync
+// Route sync (only when coming from external navigation, not from selectCity)
 watch(() => route.params.regionId, (id) => {
     const num = id ? Number(id) : null;
-    if (num) {
+    if (num && num !== activeCityId.value) {
         expandProvinceForCity(num);
         activeCityId.value = num;
     }
 });
 
 onMounted(async () => {
-    await Promise.all([
-        store.dispatch('regions/loadRegions'),
-        store.dispatch('regions/loadRegionCatalog')
-    ]);
-    const routeId = route.params.regionId ? Number(route.params.regionId) : null;
-    if (routeId) {
-        expandProvinceForCity(routeId);
-        activeCityId.value = routeId;
+    // Only fetch if not already loaded (prevents flash on re-mount)
+    const tasks = [];
+    if (!store.state.regions.list.length) tasks.push(store.dispatch('regions/loadRegions'));
+    if (!store.state.regions.catalog.length) tasks.push(store.dispatch('regions/loadRegionCatalog'));
+    if (tasks.length) await Promise.all(tasks);
+
+    if (!activeCityId.value) {
+        const routeId = route.params.regionId ? Number(route.params.regionId) : null;
+        if (routeId) {
+            expandProvinceForCity(routeId);
+            activeCityId.value = routeId;
+        }
     }
 });
 </script>
