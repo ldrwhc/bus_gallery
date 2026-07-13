@@ -454,11 +454,11 @@ CMakeFiles/BusGalleryDesktop.dir/BusGalleryDesktop_autogen/mocs_compilation.cpp.
  D:/code/bus-gallery/busGallery-desktop/api/CatalogApi.h \
  D:/code/bus-gallery/busGallery-desktop/models/CatalogItem.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QList \
- D:\code\bus-gallery\busGallery-desktop\build\BusGalleryDesktop_autogen\JH45IGJHDZ/moc_UploadApi.cpp \
- D:/code/bus-gallery/busGallery-desktop/api/UploadApi.h \
  D:/code/bus-gallery/busGallery-desktop/models/VehiclePayload.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QDate \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qdatetime.h \
+ D:\code\bus-gallery\busGallery-desktop\build\BusGalleryDesktop_autogen\JH45IGJHDZ/moc_UploadApi.cpp \
+ D:/code/bus-gallery/busGallery-desktop/api/UploadApi.h \
  D:\code\bus-gallery\busGallery-desktop\build\BusGalleryDesktop_autogen\UYX5XTB5RZ/moc_AutocompleteField.cpp \
  D:/code/bus-gallery/busGallery-desktop/ui/AutocompleteField.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QWidget \
@@ -562,6 +562,13 @@ CMakeFiles/BusGalleryDesktop.dir/BusGalleryDesktop_autogen/mocs_compilation.cpp.
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QDateEdit \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qdatetimeedit.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qtimezone.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QVBoxLayout \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayout.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayoutitem.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qgridlayout.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QHBoxLayout \
  D:/code/bus-gallery/busGallery-desktop/api/CatalogApi.h \
  D:/code/bus-gallery/busGallery-desktop/api/UploadApi.h \
  D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.h \

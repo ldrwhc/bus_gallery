@@ -1,0 +1,160 @@
+{
+  "veh": {
+    "id": 205350,
+    "uid": "7yiwti",
+    "region": {
+      "id": 36,
+      "name": "北京市"
+    },
+    "regist": "京A CB715",
+    "vin": "LVCB4LTD7HM001212",
+    "status": {
+      "营运": "#10B981"
+    },
+    "date_manuf": "2017-04",
+    "date_serve": "2017-04",
+    "date_retire": null,
+    "comp": {
+      "id": 207,
+      "params": {
+        "id": "cgd1ih"
+      },
+      "name": "北京公交集团",
+      "router": "comp",
+      "asset": "comp",
+      "slug": "bj-bpt"
+    },
+    "ac": "新同创",
+    "manuf_no": null,
+    "meta": [],
+    "no": "37386",
+    "livery": "bjxlyt-red",
+    "headsign": null
+  },
+  "model": {
+    "id": "t5tfl5",
+    "manuf": [
+      {
+        "params": {
+          "id": "ukvm1n"
+        },
+        "name": "福田",
+        "router": "brand",
+        "asset": "brand",
+        "slug": "foton"
+      }
+    ],
+    "series": null,
+    "model": "BJ6123C7BTD-1",
+    "chassis": null,
+    "bodywork": null,
+    "trans": "Allison T310 (6AT)",
+    "ice": "康明斯 L8.9Ge5-260",
+    "motor": null,
+    "fuel_cell": null,
+    "fuel": "液化天然气",
+    "tyre": "275/70R22.5",
+    "suspension": "钢板",
+    "step": "二踏",
+    "meta": [
+      {
+        "item": "车桥品牌",
+        "value": "前德纳/后德纳"
+      }
+    ],
+    "note": null
+  },
+  "photos": {
+    "2026": [
+      {
+        "id": "h6sf4i25w",
+        "date": "2026-06-29",
+        "caption": "361路",
+        "path": "2026/07/02/b61ab976fb918d3f8837197201289cfe",
+        "ratio": 1.5005861664712778
+      }
+    ],
+    "2025": [
+      {
+        "id": "618djed",
+        "date": "2025-01-30",
+        "caption": "361路",
+        "path": "2025/02/06/cdae95618881b2dc1dd3eed5e2404ca4",
+        "ratio": 1.9586840091813313
+      }
+    ],
+    "2024": [
+      {
+        "id": "j38xk84",
+        "date": "2024-10-02",
+        "caption": "386路",
+        "path": "2024/10/04/761c6b767dd162923ac84cabd2bdf96f",
+        "ratio": 1.5
+      },
+      {
+        "id": "v180qec",
+        "date": "2024-07-03",
+        "caption": "361路",
+        "path": "2024/07/03/fffb6f0ae247fd8ab1f1a757e45090f7",
+        "ratio": 1.514792899408284
+      },
+      {
+        "id": "t18ue0o",
+        "date": "2024-05-23",
+        "caption": "658路",
+        "path": "2025/03/21/cd369819bfb71339ec88b7358b6d3fbe",
+        "ratio": 1.3333333333333333
+      }
+    ],
+    "2023": [
+      {
+        "id": "vfp2k4",
+        "date": "2023-05-18",
+        "caption": "658路",
+        "path": "2023/05/18/35503af6553fd4a193e2bbcebf572c74",
+        "ratio": 1.7777777777777777
+      }
+    ],
+    "2022": [
+      {
+        "id": "lf5ulg",
+        "date": "2022-03-13",
+        "caption": "694路",
+        "path": "2022/03/16/b1add9a8528a4c3cd06c10c393cf81a3",
+        "ratio": 1.5130023640661938
+      }
+    ],
+    "2021": [
+      {
+        "id": "j1owip",
+        "date": "2021-08-22",
+        "caption": "694路",
+        "path": "2021/11/17/5f1692aa49edb8fee8c208b230fce521",
+        "ratio": 1.592039800995025
+      }
+    ]
+  },
+  "rt": true,
+  "histories": [
+    {
+      "comp": "祥龙公交",
+      "comp_id": 210,
+      "comp_uid": "mxs3iu",
+      "comp_logo": "xlzc",
+      "no": "4054",
+      "from": "2017-04",
+      "to": "2019-07",
+      "ord": 0
+    },
+    {
+      "comp": "北京公交集团",
+      "comp_id": 207,
+      "comp_uid": "cgd1ih",
+      "comp_logo": "bj-bpt",
+      "no": "4054",
+      "from": "2019-08",
+      "to": null,
+      "ord": 1
+    }
+  ]
+}

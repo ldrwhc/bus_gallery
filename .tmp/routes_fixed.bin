@@ -1,0 +1,9 @@
+mysql: [Warning] Using a password on the command line interface can be insecure.
+id	route_number	region_id	company_id
+2	361路	6	8
+3	玉泉路地铁接驳临线	6	8
+4	320路	6	8
+5	夜4路	6	8
+6	30路	8	5
+7	476	13	10
+8	851路	6	8

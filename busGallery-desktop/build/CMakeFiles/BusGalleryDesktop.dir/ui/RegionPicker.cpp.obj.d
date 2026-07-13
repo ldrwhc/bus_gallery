@@ -461,4 +461,6 @@ CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj: \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlabel.h \
  D:/env/QT/6.10.1/mingw_64/include/QtGui/qpicture.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qiodevice.h \
- D:/env/QT/6.10.1/mingw_64/include/QtGui/qtextdocument.h
+ D:/env/QT/6.10.1/mingw_64/include/QtGui/qtextdocument.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/QMap \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/qmap.h

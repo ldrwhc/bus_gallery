@@ -1,0 +1,9 @@
+mysql: [Warning] Using a password on the command line interface can be insecure.
+id	route_number	region_id	company_id	start_stop	end_stop	is_active	created_at
+2	361路	6	8	望京科技创业园	巴沟村	1	2026-07-09 05:54:42
+3	玉泉路地铁接驳临线	6	8	首钢试验厂	玉泉路口西	1	2026-07-09 08:17:55
+4	320路	6	8	北京西站	清河火车站	1	2026-07-09 08:19:04
+5	夜4路	6	8	清河火车站	大观园	1	2026-07-09 08:33:49
+6	30路	8	5	站前	第一中学	1	2026-07-09 09:12:47
+7	476	NULL	NULL	NULL	NULL	1	2026-07-10 03:08:11
+8	851路	NULL	NULL	NULL	NULL	1	2026-07-10 03:14:20

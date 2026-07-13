@@ -1,0 +1,412 @@
+<!DOCTYPE html><html><head><meta charset="utf8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>巴士派迪 - 巴士派迪</title>
+<style id="vuetify-theme-stylesheet">:root {
+      --v-theme-background: 249,251,251;
+      --v-theme-background-overlay-multiplier: 1;
+      --v-theme-surface: 255,255,255;
+      --v-theme-surface-overlay-multiplier: 1;
+      --v-theme-surface-bright: 255,255,255;
+      --v-theme-surface-bright-overlay-multiplier: 1;
+      --v-theme-surface-light: 238,238,238;
+      --v-theme-surface-light-overlay-multiplier: 1;
+      --v-theme-surface-variant: 232,238,239;
+      --v-theme-surface-variant-overlay-multiplier: 1;
+      --v-theme-on-surface-variant: 69,90,100;
+      --v-theme-primary: 0,105,92;
+      --v-theme-primary-overlay-multiplier: 2;
+      --v-theme-primary-darken-1: 31,85,146;
+      --v-theme-primary-darken-1-overlay-multiplier: 2;
+      --v-theme-secondary: 72,169,166;
+      --v-theme-secondary-overlay-multiplier: 1;
+      --v-theme-secondary-darken-1: 1,135,134;
+      --v-theme-secondary-darken-1-overlay-multiplier: 1;
+      --v-theme-error: 242,19,93;
+      --v-theme-error-overlay-multiplier: 1;
+      --v-theme-info: 66,153,255;
+      --v-theme-info-overlay-multiplier: 1;
+      --v-theme-success: 23,201,100;
+      --v-theme-success-overlay-multiplier: 1;
+      --v-theme-warning: 251,140,0;
+      --v-theme-warning-overlay-multiplier: 1;
+      --v-theme-primary-light: 235,241,241;
+      --v-theme-primary-light-overlay-multiplier: 1;
+      --v-theme-on-background: 69,90,100;
+      --v-theme-on-surface: 69,90,100;
+      --v-theme-dark-accent: 38,50,56;
+      --v-theme-dark-accent-overlay-multiplier: 2;
+      --v-theme-on-surface-bright: 0,0,0;
+      --v-theme-on-surface-light: 0,0,0;
+      --v-theme-on-primary: 255,255,255;
+      --v-theme-on-primary-darken-1: 255,255,255;
+      --v-theme-on-secondary: 255,255,255;
+      --v-theme-on-secondary-darken-1: 255,255,255;
+      --v-theme-on-error: 255,255,255;
+      --v-theme-on-info: 255,255,255;
+      --v-theme-on-success: 0,0,0;
+      --v-theme-on-warning: 255,255,255;
+      --v-theme-on-primary-light: 0,0,0;
+      --v-theme-on-dark-accent: 255,255,255;
+      --v-border-color: 0, 0, 0;
+      --v-border-opacity: 0.12;
+      --v-high-emphasis-opacity: 0.87;
+      --v-medium-emphasis-opacity: 0.6;
+      --v-disabled-opacity: 0.38;
+      --v-idle-opacity: 0.04;
+      --v-hover-opacity: 0.04;
+      --v-focus-opacity: 0.12;
+      --v-selected-opacity: 0.08;
+      --v-activated-opacity: 0.12;
+      --v-pressed-opacity: 0.12;
+      --v-dragged-opacity: 0.08;
+      --v-theme-kbd: 33, 37, 41;
+      --v-theme-on-kbd: 255, 255, 255;
+      --v-theme-code: 245, 245, 245;
+      --v-theme-on-code: 0, 0, 0;
+    }
+    .v-theme--light {
+      color-scheme: normal;
+      --v-theme-background: 249,251,251;
+      --v-theme-background-overlay-multiplier: 1;
+      --v-theme-surface: 255,255,255;
+      --v-theme-surface-overlay-multiplier: 1;
+      --v-theme-surface-bright: 255,255,255;
+      --v-theme-surface-bright-overlay-multiplier: 1;
+      --v-theme-surface-light: 238,238,238;
+      --v-theme-surface-light-overlay-multiplier: 1;
+      --v-theme-surface-variant: 232,238,239;
+      --v-theme-surface-variant-overlay-multiplier: 1;
+      --v-theme-on-surface-variant: 69,90,100;
+      --v-theme-primary: 0,105,92;
+      --v-theme-primary-overlay-multiplier: 2;
+      --v-theme-primary-darken-1: 31,85,146;
+      --v-theme-primary-darken-1-overlay-multiplier: 2;
+      --v-theme-secondary: 72,169,166;
+      --v-theme-secondary-overlay-multiplier: 1;
+      --v-theme-secondary-darken-1: 1,135,134;
+      --v-theme-secondary-darken-1-overlay-multiplier: 1;
+      --v-theme-error: 242,19,93;
+      --v-theme-error-overlay-multiplier: 1;
+      --v-theme-info: 66,153,255;
+      --v-theme-info-overlay-multiplier: 1;
+      --v-theme-success: 23,201,100;
+      --v-theme-success-overlay-multiplier: 1;
+      --v-theme-warning: 251,140,0;
+      --v-theme-warning-overlay-multiplier: 1;
+      --v-theme-primary-light: 235,241,241;
+      --v-theme-primary-light-overlay-multiplier: 1;
+      --v-theme-on-background: 69,90,100;
+      --v-theme-on-surface: 69,90,100;
+      --v-theme-dark-accent: 38,50,56;
+      --v-theme-dark-accent-overlay-multiplier: 2;
+      --v-theme-on-surface-bright: 0,0,0;
+      --v-theme-on-surface-light: 0,0,0;
+      --v-theme-on-primary: 255,255,255;
+      --v-theme-on-primary-darken-1: 255,255,255;
+      --v-theme-on-secondary: 255,255,255;
+      --v-theme-on-secondary-darken-1: 255,255,255;
+      --v-theme-on-error: 255,255,255;
+      --v-theme-on-info: 255,255,255;
+      --v-theme-on-success: 0,0,0;
+      --v-theme-on-warning: 255,255,255;
+      --v-theme-on-primary-light: 0,0,0;
+      --v-theme-on-dark-accent: 255,255,255;
+      --v-border-color: 0, 0, 0;
+      --v-border-opacity: 0.12;
+      --v-high-emphasis-opacity: 0.87;
+      --v-medium-emphasis-opacity: 0.6;
+      --v-disabled-opacity: 0.38;
+      --v-idle-opacity: 0.04;
+      --v-hover-opacity: 0.04;
+      --v-focus-opacity: 0.12;
+      --v-selected-opacity: 0.08;
+      --v-activated-opacity: 0.12;
+      --v-pressed-opacity: 0.12;
+      --v-dragged-opacity: 0.08;
+      --v-theme-kbd: 33, 37, 41;
+      --v-theme-on-kbd: 255, 255, 255;
+      --v-theme-code: 245, 245, 245;
+      --v-theme-on-code: 0, 0, 0;
+    }
+    .v-theme--dark {
+      color-scheme: dark;
+      --v-theme-background: 18,18,18;
+      --v-theme-background-overlay-multiplier: 1;
+      --v-theme-surface: 33,33,33;
+      --v-theme-surface-overlay-multiplier: 1;
+      --v-theme-surface-bright: 204,191,214;
+      --v-theme-surface-bright-overlay-multiplier: 2;
+      --v-theme-surface-light: 66,66,66;
+      --v-theme-surface-light-overlay-multiplier: 1;
+      --v-theme-surface-variant: 200,200,200;
+      --v-theme-surface-variant-overlay-multiplier: 2;
+      --v-theme-on-surface-variant: 0,0,0;
+      --v-theme-primary: 33,150,243;
+      --v-theme-primary-overlay-multiplier: 2;
+      --v-theme-primary-darken-1: 39,124,193;
+      --v-theme-primary-darken-1-overlay-multiplier: 2;
+      --v-theme-secondary: 84,182,178;
+      --v-theme-secondary-overlay-multiplier: 2;
+      --v-theme-secondary-darken-1: 72,169,166;
+      --v-theme-secondary-darken-1-overlay-multiplier: 2;
+      --v-theme-error: 207,102,121;
+      --v-theme-error-overlay-multiplier: 2;
+      --v-theme-info: 33,150,243;
+      --v-theme-info-overlay-multiplier: 2;
+      --v-theme-success: 76,175,80;
+      --v-theme-success-overlay-multiplier: 2;
+      --v-theme-warning: 251,140,0;
+      --v-theme-warning-overlay-multiplier: 2;
+      --v-theme-on-background: 232,238,239;
+      --v-theme-on-surface: 255,255,255;
+      --v-theme-on-surface-bright: 0,0,0;
+      --v-theme-on-surface-light: 255,255,255;
+      --v-theme-on-primary: 255,255,255;
+      --v-theme-on-primary-darken-1: 255,255,255;
+      --v-theme-on-secondary: 255,255,255;
+      --v-theme-on-secondary-darken-1: 255,255,255;
+      --v-theme-on-error: 255,255,255;
+      --v-theme-on-info: 255,255,255;
+      --v-theme-on-success: 255,255,255;
+      --v-theme-on-warning: 255,255,255;
+      --v-border-color: 255, 255, 255;
+      --v-border-opacity: 0.12;
+      --v-high-emphasis-opacity: 1;
+      --v-medium-emphasis-opacity: 0.7;
+      --v-disabled-opacity: 0.5;
+      --v-idle-opacity: 0.1;
+      --v-hover-opacity: 0.04;
+      --v-focus-opacity: 0.12;
+      --v-selected-opacity: 0.08;
+      --v-activated-opacity: 0.12;
+      --v-pressed-opacity: 0.16;
+      --v-dragged-opacity: 0.08;
+      --v-theme-kbd: 33, 37, 41;
+      --v-theme-on-kbd: 255, 255, 255;
+      --v-theme-code: 52, 52, 52;
+      --v-theme-on-code: 204, 204, 204;
+    }
+    .bg-background {
+      --v-theme-overlay-multiplier: var(--v-theme-background-overlay-multiplier);
+      background-color: rgb(var(--v-theme-background)) !important;
+      color: rgb(var(--v-theme-on-background)) !important;
+    }
+    .bg-surface {
+      --v-theme-overlay-multiplier: var(--v-theme-surface-overlay-multiplier);
+      background-color: rgb(var(--v-theme-surface)) !important;
+      color: rgb(var(--v-theme-on-surface)) !important;
+    }
+    .bg-surface-bright {
+      --v-theme-overlay-multiplier: var(--v-theme-surface-bright-overlay-multiplier);
+      background-color: rgb(var(--v-theme-surface-bright)) !important;
+      color: rgb(var(--v-theme-on-surface-bright)) !important;
+    }
+    .bg-surface-light {
+      --v-theme-overlay-multiplier: var(--v-theme-surface-light-overlay-multiplier);
+      background-color: rgb(var(--v-theme-surface-light)) !important;
+      color: rgb(var(--v-theme-on-surface-light)) !important;
+    }
+    .bg-surface-variant {
+      --v-theme-overlay-multiplier: var(--v-theme-surface-variant-overlay-multiplier);
+      background-color: rgb(var(--v-theme-surface-variant)) !important;
+      color: rgb(var(--v-theme-on-surface-variant)) !important;
+    }
+    .bg-primary {
+      --v-theme-overlay-multiplier: var(--v-theme-primary-overlay-multiplier);
+      background-color: rgb(var(--v-theme-primary)) !important;
+      color: rgb(var(--v-theme-on-primary)) !important;
+    }
+    .bg-primary-darken-1 {
+      --v-theme-overlay-multiplier: var(--v-theme-primary-darken-1-overlay-multiplier);
+      background-color: rgb(var(--v-theme-primary-darken-1)) !important;
+      color: rgb(var(--v-theme-on-primary-darken-1)) !important;
+    }
+    .bg-secondary {
+      --v-theme-overlay-multiplier: var(--v-theme-secondary-overlay-multiplier);
+      background-color: rgb(var(--v-theme-secondary)) !important;
+      color: rgb(var(--v-theme-on-secondary)) !important;
+    }
+    .bg-secondary-darken-1 {
+      --v-theme-overlay-multiplier: var(--v-theme-secondary-darken-1-overlay-multiplier);
+      background-color: rgb(var(--v-theme-secondary-darken-1)) !important;
+      color: rgb(var(--v-theme-on-secondary-darken-1)) !important;
+    }
+    .bg-error {
+      --v-theme-overlay-multiplier: var(--v-theme-error-overlay-multiplier);
+      background-color: rgb(var(--v-theme-error)) !important;
+      color: rgb(var(--v-theme-on-error)) !important;
+    }
+    .bg-info {
+      --v-theme-overlay-multiplier: var(--v-theme-info-overlay-multiplier);
+      background-color: rgb(var(--v-theme-info)) !important;
+      color: rgb(var(--v-theme-on-info)) !important;
+    }
+    .bg-success {
+      --v-theme-overlay-multiplier: var(--v-theme-success-overlay-multiplier);
+      background-color: rgb(var(--v-theme-success)) !important;
+      color: rgb(var(--v-theme-on-success)) !important;
+    }
+    .bg-warning {
+      --v-theme-overlay-multiplier: var(--v-theme-warning-overlay-multiplier);
+      background-color: rgb(var(--v-theme-warning)) !important;
+      color: rgb(var(--v-theme-on-warning)) !important;
+    }
+    .bg-primary-light {
+      --v-theme-overlay-multiplier: var(--v-theme-primary-light-overlay-multiplier);
+      background-color: rgb(var(--v-theme-primary-light)) !important;
+      color: rgb(var(--v-theme-on-primary-light)) !important;
+    }
+    .bg-dark-accent {
+      --v-theme-overlay-multiplier: var(--v-theme-dark-accent-overlay-multiplier);
+      background-color: rgb(var(--v-theme-dark-accent)) !important;
+      color: rgb(var(--v-theme-on-dark-accent)) !important;
+    }
+    .text-background {
+      color: rgb(var(--v-theme-background)) !important;
+    }
+    .border-background {
+      --v-border-color: var(--v-theme-background);
+    }
+    .text-surface {
+      color: rgb(var(--v-theme-surface)) !important;
+    }
+    .border-surface {
+      --v-border-color: var(--v-theme-surface);
+    }
+    .text-surface-bright {
+      color: rgb(var(--v-theme-surface-bright)) !important;
+    }
+    .border-surface-bright {
+      --v-border-color: var(--v-theme-surface-bright);
+    }
+    .text-surface-light {
+      color: rgb(var(--v-theme-surface-light)) !important;
+    }
+    .border-surface-light {
+      --v-border-color: var(--v-theme-surface-light);
+    }
+    .text-surface-variant {
+      color: rgb(var(--v-theme-surface-variant)) !important;
+    }
+    .border-surface-variant {
+      --v-border-color: var(--v-theme-surface-variant);
+    }
+    .on-surface-variant {
+      color: rgb(var(--v-theme-on-surface-variant)) !important;
+    }
+    .text-primary {
+      color: rgb(var(--v-theme-primary)) !important;
+    }
+    .border-primary {
+      --v-border-color: var(--v-theme-primary);
+    }
+    .text-primary-darken-1 {
+      color: rgb(var(--v-theme-primary-darken-1)) !important;
+    }
+    .border-primary-darken-1 {
+      --v-border-color: var(--v-theme-primary-darken-1);
+    }
+    .text-secondary {
+      color: rgb(var(--v-theme-secondary)) !important;
+    }
+    .border-secondary {
+      --v-border-color: var(--v-theme-secondary);
+    }
+    .text-secondary-darken-1 {
+      color: rgb(var(--v-theme-secondary-darken-1)) !important;
+    }
+    .border-secondary-darken-1 {
+      --v-border-color: var(--v-theme-secondary-darken-1);
+    }
+    .text-error {
+      color: rgb(var(--v-theme-error)) !important;
+    }
+    .border-error {
+      --v-border-color: var(--v-theme-error);
+    }
+    .text-info {
+      color: rgb(var(--v-theme-info)) !important;
+    }
+    .border-info {
+      --v-border-color: var(--v-theme-info);
+    }
+    .text-success {
+      color: rgb(var(--v-theme-success)) !important;
+    }
+    .border-success {
+      --v-border-color: var(--v-theme-success);
+    }
+    .text-warning {
+      color: rgb(var(--v-theme-warning)) !important;
+    }
+    .border-warning {
+      --v-border-color: var(--v-theme-warning);
+    }
+    .text-primary-light {
+      color: rgb(var(--v-theme-primary-light)) !important;
+    }
+    .border-primary-light {
+      --v-border-color: var(--v-theme-primary-light);
+    }
+    .on-background {
+      color: rgb(var(--v-theme-on-background)) !important;
+    }
+    .on-surface {
+      color: rgb(var(--v-theme-on-surface)) !important;
+    }
+    .text-dark-accent {
+      color: rgb(var(--v-theme-dark-accent)) !important;
+    }
+    .border-dark-accent {
+      --v-border-color: var(--v-theme-dark-accent);
+    }
+    .on-surface-bright {
+      color: rgb(var(--v-theme-on-surface-bright)) !important;
+    }
+    .on-surface-light {
+      color: rgb(var(--v-theme-on-surface-light)) !important;
+    }
+    .on-primary {
+      color: rgb(var(--v-theme-on-primary)) !important;
+    }
+    .on-primary-darken-1 {
+      color: rgb(var(--v-theme-on-primary-darken-1)) !important;
+    }
+    .on-secondary {
+      color: rgb(var(--v-theme-on-secondary)) !important;
+    }
+    .on-secondary-darken-1 {
+      color: rgb(var(--v-theme-on-secondary-darken-1)) !important;
+    }
+    .on-error {
+      color: rgb(var(--v-theme-on-error)) !important;
+    }
+    .on-info {
+      color: rgb(var(--v-theme-on-info)) !important;
+    }
+    .on-success {
+      color: rgb(var(--v-theme-on-success)) !important;
+    }
+    .on-warning {
+      color: rgb(var(--v-theme-on-warning)) !important;
+    }
+    .on-primary-light {
+      color: rgb(var(--v-theme-on-primary-light)) !important;
+    }
+    .on-dark-accent {
+      color: rgb(var(--v-theme-on-dark-accent)) !important;
+    }
+</style>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/entry.X3-e-zGT.css" crossorigin>
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CCLUGRlb.js">
+<link rel="preload" as="fetch" fetchpriority="low" crossorigin="anonymous" href="https://cdn.buspedia.top/_nuxt/builds/meta/530b085c-4e6c-4370-829a-4a5e909b42e7.json">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/Cqw5hpKd.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/9b2Carxd.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/BwuMKITN.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/BnxAJYNj.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/DbJCMm6k.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/lYPzZcSG.js">
+<meta name="theme-color" content="#E8EEEF">
+<script type="module" src="https://cdn.buspedia.top/_nuxt/CCLUGRlb.js" crossorigin></script>
+<script id="unhead:payload" type="application/json">{"title":"巴士派迪","titleTemplate":"%s - 巴士派迪"}</script></head><body><div id="__nuxt"><div class="error-page-container" data-v-85c12d23><div class="v-row align-center justify-center error-page-inner" style="" data-v-85c12d23><div class="v-col v-col-12 text-blue-grey-darken-1 text-center" style="" data-v-85c12d23><div class="error-code text-blue-grey-lighten-4" data-v-85c12d23>404</div><div class="error-text" data-v-85c12d23><p class="text-h4 text-sm-h3 font-weight-bold mb-2" data-v-85c12d23>好像迷路了...</p><p class="text-h6 text-sm-h5 font-weight-regular" data-v-85c12d23><!--[-->5 秒钟后将会跳转至首页<!--]--></p><button type="button" class="v-btn v-theme--light bg-primary v-btn--density-default v-btn--size-default v-btn--variant-flat mt-6" style="" data-v-85c12d23><!--[--><span class="v-btn__overlay"></span><span class="v-btn__underlay"></span><!--]--><!----><span class="v-btn__content" data-no-activator><!--[--><!--[-->立即返回首页<!--]--><!--]--></span><!----><!----></button></div></div></div></div></div><div id="teleports"></div><script type="application/json" data-nuxt-data="nuxt-app" data-ssr="true" id="__NUXT_DATA__">[["ShallowReactive",1],{"error":2,"data":7,"state":9,"once":12,"_errors":13,"serverRendered":15,"path":4,"pinia":16},["null","error",3,"url",4,"statusCode",5,"statusMessage",6,"message",6],"true","/bus/7abcde",404,"Server Error",["ShallowReactive",8],{},["Reactive",10],{"$si18n:locale":11},"zh-cn",["Set"],["ShallowReactive",14],{},true,{"auth":17,"ui":22,"cache":26,"client":30},{"token":18,"refresh":18,"user":18,"isLogin":19,"isRefreshingToken":19,"authStatus":20,"authError":18,"clientId":18,"expiration":21},null,false,"idle",0,{"alert":23,"userDialog":25,"appStatus":20,"appError":18,"lang":18},{"show":19,"msg":24,"color":24},"",{"login":19,"register":19,"forget":19,"modifyPwd":19},{"data":27,"locationHistory":28,"locale":18},{},{"lastPhoto":-1,"lastSearch":29},[],{"clientId":31},"f0ebe974-606b-4bfb-9207-3be4024137e8"]</script>
+<script>window.__NUXT__={};window.__NUXT__.config={public:{port:"13001",endpoint:"https://api.buspedia.top/",isProduction:true,amapKey:"00056e7fd1376c56f5f51d0559b314ed",amapSecurityJsCode:"19407602235ba8b396a19f403f79b214",photoBaseUrl:"https://storage.buspedia.top/photo/",piniaPluginPersistedstate:{},"nuxt-scripts":{version:"",defaultScriptOptions:{trigger:"onNuxtReady"}},mdi:{defaultSize:"1em"}},app:{baseURL:"/",buildId:"530b085c-4e6c-4370-829a-4a5e909b42e7",buildAssetsDir:"_nuxt/",cdnURL:"https://cdn.buspedia.top"}}</script></body></html>

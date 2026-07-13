@@ -2,7 +2,9 @@ D:/code/bus-gallery/busGallery-desktop/build/BusGalleryDesktop_autogen/JH45IGJHD
   D:/code/bus-gallery/busGallery-desktop/build/BusGalleryDesktop_autogen/moc_predefs.h \
   D:/code/bus-gallery/busGallery-desktop/api/ApiClient.h \
   D:/code/bus-gallery/busGallery-desktop/models/CatalogItem.h \
+  D:/code/bus-gallery/busGallery-desktop/models/VehiclePayload.h \
   D:/env/QT/6.10.1/mingw_64/include/QtCore/QByteArray \
+  D:/env/QT/6.10.1/mingw_64/include/QtCore/QDate \
   D:/env/QT/6.10.1/mingw_64/include/QtCore/QFlags \
   D:/env/QT/6.10.1/mingw_64/include/QtCore/QIODevice \
   D:/env/QT/6.10.1/mingw_64/include/QtCore/QJsonArray \

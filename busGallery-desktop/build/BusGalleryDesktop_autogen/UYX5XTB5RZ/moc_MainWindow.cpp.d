@@ -263,6 +263,7 @@ D:/code/bus-gallery/busGallery-desktop/build/BusGalleryDesktop_autogen/UYX5XTB5R
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QCompleter \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QDateEdit \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QFrame \
+  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QHBoxLayout \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QLabel \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QLineEdit \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QListWidget \
@@ -270,6 +271,7 @@ D:/code/bus-gallery/busGallery-desktop/build/BusGalleryDesktop_autogen/UYX5XTB5R
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QProgressBar \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QPushButton \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QStackedWidget \
+  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QVBoxLayout \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QWidget \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractbutton.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractitemdelegate.h \
@@ -277,12 +279,16 @@ D:/code/bus-gallery/busGallery-desktop/build/BusGalleryDesktop_autogen/UYX5XTB5R
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractscrollarea.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractslider.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractspinbox.h \
+  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qcheckbox.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qcombobox.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qcompleter.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qdatetimeedit.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qframe.h \
+  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qgridlayout.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlabel.h \
+  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayout.h \
+  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayoutitem.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlineedit.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlistview.h \
   D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlistwidget.h \

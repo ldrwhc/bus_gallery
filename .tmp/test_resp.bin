@@ -1,0 +1,7 @@
+{
+  "error": true,
+  "url": "http://buspedia.top/_nuxt/bus/query?plateNumber=%E4%BA%ACA+CB715",
+  "statusCode": 404,
+  "statusMessage": "Server Error",
+  "message": ""
+}

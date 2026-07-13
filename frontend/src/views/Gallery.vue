@@ -94,13 +94,48 @@
                     <button class="ghost-btn" type="button" @click="handleResetFilters">查看全部</button>
                 </div>
 
-                <div v-else class="gallery-grid">
+                <!-- Browse mode: normal grid -->
+                <div v-else-if="!isSearchMode" class="gallery-grid">
                     <VehicleCard
                         v-for="item in gallery" :key="item?.vehicle?.id || item.vehicleId"
                         :vehicle="item.vehicle" :config="item.config" :images="item.images"
                         :variants="item.variants" :variant-count="item.variantCount"
                         @view-detail="openVehicleDetail"
                     />
+                </div>
+
+                <!--
+                  Search mode: flat row cards  (C1+C4 hybrid)
+                  Switch searchLayout below to swap between versions:
+                    "c1c4"  — colored left bar + flat card  (current)
+                    "c1"    — no bar, pure minimal
+                    "c2"    — capsule tags
+                    "c3"    — ultra-dense table
+                    "c5"    — gradient border + slide arrow
+                -->
+                <div v-else class="search-row-list">
+                    <div
+                        v-for="item in gallery" :key="'sr-'+ (item?.vehicle?.id || item.vehicleId)"
+                        class="search-row"
+                        :style="{ '--bar-color': brandColor(item?.vehicle?.model?.brandName) }"
+                        @click="openVehicleDetail(item?.vehicle?.id)"
+                    >
+                        <div class="sr-bar"></div>
+                        <div class="sr-image">
+                            <img v-if="item.images?.[0]?.thumbnailUrl"
+                                 :src="item.images[0].thumbnailUrl"
+                                 :alt="item.vehicle?.plateNumber"
+                                 loading="lazy" decoding="async" />
+                            <div v-else class="sr-noimg"></div>
+                        </div>
+                        <div class="sr-info">
+                            <span class="sr-plate">{{ formatPlate(item.vehicle?.plateNumber) || '未上牌' }}</span>
+                            <span class="sr-model">{{ item.vehicle?.model?.name || '—' }}</span>
+                            <span class="sr-company">{{ item.vehicle?.company?.name || '—' }}</span>
+                            <span class="sr-region">{{ item.vehicle?.region?.name || item.vehicle?.company?.regionName || '—' }}</span>
+                        </div>
+                        <span class="sr-arrow">→</span>
+                    </div>
                 </div>
 
                 <!-- Route results (search mode) -->
@@ -303,6 +338,31 @@ const fetchSearchFacets = async (kw) => {
     } catch { searchFacets.value = {}; routeResults.value = { total: 0, items: [] }; }
 };
 
+// ---- Display helpers (search row cards) ----
+const BRAND_COLORS = {
+    'BYD': '#1e40af', '宇通': '#0d9488', '中通': '#7c3aed',
+    '金龙': '#dc2626', '海格': '#0891b2', '福田': '#ca8a04',
+    '金旅': '#2563eb', '安凯': '#059669', '申沃': '#4f46e5',
+    '青年': '#e11d48', '黄海': '#ea580c', '亚星': '#9333ea'
+};
+
+const brandColor = (brandName) => {
+    if (!brandName) return '#94a3b8';
+    for (const [key, color] of Object.entries(BRAND_COLORS)) {
+        if (brandName.includes(key)) return color;
+    }
+    return '#64748b';
+};
+
+const formatPlate = (plate = '') => {
+    const v = String(plate || '').trim();
+    if (!v) return v;
+    const m = v.match(/^(.{1,2})\s*(.{5,6})$/u);
+    if (m) return `${m[1]} ${m[2]}`;
+    if (v.length > 2) return `${v.slice(0, 2)} ${v.slice(2)}`;
+    return v;
+};
+
 const appendFacet = (term) => {
     const current = searchInput.value.trim();
     searchInput.value = current ? `${current} ${term}` : term;
@@ -433,6 +493,69 @@ watch(
     .subtitle { color: #6b7280; margin-top: 2px; font-size: 0.88rem; }
 }
 .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+
+// ---- Search row cards (C1+C4 hybrid: flat card + colored bar) ----
+// To switch version: change the CSS block below according to the version comments
+.search-row-list {
+    display: flex; flex-direction: column; gap: 6px;
+}
+
+.search-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 14px 10px 0;
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 3px 12px rgba(15,23,42,0.1);
+        .sr-bar { width: 5px; }
+        .sr-arrow { opacity: 1; transform: translateX(0); }
+    }
+}
+
+// C4: left color bar
+.sr-bar {
+    width: 3px; height: 48px; border-radius: 0 3px 3px 0;
+    background: var(--bar-color, #94a3b8); flex-shrink: 0;
+    transition: width 0.18s ease;
+}
+
+// Image
+.sr-image {
+    width: 64px; height: 48px; border-radius: 4px; overflow: hidden;
+    flex-shrink: 0; background: #e2e8f0;
+    img { width: 100%; height: 100%; object-fit: cover; display: block; }
+}
+.sr-noimg { width: 100%; height: 100%; background: #cbd5e1; }
+
+// Info columns — flattened inline
+.sr-info {
+    flex: 1; display: flex; align-items: center; gap: 0;
+    min-width: 0; font-size: 0.88rem;
+    // All children share baseline, separated by ·
+    > * + *::before { content: '·'; margin: 0 10px; color: #cbd5e1; }
+}
+.sr-plate   { font-weight: 700; color: #0f172a; white-space: nowrap; }
+.sr-model   { color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-company { color: #64748b; white-space: nowrap; }
+.sr-region  { color: #94a3b8; white-space: nowrap; }
+
+// C1: hover arrow slides in
+.sr-arrow {
+    color: #94a3b8; font-size: 1rem; flex-shrink: 0; padding-right: 8px;
+    opacity: 0; transform: translateX(-6px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+// ---- Version presets (uncomment to switch) ----
+// .search-row { /* v-c1: pure minimal */ box-shadow: none; border-radius: 0; border-bottom: 1px solid #f1f5f9; &:hover { background: #f8fafc; } .sr-bar { display: none; } }
+// .search-row { /* v-c2: capsules */ .sr-info > * { padding: 3px 10px; border-radius: 999px; } .sr-plate { background: #1e293b; color: #fff; } .sr-model { background: #eff6ff; color: #2563eb; } .sr-company { background: #f1f5f9; color: #475569; } .sr-region { background: #f8fafc; color: #94a3b8; } }
+// .search-row { /* v-c3: ultra-dense */ padding: 6px 10px; gap: 8px; box-shadow: none; border-bottom: 1px solid #f1f5f9; .sr-bar { display: none; } .sr-image { width: 48px; height: 36px; } .sr-info { font-size: 0.82rem; } .sr-arrow { display: none; } }
+// .search-row { /* v-c5: gradient border */ border: 1px solid transparent; border-image: linear-gradient(to right, #e2e8f0, transparent) 1; .sr-bar { display: none; } }
+
 .pagination-wrap { margin-top: 24px; display: flex; justify-content: center; }
 
 // ---- State ----

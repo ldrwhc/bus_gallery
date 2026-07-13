@@ -421,4 +421,7 @@ CMakeFiles/BusGalleryDesktop.dir/api/CatalogApi.cpp.obj: \
  D:/code/bus-gallery/busGallery-desktop/models/CatalogItem.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QString \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QList \
+ D:/code/bus-gallery/busGallery-desktop/models/VehiclePayload.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/QDate \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/qdatetime.h \
  D:/code/bus-gallery/busGallery-desktop/utils/Config.h

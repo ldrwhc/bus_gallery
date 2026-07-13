@@ -426,6 +426,13 @@ CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj: \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qtimezone.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qdatetime.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qcalendar.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QVBoxLayout \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayout.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayoutitem.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qgridlayout.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QHBoxLayout \
  D:/code/bus-gallery/busGallery-desktop/api/ApiClient.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QObject \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qobject.h \
@@ -502,10 +509,10 @@ CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj: \
  D:/code/bus-gallery/busGallery-desktop/api/CatalogApi.h \
  D:/code/bus-gallery/busGallery-desktop/models/CatalogItem.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QList \
- D:/code/bus-gallery/busGallery-desktop/api/UploadApi.h \
  D:/code/bus-gallery/busGallery-desktop/models/VehiclePayload.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QDate \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qdatetime.h \
+ D:/code/bus-gallery/busGallery-desktop/api/UploadApi.h \
  D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QWidget \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qwidget.h \
@@ -572,13 +579,6 @@ CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj: \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qmenu.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QStatusBar \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qstatusbar.h \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QVBoxLayout \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayout.h \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayoutitem.h \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qgridlayout.h \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QHBoxLayout \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QFormLayout \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qformlayout.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QLayout \
@@ -635,4 +635,16 @@ CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj: \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QTimer \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qtimer.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QCoreApplication \
- D:/env/QT/6.10.1/mingw_64/include/QtCore/qcoreapplication.h
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/qcoreapplication.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/QDataStream \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/qdatastream.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtNetwork/QNetworkCookieJar \
+ D:/env/QT/6.10.1/mingw_64/include/QtNetwork/qnetworkcookiejar.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtNetwork/QSslConfiguration \
+ D:/env/QT/6.10.1/mingw_64/include/QtNetwork/QSslSocket \
+ D:/env/QT/6.10.1/mingw_64/include/QtNetwork/qsslsocket.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QInputDialog \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qinputdialog.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlineedit.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtGui/QDesktopServices \
+ D:/env/QT/6.10.1/mingw_64/include/QtGui/qdesktopservices.h
