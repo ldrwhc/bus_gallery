@@ -22,7 +22,7 @@
                                 :class="['tree-prov', { open: expandedProvinceIds.includes(prov.id) }]"
                                 @click="toggleProvince(prov.id)"
                             >
-                                <span class="tp-arrow">{{ prov.expanded ? '▾' : '▸' }}</span>
+                                <span class="tp-arrow">{{ expandedProvinceIds.includes(prov.id) ? '▾' : '▸' }}</span>
                                 <span class="tp-name">{{ prov.name }}</span>
                                 <span class="tp-count">{{ prov.cities.length }}</span>
                             </button>
@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch, reactive } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
@@ -117,6 +117,17 @@ const provinceTree = computed(() => {
                 companyCount: catalogByCityId.value[city.id]?.companyCount || 0,
                 companies: catalogByCityId.value[city.id]?.companies || []
             }));
+        // 直辖市：没有下属城市，但自身有公司数据，将自身作为"城市"条目
+        if (cities.length === 0) {
+            const selfCatalog = catalogByCityId.value[prov.id];
+            if (selfCatalog) {
+                cities.push({
+                    ...prov,
+                    companyCount: selfCatalog.companyCount || 0,
+                    companies: selfCatalog.companies || []
+                });
+            }
+        }
         return { ...prov, cities };
     }).filter((prov) => prov.cities.length > 0);
 });
@@ -146,8 +157,12 @@ const activeCity = computed(() => {
 
 const toggleProvince = (id) => {
     const idx = expandedProvinceIds.value.indexOf(id);
-    if (idx >= 0) expandedProvinceIds.value.splice(idx, 1);
-    else expandedProvinceIds.value.push(id);
+    if (idx >= 0) {
+        expandedProvinceIds.value.splice(idx, 1);
+    } else {
+        // Collapse all other provinces — only one open at a time
+        expandedProvinceIds.value = [id];
+    }
 };
 
 const selectCity = (city) => {
@@ -202,17 +217,20 @@ onMounted(async () => {
 <style scoped lang="scss">
 .page { min-height: 100vh; display: flex; flex-direction: column; background: #f0f2f5; }
 .constrained {
-    width: min(1100px, 100%); margin: 0 auto; flex: 1;
-    padding: 28px 20px 64px;
+    width: min(1200px, 100%); margin: 0 auto; flex: 1;
+    padding: 32px 24px 72px;
 }
 
 // ---- Header ----
 .catalog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
     margin-bottom: 24px;
-    .eyebrow { letter-spacing: 0.3em; font-size: 0.72rem; color: #9ca3af; text-transform: uppercase; margin: 0 0 4px; }
-    h1 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 700; color: #111827; }
-    .subtitle { margin: 0; font-size: 0.88rem; color: #6b7280; }
+    h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; color: #111827; }
 }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.3em; font-size: 0.72rem; color: #9ca3af; margin: 0 0 4px; }
+.subtitle { margin: 0; font-size: 0.9rem; color: #6b7280; }
 
 // ---- Split layout ----
 .split-layout { display: flex; gap: 20px; align-items: flex-start; }

@@ -1,16 +1,12 @@
 ﻿<template>
     <div class="page company-catalog">
         <main class="catalog-main constrained">
-            <header class="catalog-header">
+            <header v-if="!selectedCompanyId" class="catalog-header">
                 <div>
                     <p class="eyebrow">Company</p>
                     <h1>按公司检索车型</h1>
                     <p class="subtitle">共 {{ catalog.length }} 家公司 / {{ modelsCount }} 种车型</p>
                 </div>
-
-                <button v-if="selectedCompanyId" class="ghost-btn catalog-back-btn" type="button" @click="clearCompanyFilter">
-                    返回全部公司
-                </button>
             </header>
 
             <template v-if="!selectedCompanyId">
@@ -69,56 +65,100 @@
             </template>
 
             <template v-else>
-                <section v-if="companyDetail" class="company-detail">
-                    <div class="detail-summary">
-                        <div>
-                            <p class="eyebrow">Company Detail</p>
-                            <h1>{{ companyDetail.name }}</h1>
-                            <p class="subtitle">
-                                {{ companyRegionName }}
-                            </p>
+                <!-- Detail header: back button + company name -->
+                <header class="detail-header">
+                    <a class="back-link" @click.prevent="clearCompanyFilter">← 返回全部公司</a>
+                    <div v-if="companyDetail">
+                        <h1 class="detail-company-name">{{ companyDetail.name }}</h1>
+                        <p class="detail-company-meta">{{ companyRegionName }} · {{ timelineFlatItems.length }} 款车型</p>
+                    </div>
+                </header>
+
+                <!-- Filters -->
+                <section v-if="companyDetail" class="detail-filters">
+                    <div v-if="availableBrands.length >= 1" class="filter-row">
+                        <span class="filter-row__label">品牌</span>
+                        <div class="chip-row">
+                            <button
+                                :class="['filter-chip', { active: !selectedBrand }]"
+                                @click="selectedBrand = ''"
+                            >全部</button>
+                            <button
+                                v-for="brand in availableBrands" :key="brand"
+                                :class="['filter-chip', { active: brand === selectedBrand }]"
+                                @click="selectedBrand = selectedBrand === brand ? '' : brand"
+                            >{{ brand }}</button>
                         </div>
                     </div>
+                    <div v-if="availableYears.length >= 1" class="filter-row">
+                        <span class="filter-row__label">年份</span>
+                        <div class="chip-row">
+                            <button
+                                :class="['filter-chip', { active: !selectedYear }]"
+                                @click="selectedYear = ''"
+                            >全部</button>
+                            <button
+                                v-for="year in availableYears" :key="year"
+                                :class="['filter-chip', { active: year === selectedYear }]"
+                                @click="selectedYear = selectedYear === year ? '' : year"
+                            >{{ year }}</button>
+                        </div>
+                    </div>
+                </section>
 
-                    <section v-if="detailLoading || summaryLoading || modelCardsLoading" class="state state--loading">
-                        正在加载车型卡片...
-                    </section>
+                <section v-if="detailLoading || summaryLoading || modelCardsLoading" class="state state--loading">
+                    正在加载车型卡片...
+                </section>
 
-                    <section v-else-if="!groupedVehicleTimeline.length" class="state state--empty">
-                        暂无车型数据
-                    </section>
+                <section v-else-if="!filteredTimelineItems.length" class="state state--empty">
+                    暂无车型数据
+                </section>
 
-                    <section v-else class="timeline">
-                        <article v-for="group in groupedVehicleTimeline" :key="group.year" class="timeline-group">
-                            <header class="timeline-header">
-                                <span class="timeline-year">{{ group.year }}</span>
-                            </header>
-                            <div class="detail-grid">
-                                <div v-for="item in group.items" :key="getCardKey(group.year, item)" class="detail-card">
-                                    <div class="detail-card__head">
-                                        <router-link
-                                            class="model-link"
-                                            :to="{ name: 'ModelCatalog', params: { modelId: item.modelId } }"
-                                        >
-                                            {{ item.modelName }}
-                                        </router-link>
-                                        <button
-                                            v-if="isAuthenticated"
-                                            class="menu-btn"
-                                            type="button"
-                                            @click="openVehicleList(group.year, item)"
-                                        >
-                                            ⋮
-                                        </button>
-                                    </div>
-                                    <div class="detail-card__image">
-                                        <img :src="item.coverImage || placeholderLogo" :alt="item.modelName" loading="lazy" decoding="async" />
-                                    </div>
-                                    <p class="detail-card__caption">样本年份：{{ item.sampleYear || '未知' }}</p>
+                <!-- Photo grid — grouped by year -->
+                <section v-for="group in groupedFilteredItems" :key="group[0]" class="year-group">
+                    <h3 class="year-heading">{{ group[0] }}年</h3>
+                    <div class="photo-grid">
+                        <article
+                            v-for="item in group[1]"
+                            :key="getCardKey(item.sampleYear, item)"
+                            class="photo-card"
+                        >
+                            <div class="photo-card__head">
+                                <router-link
+                                    class="photo-card__name"
+                                    :to="{ name: 'ModelCatalog', params: { modelId: item.modelId } }"
+                                >{{ item.modelName }}</router-link>
+                                <button
+                                    v-if="isAuthenticated"
+                                    class="photo-card__menu"
+                                    type="button"
+                                    @click.stop="openVehicleList(item.sampleYear, item)"
+                                >⋮</button>
+                            </div>
+                            <div class="photo-card__media">
+                                <div class="photo-card__image">
+                                    <img :src="item.coverImage || placeholderLogo" :alt="item.modelName" loading="lazy" decoding="async" />
                                 </div>
+                                <dl class="photo-card__table">
+                                    <dt>上线时间</dt>
+                                    <dd>{{ item.sampleYear && item.sampleYear !== '年份未知' ? item.sampleYear : '—' }}</dd>
+                                    <dt>运营线路</dt>
+                                    <dd>
+                                        <template v-if="item.routeLinks.length">
+                                            <router-link
+                                                v-for="(rt, idx) in item.routeLinks.slice(0, 6)"
+                                                :key="rt.routeId"
+                                                :to="{ name: 'RouteDetail', params: { routeId: rt.routeId } }"
+                                                class="photo-card__route-link"
+                                            >{{ rt.routeNumber }}<template v-if="idx < Math.min(item.routeLinks.length, 6) - 1"> / </template></router-link>
+                                            <span v-if="item.routeLinks.length > 6" class="photo-card__route-more">等{{ item.routeLinks.length }}条</span>
+                                        </template>
+                                        <span v-else class="photo-card__route-empty">—</span>
+                                    </dd>
+                                </dl>
                             </div>
                         </article>
-                    </section>
+                    </div>
                 </section>
             </template>
         </main>
@@ -360,6 +400,15 @@ const formatYearValue = (date) => {
     return `${parsed.getFullYear()}`;
 };
 
+const formatDateDisplay = (date) => {
+    if (!date) return '';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return '';
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m} 上线`;
+};
+
 const brandNameMap = computed(() => {
     const map = {};
     const modelsCatalog = store.state.models.catalog || [];
@@ -466,9 +515,20 @@ const loadModelCards = async (companyId, summaries = []) => {
             modelYearMap[modelId][year] = {
                 vehicleId: vehicle.id,
                 coverImage: resolveImage(record.images),
-                year
+                year,
+                launchDate: vehicle.launchDate || null,
+                routeLinks: []
             };
         }
+        // Collect unique route links (id + number for clickable links)
+        const routes = Array.isArray(vehicle.routes) ? vehicle.routes : [];
+        routes.forEach(r => {
+            const rn = r.routeNumber?.trim();
+            const rid = r.routeId || r.id;
+            if (rn && rid && !modelYearMap[modelId][year].routeLinks.some(x => x.routeId === rid)) {
+                modelYearMap[modelId][year].routeLinks.push({ routeNumber: rn, routeId: rid });
+            }
+        });
     });
 
     // Build modelCardMap: each model has multiple year entries
@@ -482,7 +542,9 @@ const loadModelCards = async (companyId, summaries = []) => {
             years['年份未知'] = {
                 vehicleId: null,
                 coverImage: summary?.thumbnailUrl || null,
-                year: '年份未知'
+                year: '年份未知',
+                launchDate: null,
+                routeLinks: []
             };
         }
         cards[modelId] = {
@@ -514,7 +576,9 @@ const groupedVehicleTimeline = computed(() => {
                     modelId,
                     modelName: card.modelName || summary?.modelName || '未命名车型',
                     coverImage: data.coverImage || card.thumbnailUrl || summary?.thumbnailUrl || null,
-                    sampleYear: year
+                    sampleYear: year,
+                    launchDate: data.launchDate || null,
+                    routeLinks: data.routeLinks || []
                 });
             }
         });
@@ -535,6 +599,89 @@ const groupedVehicleTimeline = computed(() => {
 });
 
 const getCardKey = (year, item) => `${year}-${item.modelId || item.modelName}`;
+
+// ---- Filters ----
+const selectedBrand = ref('');
+const selectedYear = ref('');
+
+// Vehicle count per model-year key
+const vehicleCountByModelYear = computed(() => {
+    const map = {};
+    companyVehicles.value.forEach(record => {
+        const vehicle = record?.vehicle;
+        const modelId = vehicle?.model?.id;
+        if (!modelId) return;
+        const year = formatYearValue(vehicle?.launchDate);
+        const key = `${modelId}-${year}`;
+        map[key] = (map[key] || 0) + 1;
+    });
+    return map;
+});
+
+// Flat list of all timeline items with brand names and vehicle counts
+const timelineFlatItems = computed(() => {
+    const items = [];
+    groupedVehicleTimeline.value.forEach(group => {
+        group.items.forEach(item => {
+            const brand = resolveModelBrand({ brandName: brandNameMap.value[item.modelId], id: item.modelId });
+            const count = vehicleCountByModelYear.value[`${item.modelId}-${item.sampleYear}`] || 0;
+            items.push({
+                ...item,
+                brandName: brand || '品牌待补充',
+                vehicleCount: count,
+                displayDate: item.launchDate ? formatDateDisplay(item.launchDate) : (item.sampleYear !== '年份未知' ? item.sampleYear + ' 年' : '上线日期未知'),
+                routeLinks: item.routeLinks || [],
+                routeDisplay: item.routeLinks?.length ? item.routeLinks.map(r => r.routeNumber).slice(0, 6).join(' / ') : ''
+            });
+        });
+    });
+    return items;
+});
+
+const availableYears = computed(() => {
+    const years = new Set();
+    timelineFlatItems.value.forEach(item => {
+        if (item.sampleYear && item.sampleYear !== '未知' && item.sampleYear !== '年份未知') {
+            years.add(item.sampleYear);
+        }
+    });
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+});
+
+const availableBrands = computed(() => {
+    const brands = new Set();
+    timelineFlatItems.value.forEach(item => {
+        if (item.brandName && item.brandName !== '品牌待补充') {
+            brands.add(item.brandName);
+        }
+    });
+    return Array.from(brands).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+});
+
+const filteredTimelineItems = computed(() => {
+    return timelineFlatItems.value.filter(item => {
+        if (selectedBrand.value && item.brandName !== selectedBrand.value) return false;
+        if (selectedYear.value && item.sampleYear !== selectedYear.value) return false;
+        return true;
+    });
+});
+
+const groupedFilteredItems = computed(() => {
+    const map = new Map();
+    filteredTimelineItems.value.forEach(item => {
+        const year = item.sampleYear || '年份未知';
+        if (!map.has(year)) map.set(year, []);
+        map.get(year).push(item);
+    });
+    return Array.from(map.entries())
+        .sort((a, b) => {
+            const na = Number(a[0]), nb = Number(b[0]);
+            if (Number.isNaN(na) && Number.isNaN(nb)) return 0;
+            if (Number.isNaN(na)) return 1;
+            if (Number.isNaN(nb)) return -1;
+            return nb - na;
+        });
+});
 
 const loadVehicleListPage = async (targetPage) => {
     if (!selectedCompanyId.value || !vehicleListModelId.value) return;
@@ -619,6 +766,8 @@ watch(
     () => selectedCompanyId.value,
     async (id) => {
         closeVehicleList();
+        selectedBrand.value = '';
+        selectedYear.value = '';
 
         if (!id) {
             store.dispatch('companies/loadCompanyCatalog');
@@ -823,16 +972,174 @@ onMounted(() => {
     }
 }
 
-.company-detail {
-    background: #fff;
-    border-radius: 24px;
-    padding: 24px;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+// ---- Detail header ----
+.detail-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+.back-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 14px;
+    display: inline-block;
+    cursor: pointer;
+    &:hover { text-decoration: underline; }
+}
+.detail-company-name {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+}
+.detail-company-meta {
+    margin: 4px 0 0;
+    font-size: 0.88rem;
+    color: #6b7280;
 }
 
-.detail-summary {
-    margin-bottom: 16px;
+// ---- Detail filters ----
+.detail-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
 }
+.filter-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.filter-row__label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #94a3b8;
+    min-width: 36px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+// ---- Photo grid ----
+.year-group {
+    margin-bottom: 32px;
+}
+.year-heading {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e2e8f0;
+}
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+}
+.photo-card {
+    display: flex;
+    flex-direction: column;
+}
+.photo-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0 8px;
+    gap: 8px;
+}
+.photo-card__name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1e293b;
+    text-decoration: none;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    &:hover { color: #2563eb; }
+    &:visited { color: #1e293b; }
+}
+.photo-card__menu {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+    &:hover { background: #f1f5f9; color: #475569; }
+}
+.photo-card__media {
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+    transition: box-shadow 0.2s, transform 0.2s;
+    .photo-card:hover & {
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        transform: translateY(-2px);
+    }
+}
+.photo-card__image {
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+    background: #e2e8f0;
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+}
+.photo-card__table {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    padding: 10px 14px 12px;
+    margin: 0;
+    dt {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        white-space: nowrap;
+    }
+    dd {
+        font-size: 0.82rem;
+        color: #1e293b;
+        margin: 0;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+.photo-card__route-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+    &:hover { text-decoration: underline; }
+    &:visited { color: #2563eb; }
+}
+.photo-card__route-more {
+    color: #94a3b8;
+    font-size: 0.72rem;
+}
+.photo-card__route-empty {
+    color: #cbd5e1;
+}
+
+.company-detail { background: transparent; box-shadow: none; padding: 0; }
+.detail-summary { display: none; }
 
 .summary-grid {
     display: grid;

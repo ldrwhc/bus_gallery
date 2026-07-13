@@ -239,11 +239,17 @@ onMounted(async () => {
 
         // Find child routes (variants: interval, branch, etc.)
         // Match by: parentRouteId pointing to us, or same numeric prefix
+        // IMPORTANT: only match within the same region AND company to avoid
+        // cross-city collisions (e.g. Guangzhou 104路 ≠ Beijing 104路)
         const allRoutes = Array.isArray(allRoutesResp?.records) ? allRoutesResp.records : (Array.isArray(allRoutesResp) ? allRoutesResp : []);
+        const detailRegionId = detail.region?.id;
+        const detailCompanyId = detail.company?.id;
         const siblings = allRoutes.filter(r =>
             r.id !== detail.id && (
                 r.parentRouteId === detail.id ||
-                (r.routeNumber || '').startsWith(baseRouteKey)
+                ((r.routeNumber || '').startsWith(baseRouteKey) &&
+                 detailRegionId != null && r.region?.id === detailRegionId &&
+                 detailCompanyId != null && r.company?.id === detailCompanyId)
             )
         );
         variantRoutes.value = siblings;
