@@ -6,6 +6,7 @@
     <resultMap id="BusRouteResultMap" type="com.busgallery.busgallery.entity.BusRoute">
         <id property="id" column="id"/>
         <result property="routeNumber" column="route_number"/>
+        <result property="routeName" column="route_name"/>
         <result property="subType" column="sub_type"/>
         <result property="startStop" column="start_stop"/>
         <result property="endStop" column="end_stop"/>
@@ -23,7 +24,6 @@
         <result property="remark" column="remark"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
-        <result property="parentRouteId" column="parent_route_id"/>
         <association property="region" javaType="com.busgallery.busgallery.entity.Region">
             <id property="id" column="r_id"/>
             <result property="name" column="r_name"/>
@@ -32,10 +32,11 @@
             <id property="id" column="c_id"/>
             <result property="name" column="c_name"/>
         </association>
+        <result property="parentRouteId" column="parent_route_id"/>
     </resultMap>
 
     <sql id="BaseColumnList">
-        id, route_number, sub_type, parent_route_id,
+        id, route_number, route_name, sub_type, parent_route_id,
         start_stop, end_stop, down_start_stop, down_end_stop, is_loop,
         region_id, company_id, route_type, line_length_km,
         ticket_type, ticket_price, operating_hours,
@@ -76,11 +77,10 @@
             AND br.is_active = #{isActive}
         </if>
         <if test="keyword != null and keyword != ''">
-            AND (
-                br.route_number LIKE CONCAT('%', #{keyword}, '%')
-                OR br.start_stop LIKE CONCAT('%', #{keyword}, '%')
-                OR br.end_stop LIKE CONCAT('%', #{keyword}, '%')
-            )
+            <!-- UPGRADE(ES): Replace with ES multi_match on route fields -->
+            AND MATCH(br.route_number, br.route_name, br.start_stop, br.end_stop,
+                     br.down_start_stop, br.down_end_stop)
+                AGAINST(#{keyword} IN BOOLEAN MODE)
         </if>
         ORDER BY br.route_number ASC, br.sub_type ASC
         LIMIT #{limit} OFFSET #{offset}
@@ -102,11 +102,9 @@
             AND br.is_active = #{isActive}
         </if>
         <if test="keyword != null and keyword != ''">
-            AND (
-                br.route_number LIKE CONCAT('%', #{keyword}, '%')
-                OR br.start_stop LIKE CONCAT('%', #{keyword}, '%')
-                OR br.end_stop LIKE CONCAT('%', #{keyword}, '%')
-            )
+            AND MATCH(br.route_number, br.route_name, br.start_stop, br.end_stop,
+                     br.down_start_stop, br.down_end_stop)
+                AGAINST(#{keyword} IN BOOLEAN MODE)
         </if>
     </select>
 
@@ -119,12 +117,9 @@
         LEFT JOIN region r ON br.region_id = r.id
         LEFT JOIN company c ON br.company_id = c.id
         WHERE br.is_active = 1
-          AND (
-              br.route_number LIKE CONCAT('%', #{keyword}, '%')
-              OR br.route_name LIKE CONCAT('%', #{keyword}, '%')
-              OR br.start_stop LIKE CONCAT('%', #{keyword}, '%')
-              OR br.end_stop LIKE CONCAT('%', #{keyword}, '%')
-          )
+          AND MATCH(br.route_number, br.route_name, br.start_stop, br.end_stop,
+                   br.down_start_stop, br.down_end_stop)
+              AGAINST(#{keyword} IN BOOLEAN MODE)
         ORDER BY br.route_number ASC
         LIMIT #{limit}
     </select>

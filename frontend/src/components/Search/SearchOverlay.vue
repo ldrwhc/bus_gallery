@@ -5,12 +5,25 @@
             <div class="search-overlay__panel">
                 <h2>搜索</h2>
                 <form class="search-overlay__form" @submit.prevent="handleSearch">
-                    <input
-                        ref="inputRef"
-                        v-model="keyword"
-                        type="search"
-                        placeholder="车牌 / 线路号 / 公司 / 车型"
-                    />
+                    <div class="search-input-wrapper">
+                        <input
+                            ref="inputRef"
+                            v-model="keyword"
+                            type="search"
+                            placeholder="车牌 / 线路号 / 公司 / 车型 / 配置"
+                            @input="onInput"
+                            @keydown.enter.prevent="handleSearch"
+                            @keydown.escape="$emit('close')"
+                        />
+                        <!-- UPGRADE(ES): Use ES suggest API with completion suggesters for instant results -->
+                        <ul v-if="suggestions.length && keyword.trim()" class="suggest-dropdown">
+                            <li v-for="(s, idx) in suggestions" :key="idx"
+                                @mousedown.prevent="selectSuggestion(s)">
+                                <span class="suggest-type">{{ typeLabel(s.type) }}</span>
+                                {{ s.value }}
+                            </li>
+                        </ul>
+                    </div>
                     <div class="scope-selector">
                         <label v-for="opt in scopeOptions" :key="opt.value"
                                :class="{ active: scope === opt.value }">
@@ -31,6 +44,7 @@
 <script setup>
 import { ref, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
+import { searchSuggest } from '@/api/search';
 
 const props = defineProps({
     visible: {
@@ -45,12 +59,42 @@ const router = useRouter();
 const keyword = ref('');
 const scope = ref('all');
 const inputRef = ref(null);
+const suggestions = ref([]);
+let debounceTimer = null;
 
 const scopeOptions = [
     { value: 'all', label: '全部' },
     { value: 'vehicles', label: '车辆' },
     { value: 'routes', label: '线路' }
 ];
+
+const typeLabel = (type) => {
+    const map = { route: '线路', vehicle: '车辆', brand: '品牌' };
+    return map[type] || type;
+};
+
+const onInput = () => {
+    clearTimeout(debounceTimer);
+    const kw = keyword.value.trim();
+    if (!kw || kw.length < 1) {
+        suggestions.value = [];
+        return;
+    }
+    debounceTimer = setTimeout(async () => {
+        try {
+            const resp = await searchSuggest(kw);
+            suggestions.value = Array.isArray(resp) ? resp.slice(0, 6) : [];
+        } catch {
+            suggestions.value = [];
+        }
+    }, 300);
+};
+
+const selectSuggestion = (s) => {
+    keyword.value = s.value;
+    suggestions.value = [];
+    handleSearch();
+};
 
 const handleSearch = () => {
     const kw = keyword.value.trim();
@@ -59,6 +103,7 @@ const handleSearch = () => {
     router.push({ name: 'SearchResults', query: { keyword: kw, scope: scope.value } });
     keyword.value = '';
     scope.value = 'all';
+    suggestions.value = [];
 };
 
 watch(
@@ -70,6 +115,7 @@ watch(
             });
         } else {
             keyword.value = '';
+            suggestions.value = [];
         }
     }
 );
@@ -104,6 +150,50 @@ watch(
     h2 {
         margin: 0 0 16px;
         color: #0f172a;
+    }
+}
+
+.search-input-wrapper {
+    position: relative;
+}
+
+.suggest-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-top: 4px;
+    padding: 6px 0;
+    list-style: none;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+    text-align: left;
+
+    li {
+        padding: 10px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        &:hover {
+            background: #f1f5f9;
+        }
+    }
+
+    .suggest-type {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #2563eb;
+        font-weight: 500;
+        flex-shrink: 0;
     }
 }
 
@@ -143,6 +233,7 @@ watch(
         padding: 14px 20px;
         font-size: 1rem;
         box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.05);
+        box-sizing: border-box;
 
         &:focus-visible {
             outline: none;

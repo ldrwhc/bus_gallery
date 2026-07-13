@@ -116,4 +116,12 @@
         DELETE FROM region WHERE id = #{id}
     </delete>
 
+    <!-- FULLTEXT search. UPGRADE(ES): Replace with ES match query on region index. -->
+    <select id="searchByKeyword" resultMap="RegionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM region
+        WHERE MATCH(name) AGAINST(#{keyword} IN BOOLEAN MODE)
+        ORDER BY level, name
+        LIMIT #{limit}
+    </select>
 </mapper>

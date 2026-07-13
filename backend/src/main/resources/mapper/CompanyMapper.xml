@@ -82,4 +82,12 @@
     <delete id="delete" parameterType="long">
         DELETE FROM company WHERE id = #{id}
     </delete>
+    <!-- FULLTEXT search. UPGRADE(ES): Replace with ES match query on company index. -->
+    <select id="searchByKeyword" resultMap="CompanyResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM company
+        WHERE MATCH(name) AGAINST(#{keyword} IN BOOLEAN MODE)
+        ORDER BY name
+        LIMIT #{limit}
+    </select>
 </mapper>

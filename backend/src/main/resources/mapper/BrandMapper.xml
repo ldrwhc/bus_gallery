@@ -59,4 +59,12 @@
     <delete id="delete" parameterType="long">
         DELETE FROM brand WHERE id = #{id}
     </delete>
+    <!-- FULLTEXT search across name + chn_name. UPGRADE(ES): Replace with ES multi_match. -->
+    <select id="searchByKeyword" resultMap="BrandResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM brand
+        WHERE MATCH(name, chn_name) AGAINST(#{keyword} IN BOOLEAN MODE)
+        ORDER BY name
+        LIMIT #{limit}
+    </select>
 </mapper>

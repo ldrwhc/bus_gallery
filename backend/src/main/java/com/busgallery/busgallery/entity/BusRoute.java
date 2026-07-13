@@ -27,6 +27,9 @@ public class BusRoute {
     @Column(name = "route_number", length = 32, nullable = false)
     private String routeNumber;
 
+    @Column(name = "route_name", length = 200)
+    private String routeName;
+
     @Column(name = "sub_type", length = 16)
     private String subType;
 

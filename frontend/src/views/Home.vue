@@ -32,10 +32,12 @@
                         class="waterfall-card"
                         @click="openCard(card)"
                     >
-                        <div class="waterfall-media">
+                        <div class="waterfall-media" :style="{ aspectRatio: String(card.aspectRatio) }">
                             <img
                                 :src="card.image?.thumbnailUrl || fallback"
                                 :alt="card.plateNumber || '车辆图片'"
+                                :width="card.image?.width || 800"
+                                :height="card.image?.height || 600"
                                 :loading="index < eagerImageCount ? 'eager' : 'lazy'"
                                 :fetchpriority="index < eagerImageCount ? 'high' : 'auto'"
                                 decoding="async"
@@ -108,6 +110,15 @@ const loadObserver = ref(null);
 const isMobileViewport = computed(() => viewportWidth.value <= 768);
 const eagerImageCount = computed(() => (isMobileViewport.value ? 3 : 9));
 
+const DEFAULT_ASPECT = 4 / 3;
+
+const resolveAspectRatio = (image) => {
+    const w = image?.width;
+    const h = image?.height;
+    if (w > 0 && h > 0) return w / h;
+    return DEFAULT_ASPECT;
+};
+
 const waterfallCards = computed(() =>
     rawRecords.value.map((record, index) => {
         const vehicle = record?.vehicle || {};
@@ -117,6 +128,7 @@ const waterfallCards = computed(() =>
             plateNumber: vehicle?.plateNumber || '',
             vehicleId: vehicle?.id || null,
             image,
+            aspectRatio: resolveAspectRatio(image),
             author: image?.uploaderDisplayName || image?.uploaderUsername || '匿名上传',
             region:
                 vehicle?.region?.name ||
@@ -440,12 +452,16 @@ onBeforeUnmount(() => {
 .waterfall-media {
     position: relative;
     background: #e2e8f0;
+    overflow: hidden;
 }
 
 .waterfall-media img {
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
+    object-fit: cover;
+    position: absolute;
+    inset: 0;
 }
 
 .waterfall-tag,

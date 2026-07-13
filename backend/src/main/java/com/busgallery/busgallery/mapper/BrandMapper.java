@@ -57,4 +57,10 @@ public interface BrandMapper {
      * @return 返回int类型结果。
      */
     int delete(@Param("id") Long id);
+    /**
+     * FULLTEXT search across name and chn_name.
+     * UPGRADE(ES): Replace with Elasticsearch query when server memory allows.
+     */
+    List<Brand> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
+
 }

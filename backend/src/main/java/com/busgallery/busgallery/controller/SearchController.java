@@ -1,23 +1,33 @@
 package com.busgallery.busgallery.controller;
 
-import com.busgallery.busgallery.entity.BusRoute;
+import com.busgallery.busgallery.entity.*;
+import com.busgallery.busgallery.mapper.BrandMapper;
+import com.busgallery.busgallery.mapper.CompanyMapper;
+import com.busgallery.busgallery.mapper.RegionMapper;
 import com.busgallery.busgallery.service.BusRouteService;
-import com.busgallery.busgallery.service.CompanyService;
-import com.busgallery.busgallery.service.RegionService;
+import com.busgallery.busgallery.service.ImageAccessService;
+import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.VehicleService;
-import com.busgallery.busgallery.entity.Company;
-import com.busgallery.busgallery.entity.Region;
-import com.busgallery.busgallery.entity.Vehicle;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Unified search controller.
+ *
+ * UPGRADE(ES): When server memory exceeds 4 GB, replace the FULLTEXT-based
+ * search with Elasticsearch:
+ *   1. Index: bus_gallery_search with fields from all entities
+ *   2. Use IK Chinese tokenizer for CJK text, pinyin for romanized search
+ *   3. Use ES aggregations for dynamic facet counts (brand, region, fuel, etc.)
+ *   4. Use ES suggest API for real-time autocomplete
+ *   5. Keep this controller's API contract unchanged — just swap the implementation
+ */
 @RestController
 @RequestMapping("/api/search")
 @RequiredArgsConstructor
@@ -27,9 +37,17 @@ public class SearchController {
 
     private final VehicleService vehicleService;
     private final BusRouteService busRouteService;
-    private final CompanyService companyService;
-    private final RegionService regionService;
+    private final ImageService imageService;
+    private final ImageAccessService imageAccessService;
+    private final BrandMapper brandMapper;
+    private final CompanyMapper companyMapper;
+    private final RegionMapper regionMapper;
 
+    /**
+     * Unified search across vehicles, routes, companies, regions, and brands.
+     * Uses MySQL FULLTEXT + ngram for Chinese text matching.
+     * UPGRADE(ES): Replace with a single ES multi-index search query.
+     */
     @GetMapping
     public SearchResult search(@RequestParam String keyword,
                                @RequestParam(defaultValue = "all") String scope) {
@@ -38,75 +56,115 @@ public class SearchController {
             return SearchResult.empty();
         }
 
-        boolean searchVehicles = scope.equals("all") || scope.equals("vehicles");
-        boolean searchRoutes = scope.equals("all") || scope.equals("routes");
-        boolean searchCompanies = scope.equals("all") || scope.equals("companies");
-        boolean searchRegions = scope.equals("all") || scope.equals("regions");
-
+        boolean all = "all".equals(scope);
         SearchResult result = new SearchResult();
         result.setKeyword(kw);
 
-        if (searchVehicles) {
+        // --- Vehicles (uses FULLTEXT on company/region/brand + LIKE on plate_number) ---
+        if (all || "vehicles".equals(scope)) {
             List<Vehicle> vehicles = vehicleService.queryPage(PREVIEW_LIMIT, null, null,
                     null, null, kw, null, null);
             long total = vehicleService.count(null, null, null, null, kw);
-            result.setVehicles(new SearchCategory(
-                    total,
-                    vehicles.stream().map(v -> SearchItem.ofVehicle(v)).collect(Collectors.toList())
-            ));
+            result.setVehicles(new SearchCategory(total, vehicles.stream()
+                    .map(v -> SearchItem.ofVehicle(v, findFirstImageUrl(v.getId())))
+                    .collect(Collectors.toList())));
         }
 
-        if (searchRoutes) {
+        // --- Routes (uses FULLTEXT on route_number, route_name, stops) ---
+        if (all || "routes".equals(scope)) {
             List<BusRoute> routes = busRouteService.searchByKeyword(kw, PREVIEW_LIMIT);
             long total = busRouteService.count(null, null, null, kw, null);
-            result.setRoutes(new SearchCategory(
-                    total,
-                    routes.stream().map(r -> SearchItem.ofRoute(r)).collect(Collectors.toList())
-            ));
+            result.setRoutes(new SearchCategory(total, routes.stream()
+                    .map(SearchItem::ofRoute)
+                    .collect(Collectors.toList())));
         }
 
-        if (searchCompanies) {
-            List<Company> matched = companyService.findAll().stream()
-                    .filter(c -> c.getName() != null && c.getName().toLowerCase().contains(kw.toLowerCase()))
-                    .limit(PREVIEW_LIMIT)
-                    .collect(Collectors.toList());
-            long companyTotal = companyService.findAll().stream()
-                    .filter(c -> c.getName() != null && c.getName().toLowerCase().contains(kw.toLowerCase()))
-                    .count();
-            result.setCompanies(new SearchCategory(
-                    companyTotal,
-                    matched.stream().map(c -> SearchItem.ofCompany(c)).collect(Collectors.toList())
-            ));
+        // --- Companies (uses FULLTEXT via CompanyMapper.searchByKeyword) ---
+        if (all || "companies".equals(scope)) {
+            List<Company> matched = companyMapper.searchByKeyword(kw, PREVIEW_LIMIT);
+            result.setCompanies(new SearchCategory(matched.size(), matched.stream()
+                    .map(SearchItem::ofCompany)
+                    .collect(Collectors.toList())));
         }
 
-        if (searchRegions) {
-            List<Region> matched = regionService.findAll().stream()
-                    .filter(r -> r.getName() != null && r.getName().toLowerCase().contains(kw.toLowerCase()))
-                    .limit(PREVIEW_LIMIT)
-                    .collect(Collectors.toList());
-            long regionTotal = regionService.findAll().stream()
-                    .filter(r -> r.getName() != null && r.getName().toLowerCase().contains(kw.toLowerCase()))
-                    .count();
-            result.setRegions(new SearchCategory(
-                    regionTotal,
-                    matched.stream().map(r -> SearchItem.ofRegion(r)).collect(Collectors.toList())
-            ));
+        // --- Regions (uses FULLTEXT via RegionMapper.searchByKeyword) ---
+        if (all || "regions".equals(scope)) {
+            List<Region> matched = regionMapper.searchByKeyword(kw, PREVIEW_LIMIT);
+            result.setRegions(new SearchCategory(matched.size(), matched.stream()
+                    .map(SearchItem::ofRegion)
+                    .collect(Collectors.toList())));
+        }
+
+        // --- Brands (UPGRADE(ES): add as a facet aggregation in the search response) ---
+        if (all) {
+            List<Brand> brands = brandMapper.searchByKeyword(kw, PREVIEW_LIMIT);
+            if (!brands.isEmpty()) {
+                result.setBrands(new SearchCategory(brands.size(), brands.stream()
+                        .map(SearchItem::ofBrand)
+                        .collect(Collectors.toList())));
+            }
         }
 
         return result;
     }
 
+    /**
+     * Search suggestions for autocomplete.
+     * UPGRADE(ES): Use ES suggest API with completion suggesters for instant results.
+     */
     @GetMapping("/suggest")
     public List<SearchSuggestion> suggest(@RequestParam String keyword) {
         String kw = keyword == null ? "" : keyword.trim();
         if (kw.isEmpty()) {
             return Collections.emptyList();
         }
-        List<BusRoute> routes = busRouteService.searchByKeyword(kw, 5);
-        return routes.stream()
-                .map(r -> new SearchSuggestion(r.getRouteNumber(), "route", r.getId()))
-                .collect(Collectors.toList());
+
+        List<SearchSuggestion> suggestions = new ArrayList<>();
+
+        // Route suggestions (most useful for bus gallery)
+        List<BusRoute> routes = busRouteService.searchByKeyword(kw, 3);
+        routes.forEach(r -> suggestions.add(
+                new SearchSuggestion(r.getRouteNumber(), "route", r.getId())));
+
+        // Vehicle plate suggestions
+        List<Vehicle> vehicles = vehicleService.queryPage(3, null, null,
+                null, null, kw, null, null);
+        vehicles.forEach(v -> suggestions.add(
+                new SearchSuggestion(v.getPlateNumber(), "vehicle", v.getId())));
+
+        // Brand suggestions (UPGRADE(ES): pinyin would give "yutong" -> "宇通")
+        List<Brand> brands = brandMapper.searchByKeyword(kw, 2);
+        brands.forEach(b -> suggestions.add(
+                new SearchSuggestion(
+                        b.getChnName() != null ? b.getChnName() : b.getName(),
+                        "brand", b.getId())));
+
+        return suggestions;
     }
+
+    /**
+     * Resolve the first (thumbnail) image URL for a vehicle.
+     * UPGRADE(ES): Store thumbnail_url directly in the ES index — no need for this DB lookup.
+     */
+    private String findFirstImageUrl(Long vehicleId) {
+        if (vehicleId == null) return null;
+        try {
+            List<Image> images = imageService.listByVehicle(vehicleId);
+            if (images != null && !images.isEmpty()) {
+                Image first = images.get(0);
+                String objectName = imageAccessService.resolveObjectNameRef(
+                        first.getThumbnailUrl() != null ? first.getThumbnailUrl() : first.getUrl());
+                if (objectName != null && !objectName.isBlank()) {
+                    return imageAccessService.signThumbnailObject(objectName);
+                }
+            }
+        } catch (Exception ignore) {
+            // Return null on any error — image URL is optional for search results
+        }
+        return null;
+    }
+
+    // ---- DTOs ----
 
     @Data
     @NoArgsConstructor
@@ -116,6 +174,8 @@ public class SearchController {
         private SearchCategory routes;
         private SearchCategory companies;
         private SearchCategory regions;
+        /** UPGRADE(ES): This becomes a facet aggregation — add fuel_type, step_type etc. */
+        private SearchCategory brands;
 
         public static SearchResult empty() {
             return new SearchResult();
@@ -138,14 +198,16 @@ public class SearchController {
         private String title;
         private String subtitle;
         private String type;
+        /** UPGRADE(ES): Stored directly in the index, no post-query enrichment needed. */
         private String imageUrl;
 
-        public static SearchItem ofVehicle(Vehicle v) {
+        public static SearchItem ofVehicle(Vehicle v, String imageUrl) {
             SearchItem item = new SearchItem();
             item.id = v.getId();
             item.title = v.getPlateNumber();
             item.subtitle = (v.getModel() != null ? v.getModel().getName() : null);
             item.type = "vehicle";
+            item.imageUrl = imageUrl;
             return item;
         }
 
@@ -173,6 +235,15 @@ public class SearchController {
             item.title = r.getName();
             item.subtitle = null;
             item.type = "region";
+            return item;
+        }
+
+        public static SearchItem ofBrand(Brand b) {
+            SearchItem item = new SearchItem();
+            item.id = b.getId();
+            item.title = b.getChnName() != null ? b.getChnName() : b.getName();
+            item.subtitle = b.getChnName() != null ? b.getName() : null;
+            item.type = "brand";
             return item;
         }
     }

@@ -203,30 +203,42 @@
                         AND v.model_id IN (SELECT id FROM model WHERE brand_id = #{brandId})
                 </if>
                 <if test="keyword != null and keyword != ''">
+                        <!--
+                          UPGRADE(ES): Replace with a single ES multi_match query across all fields.
+                          ES: { "multi_match": { "query": "#{keyword}", "fields": ["*"], "fuzziness": "AUTO" } }
+                        -->
                         AND (
                                 v.plate_number LIKE CONCAT('%', #{keyword}, '%')
                                 OR v.custom_number LIKE CONCAT('%', #{keyword}, '%')
                                 OR EXISTS (
                                         SELECT 1 FROM company c
                                         WHERE c.id = v.company_id
-                                          AND c.name LIKE CONCAT('%', #{keyword}, '%')
+                                          AND MATCH(c.name) AGAINST(#{keyword} IN BOOLEAN MODE)
                                 )
                                 OR EXISTS (
                                         SELECT 1 FROM region r
                                         WHERE r.id = v.region_id
-                                          AND r.name LIKE CONCAT('%', #{keyword}, '%')
+                                          AND MATCH(r.name) AGAINST(#{keyword} IN BOOLEAN MODE)
                                 )
                                 OR EXISTS (
                                         SELECT 1 FROM model m
                                         WHERE m.id = v.model_id
-                                          AND (
-                                                m.name LIKE CONCAT('%', #{keyword}, '%')
-                                                OR EXISTS (
-                                                        SELECT 1 FROM brand b
-                                                        WHERE b.id = m.brand_id
-                                                          AND b.name LIKE CONCAT('%', #{keyword}, '%')
-                                                )
-                                          )
+                                          AND MATCH(m.name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                                )
+                                OR EXISTS (
+                                        SELECT 1 FROM model m2
+                                        INNER JOIN brand b ON b.id = m2.brand_id
+                                        WHERE m2.id = v.model_id
+                                          AND MATCH(b.name, b.chn_name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                                )
+                                -- UPGRADE(ES): vehicle_config fields become ES facet aggregations
+                                OR EXISTS (
+                                        SELECT 1 FROM vehicle_config vc
+                                        WHERE vc.vehicle_id = v.id
+                                          AND MATCH(vc.motor, vc.engine, vc.fuel_type, vc.step_type,
+                                                   vc.transmission_system, vc.suspension, vc.axle,
+                                                   vc.other_configs)
+                                              AGAINST(#{keyword} IN BOOLEAN MODE)
                                 )
                         )
                 </if>
@@ -280,30 +292,38 @@
                         AND v.model_id IN (SELECT id FROM model WHERE brand_id = #{brandId})
                 </if>
                 <if test="keyword != null and keyword != ''">
+                        <!-- UPGRADE(ES): Same as selectPageByCursor keyword block -->
                         AND (
                                 v.plate_number LIKE CONCAT('%', #{keyword}, '%')
                                 OR v.custom_number LIKE CONCAT('%', #{keyword}, '%')
                                 OR EXISTS (
                                         SELECT 1 FROM company c
                                         WHERE c.id = v.company_id
-                                          AND c.name LIKE CONCAT('%', #{keyword}, '%')
+                                          AND MATCH(c.name) AGAINST(#{keyword} IN BOOLEAN MODE)
                                 )
                                 OR EXISTS (
                                         SELECT 1 FROM region r
                                         WHERE r.id = v.region_id
-                                          AND r.name LIKE CONCAT('%', #{keyword}, '%')
+                                          AND MATCH(r.name) AGAINST(#{keyword} IN BOOLEAN MODE)
                                 )
                                 OR EXISTS (
                                         SELECT 1 FROM model m
                                         WHERE m.id = v.model_id
-                                          AND (
-                                                m.name LIKE CONCAT('%', #{keyword}, '%')
-                                                OR EXISTS (
-                                                        SELECT 1 FROM brand b
-                                                        WHERE b.id = m.brand_id
-                                                          AND b.name LIKE CONCAT('%', #{keyword}, '%')
-                                                )
-                                          )
+                                          AND MATCH(m.name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                                )
+                                OR EXISTS (
+                                        SELECT 1 FROM model m2
+                                        INNER JOIN brand b ON b.id = m2.brand_id
+                                        WHERE m2.id = v.model_id
+                                          AND MATCH(b.name, b.chn_name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                                )
+                                OR EXISTS (
+                                        SELECT 1 FROM vehicle_config vc
+                                        WHERE vc.vehicle_id = v.id
+                                          AND MATCH(vc.motor, vc.engine, vc.fuel_type, vc.step_type,
+                                                   vc.transmission_system, vc.suspension, vc.axle,
+                                                   vc.other_configs)
+                                              AGAINST(#{keyword} IN BOOLEAN MODE)
                                 )
                         )
                 </if>
