@@ -24,6 +24,7 @@
         <result property="remark" column="remark"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
+        <result property="parentRouteId" column="parent_route_id"/>
         <association property="region" javaType="com.busgallery.busgallery.entity.Region">
             <id property="id" column="r_id"/>
             <result property="name" column="r_name"/>
@@ -32,7 +33,6 @@
             <id property="id" column="c_id"/>
             <result property="name" column="c_name"/>
         </association>
-        <result property="parentRouteId" column="parent_route_id"/>
     </resultMap>
 
     <sql id="BaseColumnList">
