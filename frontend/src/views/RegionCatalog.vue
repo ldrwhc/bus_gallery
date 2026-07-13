@@ -1,78 +1,73 @@
-﻿<template>
+<template>
     <div class="page region-catalog">
         <main class="catalog-main constrained">
             <header class="catalog-header">
                 <div>
                     <p class="eyebrow">Region</p>
                     <h1>按地区查看公交公司</h1>
-                    <p class="subtitle">
-                        覆盖 {{ cityCatalog.length }} 个地级市 / {{ totalCompanies }} 家公交企业
-                    </p>
+                    <p class="subtitle">覆盖 {{ cityCatalog.length }} 个地级市 / {{ totalCompanies }} 家公交企业</p>
                 </div>
-                <button v-if="selectedRegionId" class="ghost-btn catalog-back-btn" type="button" @click="clearRegionFilter">
-                    返回全部地区
-                </button>
             </header>
 
-            <section class="region-filters" v-if="cityFilters.length">
-                <p class="filter-label">地级市</p>
-                <div class="chip-row chip-row--wrap">
-                    <button
-                        v-for="city in cityFilters"
-                        :key="city.id"
-                        type="button"
-                        :class="['filter-chip', { active: city.id === selectedRegionId }]"
-                        @click="selectCity(city.id)"
-                    >
-                        {{ city.name }}
-                    </button>
-                </div>
-            </section>
+            <div v-if="loading" class="state state--loading">正在加载地区数据...</div>
+            <div v-else-if="!cityCatalog.length" class="state state--empty">暂无地区数据</div>
 
-            <section v-if="loading" class="state state--loading">
-                正在加载地区数据...
-            </section>
-            <section v-else-if="!regionsToRender.length" class="state state--empty">
-                暂无地区数据
-            </section>
-            <section v-else class="region-list">
-                <article v-for="region in regionsToRender" :key="region.id" class="region-card">
-                    <header class="region-card__header">
-                        <div>
-                            <h2>{{ region.name }}</h2>
-                            <p class="meta">含 {{ region.companies?.length || 0 }} 家公交公司</p>
-                        </div>
+            <!-- Split layout: sidebar + main -->
+            <div v-else class="split-layout">
+                <!-- Sidebar: region list -->
+                <aside class="split-sidebar">
+                    <p class="sidebar-label">地级市</p>
+                    <nav class="sidebar-nav">
                         <button
-                            class="ghost-btn ghost-btn--sm"
-                            type="button"
-                            @click="router.push({ name: 'RegionCatalog', params: { regionId: region.id } })"
+                            v-for="city in cityCatalog" :key="city.id"
+                            :class="['sidebar-item', { active: city.id === activeRegionId }]"
+                            @click="activeRegionId = city.id"
                         >
-                            查看该地区
+                            <span class="si-name">{{ city.name }}</span>
+                            <span class="si-count">{{ city.companies?.length || 0 }}</span>
                         </button>
-                    </header>
-                    <div v-if="region.companies?.length" class="company-grid">
-                        <article
-                            v-for="company in region.companies || []"
-                            :key="company.id"
-                            class="company-card"
-                            @click="goCompany(company.id)"
-                        >
-                            <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" loading="lazy" decoding="async" />
-                            <div>
-                                <p class="company-name">{{ company.name }}</p>
-                                <p class="meta">车型 {{ company.modelsCount ?? '未知' }}</p>
-                            </div>
-                        </article>
+                    </nav>
+                </aside>
+
+                <!-- Main: companies of selected region -->
+                <section class="split-main">
+                    <template v-if="activeRegion">
+                        <header class="main-header">
+                            <h2>{{ activeRegion.name }}</h2>
+                            <p class="main-meta">{{ activeRegion.companies?.length || 0 }} 家公交公司</p>
+                        </header>
+
+                        <div v-if="activeRegion.companies?.length" class="company-grid">
+                            <article
+                                v-for="company in activeRegion.companies" :key="company.id"
+                                class="company-card"
+                                @click="goCompany(company.id)"
+                            >
+                                <img
+                                    :src="company.thumbnailUrl || placeholderLogo"
+                                    :alt="company.name" loading="lazy" decoding="async"
+                                />
+                                <div class="cc-info">
+                                    <p class="company-name">{{ company.name }}</p>
+                                    <p class="company-meta">车型 {{ company.modelsCount ?? '—' }}</p>
+                                </div>
+                            </article>
+                        </div>
+                        <p v-else class="empty-meta">暂无公司数据</p>
+                    </template>
+
+                    <!-- Default: first region or empty prompt -->
+                    <div v-else class="main-empty">
+                        <p>← 从左侧选择一个地区查看详情</p>
                     </div>
-                    <p v-else class="empty-meta">暂无公司数据</p>
-                </article>
-            </section>
+                </section>
+            </div>
         </main>
     </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
@@ -81,65 +76,52 @@ const store = useStore();
 const route = useRoute();
 const router = useRouter();
 
+const activeRegionId = ref(null);
 const catalog = computed(() => store.state.regions.catalog);
 
 const isProvinceName = (name = '') => {
-    const normalized = (name || '').trim();
-    if (!normalized) return false;
-    return (
-        normalized.endsWith('省') ||
-        normalized.includes('自治区') ||
-        normalized.endsWith('特别行政区') ||
-        normalized.endsWith('兵团')
-    );
+    const n = (name || '').trim();
+    if (!n) return false;
+    return n.endsWith('省') || n.includes('自治区') || n.endsWith('特别行政区') || n.endsWith('兵团');
 };
 
 const cityCatalog = computed(() =>
-    catalog.value.filter((region) => {
-        if (!region?.name) return false;
-        if (isProvinceName(region.name)) {
-            return false;
-        }
-        return (region.companies?.length || 0) > 0;
-    })
+    catalog.value.filter((r) => r?.name && !isProvinceName(r.name) && (r.companies?.length || 0) > 0)
 );
+
 const loading = computed(() => store.state.regions.catalogLoading);
+
 const totalCompanies = computed(() =>
-    cityCatalog.value.reduce((sum, region) => sum + (region.companies?.length || 0), 0)
-);
-const selectedRegionId = computed(() => {
-    const id = route.params.regionId;
-    if (!id) return null;
-    const numeric = Number(id);
-    return Number.isNaN(numeric) ? null : numeric;
-});
-
-const cityFilters = computed(() =>
-    cityCatalog.value.map((region) => ({
-        id: region.id,
-        name: region.name
-    }))
+    cityCatalog.value.reduce((sum, r) => sum + (r.companies?.length || 0), 0)
 );
 
-const regionsToRender = computed(() => {
-    if (!selectedRegionId.value) return cityCatalog.value;
-    return cityCatalog.value.filter((region) => Number(region.id) === selectedRegionId.value);
-});
+const activeRegion = computed(() =>
+    cityCatalog.value.find((r) => r.id === activeRegionId.value) || null
+);
 
 const placeholderLogo = placeholderBus;
-
-const selectCity = (cityId) => {
-    if (!cityId) return;
-    router.push({ name: 'RegionCatalog', params: { regionId: cityId } });
-};
-
-const clearRegionFilter = () => {
-    router.push({ name: 'RegionCatalog' });
-};
 
 const goCompany = (companyId) => {
     router.push({ name: 'CompanyCatalog', params: { companyId } });
 };
+
+// Sync from route param or default to first city
+watch(cityCatalog, (list) => {
+    if (!list.length) return;
+    const routeId = route.params.regionId ? Number(route.params.regionId) : null;
+    if (routeId && list.some((r) => r.id === routeId)) {
+        activeRegionId.value = routeId;
+    } else if (!activeRegionId.value || !list.some((r) => r.id === activeRegionId.value)) {
+        activeRegionId.value = list[0].id;
+    }
+}, { immediate: true });
+
+watch(() => route.params.regionId, (id) => {
+    const num = id ? Number(id) : null;
+    if (num && cityCatalog.value.some((r) => r.id === num)) {
+        activeRegionId.value = num;
+    }
+});
 
 onMounted(() => {
     store.dispatch('regions/loadRegionCatalog');
@@ -147,179 +129,98 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.page {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background: #f5f7fb;
-}
-
+.page { min-height: 100vh; display: flex; flex-direction: column; background: #f0f2f5; }
 .constrained {
-    width: min(1200px, 100%);
-    margin: 0 auto;
-    flex: 1;
-    padding: 32px 24px 72px;
+    width: min(1100px, 100%); margin: 0 auto; flex: 1;
+    padding: 28px 20px 64px;
 }
 
+// ---- Header ----
 .catalog-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 32px;
-}
-
-.region-filters {
-    background: #fff;
-    border-radius: 18px;
-    padding: 16px 20px;
     margin-bottom: 24px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    .eyebrow { letter-spacing: 0.3em; font-size: 0.72rem; color: #9ca3af; text-transform: uppercase; margin: 0 0 4px; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 700; color: #111827; }
+    .subtitle { margin: 0; font-size: 0.88rem; color: #6b7280; }
 }
 
-.filter-label {
-    margin: 0 0 8px;
-    font-size: 0.9rem;
-    color: #475569;
+// ---- Split layout ----
+.split-layout { display: flex; gap: 20px; align-items: flex-start; }
+
+// ---- Sidebar ----
+.split-sidebar {
+    width: 200px; flex-shrink: 0;
+    background: #fff; border-radius: 14px; padding: 16px 0;
+    box-shadow: 0 4px 16px rgba(15,23,42,0.04);
+    position: sticky; top: 20px;
 }
-
-.chip-row {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-}
-
-.chip-row--wrap {
-    flex-wrap: wrap;
-}
-
-.filter-chip {
-    border: 1px solid rgba(37, 99, 235, 0.2);
-    border-radius: 999px;
-    padding: 6px 16px;
-    background: transparent;
-    color: #2563eb;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-
-    &.active,
-    &:hover {
-        background: #2563eb;
-        color: #fff;
-        border-color: #2563eb;
+.sidebar-label { padding: 0 16px 10px; font-size: 0.75rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
+.sidebar-nav { display: flex; flex-direction: column; }
+.sidebar-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px; border: none; background: transparent; cursor: pointer;
+    font-size: 0.9rem; color: #374151; text-align: left; width: 100%;
+    transition: background 0.15s;
+    &:hover { background: #f1f5f9; }
+    &.active { background: #eff6ff; color: #2563eb; font-weight: 600;
+        .si-count { background: #2563eb; color: #fff; }
     }
 }
-
-.eyebrow {
-    letter-spacing: 0.3em;
-    font-size: 0.75rem;
-    color: #9ca3af;
-    text-transform: uppercase;
-    margin-bottom: 8px;
+.si-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.si-count {
+    font-size: 0.72rem; min-width: 22px; height: 22px; border-radius: 11px;
+    background: #f1f5f9; color: #64748b;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 
-.subtitle {
-    color: #6b7280;
+// ---- Main area ----
+.split-main {
+    flex: 1; min-width: 0;
+    background: #fff; border-radius: 14px; padding: 24px;
+    box-shadow: 0 4px 16px rgba(15,23,42,0.04);
+    min-height: 400px;
 }
-
-.region-list {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
+.main-header { margin-bottom: 18px;
+    h2 { margin: 0 0 2px; font-size: 1.25rem; color: #111827; }
 }
+.main-meta { margin: 0; font-size: 0.85rem; color: #6b7280; }
+.main-empty { display: flex; align-items: center; justify-content: center; height: 300px; color: #9ca3af; font-size: 0.95rem; }
 
-.region-card {
-    background: #fff;
-    border-radius: 24px;
-    padding: 28px;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-}
-
-.region-card__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 18px;
-}
-
-.meta {
-    color: #6b7280;
-    font-size: 0.9rem;
-}
-
-.empty-meta {
-    color: #94a3b8;
-    font-style: italic;
-}
-
+// ---- Company grid ----
 .company-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 16px;
-}
-
-.company-card {
-    background: #f8fafc;
-    border-radius: 16px;
-    padding: 12px;
-    display: flex;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 12px;
-    cursor: pointer;
-    transition: transform 0.2s ease, background 0.2s;
-    border: 1px solid transparent;
+}
+.company-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px; border-radius: 10px; background: #f8fafc;
+    cursor: pointer; border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+    &:hover { background: #fff; border-color: #dbeafe; }
+    img { width: 56px; height: 40px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #e2e8f0; }
+}
+.cc-info { min-width: 0; }
+.company-name { font-weight: 600; font-size: 0.88rem; margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.company-meta { margin: 0; font-size: 0.75rem; color: #94a3b8; }
 
-    &:hover {
-        transform: translateY(-4px);
-        background: #fff;
-        border-color: #dbeafe;
-    }
+.empty-meta { color: #94a3b8; font-size: 0.9rem; }
 
-    img {
-        width: 72px;
-        height: 48px;
-        object-fit: cover;
-        border-radius: 10px;
-    }
-
-    .company-name {
-        font-weight: 600;
-        margin-bottom: 4px;
-    }
+// ---- State ----
+.state { text-align: center; padding: 64px; color: #94a3b8;
+    &--loading { color: #2563eb; }
 }
 
-.state {
-    border-radius: 20px;
-    padding: 48px;
-    text-align: center;
-    background: #fff;
-    color: #475569;
-
-    &--loading {
-        background: #e0f2fe;
-        color: #0369a1;
+// ---- Responsive ----
+@media (max-width: 700px) {
+    .split-layout { flex-direction: column; }
+    .split-sidebar { width: 100%; position: static; padding: 12px 0; }
+    .sidebar-nav { flex-direction: row; flex-wrap: wrap; padding: 0 8px; gap: 4px; }
+    .sidebar-item { width: auto; padding: 8px 14px; border-radius: 8px;
+        &.active { border-radius: 8px; }
     }
-
-    &--empty {
-        color: #94a3b8;
-    }
-}
-
-.ghost-btn {
-    border: 1px solid rgba(15, 23, 42, 0.15);
-    background: transparent;
-    border-radius: 999px;
-    padding: 8px 18px;
-    cursor: pointer;
-    color: #0f172a;
-    transition: all 0.2s;
-
-    &--sm {
-        padding: 6px 14px;
-        font-size: 0.85rem;
-    }
-
-    &:hover {
-        background: rgba(15, 23, 42, 0.05);
-    }
+    .si-count { display: none; }
+    .sidebar-label { padding-bottom: 6px; }
+    .company-grid { grid-template-columns: 1fr; }
 }
 </style>
+
