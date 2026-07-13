@@ -1,37 +1,22 @@
 <template>
     <div class="page gallery-page">
         <main class="main-constrained">
-            <!-- Browse mode: hero -->
-            <section v-if="!isSearchMode" class="hero">
-                <div class="hero__text">
-                    <p class="eyebrow">Bus Gallery</p>
-                    <h1>公交车辆图库</h1>
-                    <p class="description">
-                        收录全国公交车辆的车牌、配置与上线资料。
-                    </p>
-                </div>
-                <div class="hero__visual">
-                    <div class="visual-card">
-                        <p class="visual-title">图库收录</p>
-                        <p class="visual-number">{{ pagination.total || '--' }}</p>
-                        <p class="visual-caption">条车辆记录</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Search mode: catalog-style header + search bar + facets -->
-            <header v-else class="search-header">
+            <!-- Unified catalog-style header -->
+            <header class="gallery-header">
                 <div>
-                    <p class="sh-eyebrow">Search</p>
-                    <h1>搜索结果</h1>
-                    <p class="sh-subtitle">
+                    <p class="gh-eyebrow">{{ isSearchMode ? 'Search' : 'Gallery' }}</p>
+                    <h1>{{ isSearchMode ? '搜索结果' : '公交车辆图库' }}</h1>
+                    <p v-if="!isSearchMode" class="gh-subtitle">
+                        收录全国公交车辆的车牌、配置与上线资料 · 共 <strong>{{ pagination.total || '--' }}</strong> 条记录
+                    </p>
+                    <p v-else class="gh-subtitle">
                         关键词 <mark>{{ filters.keyword }}</mark>
                         · 找到 <strong>{{ pagination.total || 0 }}</strong> 辆车
                         <template v-if="routeResults.total"> · <strong>{{ routeResults.total }}</strong> 条线路</template>
                         <template v-if="searchFacets.regions?.total"> · 覆盖 <strong>{{ searchFacets.regions.total }}</strong> 个地区</template>
                     </p>
                 </div>
-                <button class="ghost-btn" type="button" @click="handleResetFilters">清除搜索</button>
+                <button v-if="isSearchMode" class="ghost-btn" type="button" @click="handleResetFilters">清除搜索</button>
             </header>
 
             <!-- Search bar + facets (search mode) -->
@@ -422,40 +407,22 @@ watch(
     box-sizing: border-box;
 }
 
-// ---- Hero (browse mode) ----
-.hero {
-    background: linear-gradient(135deg, #1e3a5f 0%, #1a4972 40%, #0f5c8b 100%);
-    border-radius: 20px; padding: 36px 40px; color: #fff;
-    display: flex; gap: 36px; align-items: center; margin-bottom: 28px;
-    box-shadow: 0 12px 32px rgba(15, 40, 70, 0.25);
-
-    &__text { flex: 1; }
-    &__visual { flex: 0 0 240px; display: flex; justify-content: center; }
-}
-
-.hero .eyebrow { letter-spacing: 0.18em; font-size: 0.78rem; text-transform: uppercase; opacity: 0.75; margin-bottom: 6px; }
-.hero h1 { margin: 0 0 8px; font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; }
-.hero .description { margin: 0; font-size: 0.95rem; color: rgba(255,255,255,0.85); }
-
-.visual-card {
-    width: 100%; border-radius: 20px; padding: 28px 24px;
-    background: rgba(255,255,255,0.12); text-align: center; backdrop-filter: blur(6px);
-}
-.visual-title { letter-spacing: 0.15em; font-size: 0.72rem; margin-bottom: 8px; opacity: 0.8; }
-.visual-number { font-size: 3.2rem; font-weight: 700; margin: 0; line-height: 1.1; }
-.visual-caption { margin-top: 6px; font-size: 0.85rem; color: rgba(255,255,255,0.8); }
-
-// ---- Search header (catalog-style, flat) ----
-.search-header {
+// ---- Unified gallery header ----
+.gallery-header {
     display: flex; justify-content: space-between; align-items: flex-start;
-    margin-bottom: 20px;
+    margin-bottom: 28px;
 
     mark { background: #fef08a; color: inherit; padding: 1px 6px; border-radius: 3px; }
     strong { color: #111827; }
 }
-.sh-eyebrow { letter-spacing: 0.3em; font-size: 0.72rem; color: #9ca3af; text-transform: uppercase; margin-bottom: 6px; }
-.search-header h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; color: #111827; }
-.sh-subtitle { margin: 0; font-size: 0.9rem; color: #6b7280; }
+.gh-eyebrow {
+    letter-spacing: 0.3em; font-size: 0.72rem; color: #9ca3af;
+    text-transform: uppercase; margin: 0 0 4px;
+}
+.gallery-header h1 {
+    margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; color: #111827;
+}
+.gh-subtitle { margin: 0; font-size: 0.9rem; color: #6b7280; }
 
 // ---- Search section (keyword mode) ----
 .search-section {
