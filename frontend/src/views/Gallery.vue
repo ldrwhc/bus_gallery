@@ -1,28 +1,77 @@
-﻿<template>
-    <div class="page home-view">
-        <main class="home-main constrained">
-            <section class="hero">
+<template>
+    <div class="page gallery-page">
+        <main class="main-constrained">
+            <!-- Hero: dynamic content for search vs browse mode -->
+            <section class="hero" :class="{ 'hero--search': isSearchMode }">
                 <div class="hero__text">
                     <p class="eyebrow">Bus Gallery</p>
-                    <h1>公交车辆图库</h1>
-                    <p class="description">
+                    <h1 v-if="!isSearchMode">公交车辆图库</h1>
+                    <h1 v-else>搜索结果</h1>
+                    <p v-if="!isSearchMode" class="description">
                         收录全国公交车辆的车牌、配置与上线资料。
+                    </p>
+                    <p v-else class="description">
+                        关键词 <mark>{{ filters.keyword }}</mark> · 找到
+                        <strong>{{ pagination.total || 0 }}</strong> 辆车
                     </p>
                 </div>
 
                 <div class="hero__visual">
                     <div class="visual-card">
-                        <p class="visual-title">图库收录</p>
+                        <p class="visual-title" v-if="!isSearchMode">图库收录</p>
+                        <p class="visual-title" v-else>匹配结果</p>
                         <p class="visual-number">{{ pagination.total || '--' }}</p>
                         <p class="visual-caption">条车辆记录</p>
                     </div>
                 </div>
             </section>
 
+            <!-- Search bar + facet tags  (search mode only)  -->
+            <section v-if="isSearchMode" class="search-section">
+                <form class="search-form" @submit.prevent="handleSearchSubmit">
+                    <input
+                        v-model.trim="searchInput"
+                        type="text"
+                        placeholder="搜索车牌 / 车型 / 公司 / 地区 / 配置"
+                        class="search-input"
+                    />
+                    <button class="search-btn" type="submit">搜索</button>
+                    <button class="clear-btn" type="button" @click="handleResetFilters">清除</button>
+                </form>
+
+                <!-- Facet tags from search API -->
+                <div v-if="searchFacets.brands?.items?.length" class="facet-row">
+                    <span class="facet-label">品牌：</span>
+                    <button
+                        v-for="item in searchFacets.brands.items" :key="'b-'+item.id"
+                        class="facet-tag"
+                        @click="searchInput = item.title; handleSearchSubmit()"
+                    >{{ item.title }}</button>
+                </div>
+                <div v-if="searchFacets.companies?.items?.length" class="facet-row">
+                    <span class="facet-label">公司：</span>
+                    <button
+                        v-for="item in searchFacets.companies.items" :key="'c-'+item.id"
+                        class="facet-tag"
+                        @click="searchInput = item.title; handleSearchSubmit()"
+                    >{{ item.title }}</button>
+                </div>
+                <div v-if="searchFacets.regions?.items?.length" class="facet-row">
+                    <span class="facet-label">地区：</span>
+                    <button
+                        v-for="item in searchFacets.regions.items" :key="'rg-'+item.id"
+                        class="facet-tag"
+                        @click="searchInput = item.title; handleSearchSubmit()"
+                    >{{ item.title }}</button>
+                </div>
+            </section>
+
+            <!-- Gallery -->
             <section class="gallery-section">
                 <header class="section-header">
                     <div>
-                        <h2>车辆图库</h2>
+                        <h2 v-if="!isSearchMode">车辆图库</h2>
+                        <h2 v-else>车辆列表</h2>
                         <p class="subtitle">当前筛选下共 {{ pagination.total }} 条</p>
                     </div>
                     <button class="ghost-btn" type="button" @click="handleResetFilters">
@@ -36,23 +85,21 @@
 
                 <div v-else-if="galleryError" class="state state--error">
                     <p>{{ galleryError }}</p>
-                    <button class="primary-btn" type="button" @click="handleRetry">
-                        重新加载
-                    </button>
+                    <button class="primary-btn" type="button" @click="handleRetry">重新加载</button>
                 </div>
 
                 <div v-else-if="!gallery.length" class="state state--empty">
                     <p>暂无符合条件的车辆</p>
-                    <button class="ghost-btn" type="button" @click="handleResetFilters">
-                        查看全部
-                    </button>
+                    <button class="ghost-btn" type="button" @click="handleResetFilters">查看全部</button>
                 </div>
 
                 <div v-else class="gallery-grid">
-                    <VehicleCard v-for="item in gallery" :key="item?.vehicle?.id || item.vehicleId"
-                        :vehicle="item.vehicle" :config="item.config" :images="item.images" :variants="item.variants"
-                        :variant-count="item.variantCount"
-                        @view-detail="openVehicleDetail" />
+                    <VehicleCard
+                        v-for="item in gallery" :key="item?.vehicle?.id || item.vehicleId"
+                        :vehicle="item.vehicle" :config="item.config" :images="item.images"
+                        :variants="item.variants" :variant-count="item.variantCount"
+                        @view-detail="openVehicleDetail"
+                    />
                 </div>
 
                 <div v-if="pagination.total > pageSize" class="pagination-wrap">
@@ -68,16 +115,20 @@
             </section>
         </main>
 
-        <VehicleDetailModal v-if="isDetailVisible" :visible="isDetailVisible" :detail="activeVehicleDetail"
-            :loading="activeVehicleLoading" @close="closeDetail" />
+        <VehicleDetailModal
+            v-if="isDetailVisible" :visible="isDetailVisible"
+            :detail="activeVehicleDetail" :loading="activeVehicleLoading"
+            @close="closeDetail"
+        />
     </div>
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, defineAsyncComponent } from 'vue';
+import { computed, reactive, ref, watch, onMounted, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import { fetchVehicleGallery } from '@/api/vehicles';
+import { searchAll } from '@/api/search';
 import VehicleCard from '@/components/Gallery/VehicleCard.vue';
 
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
@@ -88,6 +139,9 @@ const store = useStore();
 const route = useRoute();
 const router = useRouter();
 
+const searchInput = ref('');
+const searchFacets = ref({});
+
 const filters = reactive({
     regionId: null,
     companyId: null,
@@ -97,9 +151,7 @@ const filters = reactive({
     keyword: ''
 });
 
-const cursorByPage = ref({
-    1: { lastLaunch: null, lastId: null }
-});
+const cursorByPage = ref({ 1: { lastLaunch: null, lastId: null } });
 const currentPage = ref(1);
 const loadingToken = ref(0);
 
@@ -109,442 +161,276 @@ const galleryError = computed(() => store.state.vehicles.galleryError);
 const pagination = computed(() => store.state.vehicles.pagination);
 const pageSize = computed(() => pagination.value.size || PAGE_SIZE);
 
+const isSearchMode = computed(() => Boolean(filters.keyword));
+
 const normalizePlate = (p) => (p || '').replace(/\s+/g, '');
-const normalizePage = (value) => {
-    const num = Number(value);
-    return Number.isInteger(num) && num > 0 ? num : 1;
-};
-const normalizeKeyword = (value) => (typeof value === 'string' ? value.trim() : '');
-const resetCursorCache = () => {
-    cursorByPage.value = { 1: { lastLaunch: null, lastId: null } };
-};
+const normalizePage = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : 1; };
+const normalizeKeyword = (v) => (typeof v === 'string' ? v.trim() : '');
+
+const resetCursorCache = () => { cursorByPage.value = { 1: { lastLaunch: null, lastId: null } }; };
 
 const sanitizeFilters = (source = filters) => {
-    const payload = {};
-    Object.entries(source).forEach(([key, value]) => {
-        if (value === null || value === undefined || value === '') {
-            return;
-        }
-        payload[key] = value;
-    });
-    return payload;
+    const p = {};
+    Object.entries(source).forEach(([k, v]) => { if (v !== null && v !== undefined && v !== '') p[k] = v; });
+    return p;
 };
 
 const buildRouteQuery = (page, keyword) => {
-    const query = {};
-    const normalizedKeyword = normalizeKeyword(keyword);
-    if (normalizedKeyword) {
-        query.keyword = normalizedKeyword;
-    }
-    if (page > 1) {
-        query.page = String(page);
-    }
-    return query;
+    const q = {};
+    const nk = normalizeKeyword(keyword);
+    if (nk) q.keyword = nk;
+    if (page > 1) q.page = String(page);
+    return q;
 };
 
 const isSameQuery = (a = {}, b = {}) => {
-    const aEntries = Object.entries(a).filter(([, val]) => val != null && val !== '');
-    const bEntries = Object.entries(b).filter(([, val]) => val != null && val !== '');
-    if (aEntries.length !== bEntries.length) return false;
-    return aEntries.every(([key, val]) => String(b[key] ?? '') === String(val));
+    const ae = Object.entries(a).filter(([, v]) => v != null && v !== '');
+    const be = Object.entries(b).filter(([, v]) => v != null && v !== '');
+    if (ae.length !== be.length) return false;
+    return ae.every(([k, v]) => String(b[k] ?? '') === String(v));
 };
 
 const setRoutePage = async (page, keyword, replace = false) => {
-    const query = buildRouteQuery(page, keyword);
-    if (isSameQuery(query, route.query)) {
-        return;
-    }
-    const navigation = { name: 'Gallery', query };
-    if (replace) {
-        await router.replace(navigation);
-        return;
-    }
-    await router.push(navigation);
+    const q = buildRouteQuery(page, keyword);
+    if (isSameQuery(q, route.query)) return;
+    const nav = { name: 'Gallery', query: q };
+    if (replace) await router.replace(nav); else await router.push(nav);
 };
 
 const gallery = computed(() => {
     const map = new Map();
     rawGallery.value.forEach((item) => {
         const plate = normalizePlate(item?.vehicle?.plateNumber);
-        if (!plate) {
-            return;
-        }
-        const variantKey = item?.vehicle?.id != null
+        if (!plate) return;
+        const vk = item?.vehicle?.id != null
             ? `vid:${item.vehicle.id}`
             : `fallback:${plate}:${item?.vehicle?.launchDate || ''}:${item?.vehicle?.company?.id || ''}`;
         if (!map.has(plate)) {
-            map.set(plate, {
-                ...item,
-                variants: [item],
-                images: [...(item.images || [])],
-                variantCount: 1,
-                variantKeys: new Set([variantKey])
-            });
+            map.set(plate, { ...item, variants: [item], images: [...(item.images || [])], variantCount: 1, variantKeys: new Set([vk]) });
         } else {
             const acc = map.get(plate);
-            if (!acc.variantKeys.has(variantKey)) {
-                acc.variantKeys.add(variantKey);
-                acc.variants.push(item);
-                acc.variantCount = acc.variants.length;
-            }
+            if (!acc.variantKeys.has(vk)) { acc.variantKeys.add(vk); acc.variants.push(item); acc.variantCount = acc.variants.length; }
             acc.images = acc.images.length ? acc.images : [...(item.images || [])];
         }
     });
-    return Array.from(map.values()).map((item) => {
-        const { variantKeys, ...rest } = item;
-        return rest;
-    });
+    return Array.from(map.values()).map(({ variantKeys, ...rest }) => rest);
 });
 
 const activeVehicleId = ref(null);
-const activeVehicleDetail = computed(() =>
-    activeVehicleId.value ? store.state.vehicles.detailMap[activeVehicleId.value] || null : null
-);
-const activeVehicleLoading = computed(
-    () =>
-        (activeVehicleId.value && store.state.vehicles.detailLoadingMap[activeVehicleId.value]) ||
-        false
-);
+const activeVehicleDetail = computed(() => activeVehicleId.value ? store.state.vehicles.detailMap[activeVehicleId.value] || null : null);
+const activeVehicleLoading = computed(() => (activeVehicleId.value && store.state.vehicles.detailLoadingMap[activeVehicleId.value]) || false);
 const isDetailVisible = computed(() => Boolean(activeVehicleId.value));
 
-const getCursorForPage = (targetPage) => {
-    if (targetPage <= 1) {
-        return { lastLaunch: null, lastId: null };
-    }
-    return cursorByPage.value[targetPage] || null;
-};
+const getCursorForPage = (tp) => tp <= 1 ? { lastLaunch: null, lastId: null } : (cursorByPage.value[tp] || null);
 
 const ensureCursorForPage = async (targetPage, filterPayload, token) => {
-    if (targetPage <= 1) {
-        return true;
-    }
-    for (let page = 2; page <= targetPage; page += 1) {
-        if (cursorByPage.value[page]) {
-            continue;
-        }
-        const previousCursor = cursorByPage.value[page - 1];
-        if (!previousCursor) {
-            return false;
-        }
+    if (targetPage <= 1) return true;
+    for (let p = 2; p <= targetPage; p++) {
+        if (cursorByPage.value[p]) continue;
+        const prev = cursorByPage.value[p - 1];
+        if (!prev) return false;
         const probe = await fetchVehicleGallery({
-            ...filterPayload,
-            size: PAGE_SIZE,
-            ...(previousCursor.lastLaunch ? { lastLaunch: previousCursor.lastLaunch } : {}),
-            ...(previousCursor.lastId ? { lastId: previousCursor.lastId } : {})
+            ...filterPayload, size: PAGE_SIZE,
+            ...(prev.lastLaunch ? { lastLaunch: prev.lastLaunch } : {}),
+            ...(prev.lastId ? { lastId: prev.lastId } : {})
         });
-        if (token !== loadingToken.value) {
-            return false;
-        }
-        if (probe?.nextLaunch == null && probe?.nextId == null) {
-            return false;
-        }
-        cursorByPage.value[page] = {
-            lastLaunch: probe?.nextLaunch || null,
-            lastId: probe?.nextId || null
-        };
+        if (token !== loadingToken.value) return false;
+        if (probe?.nextLaunch == null && probe?.nextId == null) return false;
+        cursorByPage.value[p] = { lastLaunch: probe?.nextLaunch || null, lastId: probe?.nextId || null };
     }
     return true;
 };
 
 const loadGalleryByRoute = async (page, keyword) => {
-    const normalizedPage = normalizePage(page);
-    const normalizedKeyword = normalizeKeyword(keyword);
+    const np = normalizePage(page);
+    const nk = normalizeKeyword(keyword);
     const token = ++loadingToken.value;
 
-    const keywordChanged = normalizedKeyword !== filters.keyword;
-    filters.keyword = normalizedKeyword;
-    if (keywordChanged) {
-        resetCursorCache();
+    const kwChanged = nk !== filters.keyword;
+    filters.keyword = nk;
+    if (kwChanged) { resetCursorCache(); searchInput.value = nk; }
+
+    const fp = sanitizeFilters(filters);
+    let cursor = getCursorForPage(np);
+    if (token !== loadingToken.value) return;
+
+    if (np > 1 && !cursor) {
+        const resolved = await ensureCursorForPage(np, fp, token);
+        if (token !== loadingToken.value) return;
+        cursor = getCursorForPage(np);
+        if (!resolved || !cursor) { currentPage.value = 1; await setRoutePage(1, nk, true); return; }
     }
 
-    const filterPayload = sanitizeFilters(filters);
-    let cursor = getCursorForPage(normalizedPage);
-
-    if (token !== loadingToken.value) {
-        return;
-    }
-
-    if (normalizedPage > 1 && !cursor) {
-        const resolved = await ensureCursorForPage(normalizedPage, filterPayload, token);
-        if (token !== loadingToken.value) {
-            return;
-        }
-        cursor = getCursorForPage(normalizedPage);
-        if (!resolved || !cursor) {
-            currentPage.value = 1;
-            await setRoutePage(1, normalizedKeyword, true);
-            return;
-        }
-    }
-
-    const response = await store.dispatch('vehicles/loadVehicleGallery', {
-        ...filterPayload,
-        size: PAGE_SIZE,
-        page: normalizedPage,
+    const resp = await store.dispatch('vehicles/loadVehicleGallery', {
+        ...fp, size: PAGE_SIZE, page: np,
         ...(cursor?.lastLaunch ? { lastLaunch: cursor.lastLaunch } : {}),
         ...(cursor?.lastId ? { lastId: cursor.lastId } : {})
     });
-    if (token !== loadingToken.value) {
-        return;
-    }
+    if (token !== loadingToken.value) return;
 
-    if (response?.nextLaunch != null || response?.nextId != null) {
-        cursorByPage.value[normalizedPage + 1] = {
-            lastLaunch: response?.nextLaunch || null,
-            lastId: response?.nextId || null
-        };
+    if (resp?.nextLaunch != null || resp?.nextId != null) {
+        cursorByPage.value[np + 1] = { lastLaunch: resp?.nextLaunch || null, lastId: resp?.nextId || null };
     }
-    currentPage.value = normalizedPage;
+    currentPage.value = np;
+
+    // Fetch related facets when keyword is present
+    if (nk) fetchSearchFacets(nk);
+};
+
+const fetchSearchFacets = async (kw) => {
+    if (!kw) { searchFacets.value = {}; return; }
+    try {
+        const resp = await searchAll(kw, 'all');
+        searchFacets.value = resp || {};
+    } catch { searchFacets.value = {}; }
 };
 
 const openVehicleDetail = async (vehicleId) => {
     if (!vehicleId) return;
     activeVehicleId.value = vehicleId;
-    try {
-        await store.dispatch('vehicles/loadVehicleDetail', { vehicleId, force: true });
-    } catch (error) {
-        console.error(error);
-    }
+    try { await store.dispatch('vehicles/loadVehicleDetail', { vehicleId, force: true }); }
+    catch (e) { console.error(e); }
 };
 
-const closeDetail = () => {
-    activeVehicleId.value = null;
-};
+const closeDetail = () => { activeVehicleId.value = null; };
 
-const handleRetry = () => {
-    loadGalleryByRoute(currentPage.value, filters.keyword).catch((error) => {
-        console.error(error);
-    });
-};
+const handleRetry = () => { loadGalleryByRoute(currentPage.value, filters.keyword).catch(console.error); };
 
 const handleResetFilters = () => {
-    Object.assign(filters, {
-        regionId: null,
-        companyId: null,
-        brandId: null,
-        modelId: null,
-        routeId: null,
-        keyword: ''
-    });
+    Object.assign(filters, { regionId: null, companyId: null, brandId: null, modelId: null, routeId: null, keyword: '' });
     resetCursorCache();
-    setRoutePage(1, '', true).catch((error) => {
-        console.error(error);
-    });
+    searchInput.value = '';
+    searchFacets.value = {};
+    setRoutePage(1, '', true).catch(console.error);
 };
 
-const handlePageChange = (nextPage) => {
-    const target = normalizePage(nextPage);
-    setRoutePage(target, filters.keyword).catch((error) => {
-        console.error(error);
-    });
+const handlePageChange = (np) => { setRoutePage(normalizePage(np), filters.keyword).catch(console.error); };
+
+const handleSearchSubmit = () => {
+    const kw = searchInput.value.trim();
+    if (!kw) { handleResetFilters(); return; }
+    setRoutePage(1, kw, false).catch(console.error);
 };
+
+onMounted(() => {
+    const kw = normalizeKeyword(route.query.keyword);
+    if (kw) searchInput.value = kw;
+});
 
 watch(
     () => [route.query.keyword, route.query.page],
     async ([keyword, page]) => {
-        const normalizedKeyword = normalizeKeyword(keyword);
-        const normalizedPage = normalizePage(page);
-        try {
-            await loadGalleryByRoute(normalizedPage, normalizedKeyword);
-        } catch (error) {
-            console.error(error);
-        }
+        const nk = normalizeKeyword(keyword);
+        const np = normalizePage(page);
+        try { await loadGalleryByRoute(np, nk); }
+        catch (e) { console.error(e); }
     },
     { immediate: true }
 );
 </script>
 
 <style scoped lang="scss">
-.page {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background: #f5f7fb;
-}
+.page { min-height: 100vh; display: flex; flex-direction: column; background: #f0f2f5; }
 
-.constrained {
-    width: min(1200px, 100%);
-    margin: 0 auto;
-    flex: 1;
-    padding: clamp(32px, 5vw, 72px) clamp(16px, 4vw, 32px) clamp(96px, 8vw, 120px);
+.main-constrained {
+    width: min(1200px, 100%); margin: 0 auto; flex: 1;
+    padding: clamp(24px, 4vw, 48px) clamp(16px, 3vw, 28px) clamp(80px, 6vw, 100px);
     box-sizing: border-box;
 }
 
+// ---- Hero ----
 .hero {
-    background: radial-gradient(circle at top left, #e0f2fe, #c7d2fe);
-    border-radius: 32px;
-    padding: 40px;
-    color: #fff;
-    display: flex;
-    gap: 40px;
-    align-items: center;
-    margin-bottom: 32px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #1a4972 40%, #0f5c8b 100%);
+    border-radius: 20px; padding: 36px 40px; color: #fff;
+    display: flex; gap: 36px; align-items: center; margin-bottom: 28px;
+    box-shadow: 0 12px 32px rgba(15, 40, 70, 0.25);
 
-    &__text {
-        flex: 1;
+    &--search {
+        background: linear-gradient(135deg, #0f5c8b 0%, #0e7490 50%, #0891b2 100%);
     }
 
-    &__visual {
-        flex: 0 0 280px;
-        display: flex;
-        justify-content: center;
+    &__text { flex: 1;
+        mark { background: rgba(255,255,255,0.22); color: #fff; padding: 2px 8px; border-radius: 4px; }
+        strong { font-weight: 700; }
     }
+    &__visual { flex: 0 0 240px; display: flex; justify-content: center; }
 }
 
-@media (max-width: 900px) {
-    .hero {
-        padding: 24px;
-        gap: 16px;
-        min-height: 200px;
-    }
-
-    .hero__visual {
-        display: none;
-    }
-
-    .gallery-section {
-        padding: 24px;
-    }
-}
-
-@media (max-width: 600px) {
-    .hero {
-        padding: 24px;
-    }
-
-    .gallery-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-.eyebrow {
-    letter-spacing: 0.2em;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    opacity: 0.8;
-    margin-bottom: 8px;
-}
-
-.description {
-    margin: 12px 0 20px;
-    color: rgba(255, 255, 255, 0.8);
-}
+.eyebrow { letter-spacing: 0.18em; font-size: 0.78rem; text-transform: uppercase; opacity: 0.75; margin-bottom: 6px; }
+.hero h1 { margin: 0 0 8px; font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; }
+.description { margin: 0; font-size: 0.95rem; color: rgba(255,255,255,0.85); }
 
 .visual-card {
-    width: 100%;
-    border-radius: 24px;
-    padding: 32px;
-    background: rgba(15, 23, 42, 0.3);
-    text-align: center;
-    backdrop-filter: blur(4px);
+    width: 100%; border-radius: 20px; padding: 28px 24px;
+    background: rgba(255,255,255,0.12); text-align: center; backdrop-filter: blur(6px);
 }
+.visual-title { letter-spacing: 0.15em; font-size: 0.72rem; margin-bottom: 8px; opacity: 0.8; }
+.visual-number { font-size: 3.2rem; font-weight: 700; margin: 0; line-height: 1.1; }
+.visual-caption { margin-top: 6px; font-size: 0.85rem; color: rgba(255,255,255,0.8); }
 
-.visual-title {
-    letter-spacing: 0.2em;
-    font-size: 0.75rem;
-    margin-bottom: 12px;
-    opacity: 0.85;
-}
-
-.visual-number {
-    font-size: 3.5rem;
-    font-weight: 700;
-    margin: 0;
-}
-
-.visual-caption {
-    margin-top: 8px;
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.gallery-section {
-    background: #fff;
-    border-radius: 24px;
-    padding: 32px;
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+// ---- Search section (keyword mode) ----
+.search-section {
     margin-bottom: 24px;
-
-    .subtitle {
-        color: #6b7280;
-        margin-top: 4px;
-    }
+}
+.search-form { display: flex; gap: 10px; margin-bottom: 12px; }
+.search-input {
+    flex: 1; border: 1px solid #d1d5db; border-radius: 12px; padding: 12px 18px;
+    font-size: 0.95rem; outline: none; background: #fff;
+    &:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+}
+.search-btn {
+    border: none; border-radius: 12px; padding: 12px 24px; background: #2563eb; color: #fff;
+    font-weight: 600; cursor: pointer; font-size: 0.95rem;
+    &:hover { background: #1d4ed8; }
+}
+.clear-btn {
+    border: 1px solid #d1d5db; border-radius: 12px; padding: 12px 18px; background: #fff;
+    color: #6b7280; cursor: pointer; font-size: 0.9rem;
+    &:hover { background: #f3f4f6; }
 }
 
-.gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
+.facet-row {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;
+}
+.facet-label { font-weight: 600; color: #6b7280; font-size: 0.82rem; flex-shrink: 0; }
+.facet-tag {
+    padding: 4px 12px; border-radius: 999px; background: #eff6ff; color: #2563eb;
+    font-size: 0.8rem; cursor: pointer; border: none; font-weight: 500;
+    &:hover { background: #dbeafe; }
 }
 
-.pagination-wrap {
-    margin-top: 22px;
-    display: flex;
-    justify-content: center;
+// ---- Gallery section ----
+.gallery-section {
+    background: #fff; border-radius: 20px; padding: 28px 32px;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+}
+.section-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;
+    h2 { margin: 0; font-size: 1.25rem; color: #111827; }
+    .subtitle { color: #6b7280; margin-top: 2px; font-size: 0.88rem; }
+}
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+.pagination-wrap { margin-top: 24px; display: flex; justify-content: center; }
+
+// ---- State ----
+.state { border-radius: 16px; padding: 48px; text-align: center; background: #f8fafc; color: #475569;
+    &--loading { color: #2563eb; }
+    &--error { background: #fee2e2; color: #b91c1c; }
+    button { margin-top: 16px; }
 }
 
-.state {
-    border-radius: 18px;
-    padding: 48px;
-    text-align: center;
-    background: #f8fafc;
-    color: #475569;
+.primary-btn, .ghost-btn { border: none; border-radius: 999px; padding: 10px 20px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+.primary-btn { background: #2563eb; color: #fff; &:hover { background: #1d4ed8; } }
+.ghost-btn { background: rgba(37,99,235,0.08); color: #2563eb; &:hover { background: rgba(37,99,235,0.15); } }
 
-    &--loading {
-        color: #2563eb;
+@media (max-width: 900px) {
+    .hero { padding: 28px; gap: 16px; flex-direction: column; text-align: center;
+        &__visual { flex: 0 0 auto; width: 100%; max-width: 200px; }
     }
-
-    &--error {
-        background: #fee2e2;
-        color: #b91c1c;
-    }
-
-    &--empty {
-        color: #475569;
-    }
-
-    button {
-        margin-top: 16px;
-    }
+    .gallery-section { padding: 20px; }
 }
-
-.primary-btn,
-.ghost-btn {
-    border: none;
-    border-radius: 999px;
-    padding: 10px 18px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.2s;
-}
-
-.primary-btn {
-    background: #2563eb;
-    color: #fff;
-
-    &:hover {
-        background: #1d4ed8;
-    }
-}
-
-.ghost-btn {
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
-
-    &:hover {
-        background: rgba(37, 99, 235, 0.2);
-    }
-}
-
 @media (max-width: 600px) {
-    .gallery-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
+    .gallery-grid { grid-template-columns: 1fr; }
+    .search-form { flex-direction: column; }
 }
 </style>
 

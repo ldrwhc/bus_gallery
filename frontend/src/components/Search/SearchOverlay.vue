@@ -24,13 +24,6 @@
                             </li>
                         </ul>
                     </div>
-                    <div class="scope-selector">
-                        <label v-for="opt in scopeOptions" :key="opt.value"
-                               :class="{ active: scope === opt.value }">
-                            <input type="radio" :value="opt.value" v-model="scope" />
-                            {{ opt.label }}
-                        </label>
-                    </div>
                     <div class="search-overlay__actions">
                         <button class="primary-btn" type="submit">搜索</button>
                         <button class="ghost-btn" type="button" @click="$emit('close')">取消</button>
@@ -57,16 +50,9 @@ const emit = defineEmits(['close']);
 const router = useRouter();
 
 const keyword = ref('');
-const scope = ref('all');
 const inputRef = ref(null);
 const suggestions = ref([]);
 let debounceTimer = null;
-
-const scopeOptions = [
-    { value: 'all', label: '全部' },
-    { value: 'vehicles', label: '车辆' },
-    { value: 'routes', label: '线路' }
-];
 
 const typeLabel = (type) => {
     const map = { route: '线路', vehicle: '车辆', brand: '品牌' };
@@ -100,9 +86,8 @@ const handleSearch = () => {
     const kw = keyword.value.trim();
     if (!kw) return;
     emit('close');
-    router.push({ name: 'SearchResults', query: { keyword: kw, scope: scope.value } });
+    router.push({ name: 'Gallery', query: { keyword: kw } });
     keyword.value = '';
-    scope.value = 'all';
     suggestions.value = [];
 };
 
