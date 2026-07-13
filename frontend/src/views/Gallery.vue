@@ -1,69 +1,69 @@
 <template>
     <div class="page gallery-page">
         <main class="main-constrained">
-            <!-- Hero: dynamic content for search vs browse mode -->
-            <section class="hero" :class="{ 'hero--search': isSearchMode }">
+            <!-- Browse mode: hero -->
+            <section v-if="!isSearchMode" class="hero">
                 <div class="hero__text">
                     <p class="eyebrow">Bus Gallery</p>
-                    <h1 v-if="!isSearchMode">公交车辆图库</h1>
-                    <h1 v-else>搜索结果</h1>
-                    <p v-if="!isSearchMode" class="description">
+                    <h1>公交车辆图库</h1>
+                    <p class="description">
                         收录全国公交车辆的车牌、配置与上线资料。
                     </p>
-                    <p v-else class="description">
-                        关键词 <mark>{{ filters.keyword }}</mark> · 找到
-                        <strong>{{ pagination.total || 0 }}</strong> 辆车
-                        <template v-if="routeResults.total"> · <strong>{{ routeResults.total }}</strong> 条线路</template>
-                    </p>
                 </div>
-
                 <div class="hero__visual">
                     <div class="visual-card">
-                        <p class="visual-title" v-if="!isSearchMode">图库收录</p>
-                        <p class="visual-title" v-else>匹配结果</p>
+                        <p class="visual-title">图库收录</p>
                         <p class="visual-number">{{ pagination.total || '--' }}</p>
                         <p class="visual-caption">条车辆记录</p>
                     </div>
                 </div>
             </section>
 
-            <!-- Search bar + facet tags  (search mode only)  -->
+            <!-- Search mode: catalog-style header + search bar + facets -->
+            <header v-else class="search-header">
+                <div>
+                    <p class="sh-eyebrow">Search</p>
+                    <h1>搜索结果</h1>
+                    <p class="sh-subtitle">
+                        关键词 <mark>{{ filters.keyword }}</mark>
+                        · 找到 <strong>{{ pagination.total || 0 }}</strong> 辆车
+                        <template v-if="routeResults.total"> · <strong>{{ routeResults.total }}</strong> 条线路</template>
+                        <template v-if="searchFacets.regions?.total"> · 覆盖 <strong>{{ searchFacets.regions.total }}</strong> 个地区</template>
+                    </p>
+                </div>
+                <button class="ghost-btn" type="button" @click="handleResetFilters">清除搜索</button>
+            </header>
+
+            <!-- Search bar + facets (search mode) -->
             <section v-if="isSearchMode" class="search-section">
                 <form class="search-form" @submit.prevent="handleSearchSubmit">
                     <input
-                        v-model.trim="searchInput"
-                        type="text"
+                        v-model.trim="searchInput" type="text"
                         placeholder="搜索车牌 / 车型 / 公司 / 地区 / 配置"
                         class="search-input"
                     />
                     <button class="search-btn" type="submit">搜索</button>
-                    <button class="clear-btn" type="button" @click="handleResetFilters">清除</button>
                 </form>
 
-                <!-- Facet tags from search API -->
+                <!-- Region chips (prominent, catalog-style) -->
+                <div v-if="searchFacets.regions?.items?.length" class="facet-row facet-row--regions">
+                    <span class="facet-label">地区</span>
+                    <button v-for="item in searchFacets.regions.items" :key="'rg-'+item.id"
+                            class="filter-chip" @click="appendFacet(item.title)">{{ item.title }}</button>
+                </div>
+
+                <!-- Brand chips -->
                 <div v-if="searchFacets.brands?.items?.length" class="facet-row">
-                    <span class="facet-label">品牌：</span>
-                    <button
-                        v-for="item in searchFacets.brands.items" :key="'b-'+item.id"
-                        class="facet-tag"
-                        @click="appendFacet(item.title)"
-                    >{{ item.title }}</button>
+                    <span class="facet-label">品牌</span>
+                    <button v-for="item in searchFacets.brands.items" :key="'b-'+item.id"
+                            class="facet-tag" @click="appendFacet(item.title)">{{ item.title }}</button>
                 </div>
+
+                <!-- Company chips -->
                 <div v-if="searchFacets.companies?.items?.length" class="facet-row">
-                    <span class="facet-label">公司：</span>
-                    <button
-                        v-for="item in searchFacets.companies.items" :key="'c-'+item.id"
-                        class="facet-tag"
-                        @click="appendFacet(item.title)"
-                    >{{ item.title }}</button>
-                </div>
-                <div v-if="searchFacets.regions?.items?.length" class="facet-row">
-                    <span class="facet-label">地区：</span>
-                    <button
-                        v-for="item in searchFacets.regions.items" :key="'rg-'+item.id"
-                        class="facet-tag"
-                        @click="appendFacet(item.title)"
-                    >{{ item.title }}</button>
+                    <span class="facet-label">公司</span>
+                    <button v-for="item in searchFacets.companies.items" :key="'c-'+item.id"
+                            class="facet-tag" @click="appendFacet(item.title)">{{ item.title }}</button>
                 </div>
             </section>
 
@@ -422,27 +422,20 @@ watch(
     box-sizing: border-box;
 }
 
-// ---- Hero ----
+// ---- Hero (browse mode) ----
 .hero {
     background: linear-gradient(135deg, #1e3a5f 0%, #1a4972 40%, #0f5c8b 100%);
     border-radius: 20px; padding: 36px 40px; color: #fff;
     display: flex; gap: 36px; align-items: center; margin-bottom: 28px;
     box-shadow: 0 12px 32px rgba(15, 40, 70, 0.25);
 
-    &--search {
-        background: linear-gradient(135deg, #0f5c8b 0%, #0e7490 50%, #0891b2 100%);
-    }
-
-    &__text { flex: 1;
-        mark { background: rgba(255,255,255,0.22); color: #fff; padding: 2px 8px; border-radius: 4px; }
-        strong { font-weight: 700; }
-    }
+    &__text { flex: 1; }
     &__visual { flex: 0 0 240px; display: flex; justify-content: center; }
 }
 
-.eyebrow { letter-spacing: 0.18em; font-size: 0.78rem; text-transform: uppercase; opacity: 0.75; margin-bottom: 6px; }
+.hero .eyebrow { letter-spacing: 0.18em; font-size: 0.78rem; text-transform: uppercase; opacity: 0.75; margin-bottom: 6px; }
 .hero h1 { margin: 0 0 8px; font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; }
-.description { margin: 0; font-size: 0.95rem; color: rgba(255,255,255,0.85); }
+.hero .description { margin: 0; font-size: 0.95rem; color: rgba(255,255,255,0.85); }
 
 .visual-card {
     width: 100%; border-radius: 20px; padding: 28px 24px;
@@ -451,6 +444,18 @@ watch(
 .visual-title { letter-spacing: 0.15em; font-size: 0.72rem; margin-bottom: 8px; opacity: 0.8; }
 .visual-number { font-size: 3.2rem; font-weight: 700; margin: 0; line-height: 1.1; }
 .visual-caption { margin-top: 6px; font-size: 0.85rem; color: rgba(255,255,255,0.8); }
+
+// ---- Search header (catalog-style, flat) ----
+.search-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 20px;
+
+    mark { background: #fef08a; color: inherit; padding: 1px 6px; border-radius: 3px; }
+    strong { color: #111827; }
+}
+.sh-eyebrow { letter-spacing: 0.3em; font-size: 0.72rem; color: #9ca3af; text-transform: uppercase; margin-bottom: 6px; }
+.search-header h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; color: #111827; }
+.sh-subtitle { margin: 0; font-size: 0.9rem; color: #6b7280; }
 
 // ---- Search section (keyword mode) ----
 .search-section {
@@ -476,11 +481,21 @@ watch(
 .facet-row {
     display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;
 }
-.facet-label { font-weight: 600; color: #6b7280; font-size: 0.82rem; flex-shrink: 0; }
+.facet-label { font-weight: 600; color: #64748b; font-size: 0.82rem; flex-shrink: 0; min-width: 36px; }
 .facet-tag {
     padding: 4px 12px; border-radius: 999px; background: #eff6ff; color: #2563eb;
     font-size: 0.8rem; cursor: pointer; border: none; font-weight: 500;
     &:hover { background: #dbeafe; }
+}
+
+// Region chips: matching RegionCatalog chip style
+.facet-row--regions { margin-bottom: 10px; }
+.filter-chip {
+    border: 1px solid rgba(37,99,235,0.2); border-radius: 999px;
+    padding: 5px 14px; background: transparent; color: #2563eb;
+    cursor: pointer; font-size: 0.85rem; font-weight: 500;
+    transition: all 0.2s;
+    &:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
 }
 
 // ---- Gallery section ----
