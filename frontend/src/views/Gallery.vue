@@ -124,16 +124,60 @@
                 </div>
 
                 <!-- Route results (search mode) -->
-                <div v-if="isSearchMode && routeResults.total" class="route-results">
-                    <h3 class="route-head">🚌 相关线路 ({{ routeResults.total }})</h3>
-                    <div class="route-list">
+                <div v-if="isSearchMode && routeResults.total" class="related-section">
+                    <h3 class="related-head">🚌 相关线路 ({{ routeResults.total }})</h3>
+                    <div class="related-list">
                         <div
                             v-for="r in routeResults.items" :key="'rt-'+r.id"
-                            class="route-item"
+                            class="related-item"
                             @click="$router.push({ name: 'RouteCatalog' })"
                         >
-                            <span class="route-number">{{ r.title }}</span>
-                            <span v-if="r.subtitle" class="route-stops">{{ r.subtitle }}</span>
+                            <span class="related-title">{{ r.title }}</span>
+                            <span v-if="r.subtitle" class="related-sub">{{ r.subtitle }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Company results (search mode) -->
+                <div v-if="isSearchMode && searchFacets.companies?.total" class="related-section">
+                    <h3 class="related-head">🏢 相关公司 ({{ searchFacets.companies.total }})</h3>
+                    <div class="related-list">
+                        <div
+                            v-for="c in searchFacets.companies.items" :key="'co-'+c.id"
+                            class="related-item"
+                            @click="$router.push({ name: 'CompanyCatalog', params: { companyId: c.id } })"
+                        >
+                            <span class="related-title">{{ c.title }}</span>
+                            <span v-if="c.subtitle" class="related-sub">{{ c.subtitle }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Region results (search mode) -->
+                <div v-if="isSearchMode && searchFacets.regions?.total" class="related-section">
+                    <h3 class="related-head">📍 相关地区 ({{ searchFacets.regions.total }})</h3>
+                    <div class="related-list">
+                        <div
+                            v-for="r in searchFacets.regions.items" :key="'rg-'+r.id"
+                            class="related-item"
+                            @click="$router.push({ name: 'RegionCatalog', params: { regionId: r.id } })"
+                        >
+                            <span class="related-title">{{ r.title }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brand results (search mode) -->
+                <div v-if="isSearchMode && searchFacets.brands?.total" class="related-section">
+                    <h3 class="related-head">🏭 相关品牌 ({{ searchFacets.brands.total }})</h3>
+                    <div class="related-list">
+                        <div
+                            v-for="b in searchFacets.brands.items" :key="'br-'+b.id"
+                            class="related-item"
+                            @click="$router.push({ name: 'BrandCatalog', params: { brandId: b.id } })"
+                        >
+                            <span class="related-title">{{ b.title }}</span>
+                            <span v-if="b.subtitle" class="related-sub">{{ b.subtitle }}</span>
                         </div>
                     </div>
                 </div>
@@ -551,20 +595,20 @@ watch(
 .primary-btn { background: #2563eb; color: #fff; &:hover { background: #1d4ed8; } }
 .ghost-btn { background: rgba(37,99,235,0.08); color: #2563eb; &:hover { background: rgba(37,99,235,0.15); } }
 
-// ---- Route results ----
-.route-results {
-    margin-top: 24px; padding-top: 20px; border-top: 1px solid #e5e7eb;
+// ---- Related results (routes, companies, regions, brands) ----
+.related-section {
+    margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb;
 }
-.route-head { margin: 0 0 10px; font-size: 0.95rem; color: #374151; }
-.route-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.route-item {
+.related-head { margin: 0 0 10px; font-size: 0.95rem; color: #374151; }
+.related-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.related-item {
     display: flex; align-items: center; gap: 8px;
     padding: 8px 14px; border-radius: 10px; background: #f8fafc;
-    border: 1px solid #e2e8f0; cursor: pointer;
+    border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.15s;
     &:hover { background: #f1f5f9; }
 }
-.route-number { font-weight: 700; color: #1e40af; font-size: 0.9rem; white-space: nowrap; }
-.route-stops { color: #6b7280; font-size: 0.8rem; }
+.related-title { font-weight: 700; color: #1e40af; font-size: 0.9rem; white-space: nowrap; }
+.related-sub { color: #6b7280; font-size: 0.8rem; }
 
 // ---- Media ----
 @media (max-width: 900px) {
