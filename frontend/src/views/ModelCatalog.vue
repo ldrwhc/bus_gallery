@@ -1099,8 +1099,6 @@ onMounted(() => {
     .col-companies { display: none; }
     .company-card-grid { grid-template-columns: 1fr; gap: 10px; }
     .company-card__image img { height: 160px; }
-    .config-year-header__spacer { min-width: 80px; max-width: 80px; }
-    .config-row__label { min-width: 80px; max-width: 80px; }
     .photo-year-header__spacer { min-width: 60px; max-width: 60px; }
     .photo-row__route { min-width: 60px; max-width: 60px; }
     .photo-thumb img { width: 56px; height: 40px; }
