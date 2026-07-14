@@ -29,22 +29,31 @@
                 <section v-if="loading" class="state state--loading">正在加载车型...</section>
                 <section v-else-if="!filteredModels.length" class="state state--empty">暂无车型数据</section>
 
-                <section v-else class="model-card-grid">
-                    <article v-for="model in filteredModels" :key="model.id" class="model-card"
-                        @click="router.push({ name: 'ModelCatalog', params: { modelId: model.id } })">
-                        <div class="model-card__image">
-                            <img :src="model.thumbnailUrl || (model.companies && model.companies[0]?.thumbnailUrl) || placeholderLogo"
-                                :alt="model.name" loading="lazy" decoding="async" />
+                <section v-else class="model-group-list">
+                    <article v-for="model in filteredModels" :key="model.id" class="model-group">
+                        <div class="model-group__head"
+                            @click="router.push({ name: 'ModelCatalog', params: { modelId: model.id } })">
+                            <div class="model-group__image">
+                                <img :src="model.thumbnailUrl || (model.companies && model.companies[0]?.thumbnailUrl) || placeholderLogo"
+                                    :alt="model.name" loading="lazy" decoding="async" />
+                            </div>
+                            <div class="model-group__info">
+                                <h2 class="model-group__name">{{ model.name }}</h2>
+                                <p class="model-group__brand">{{ brandDisplayMap[model.brandName] || model.brandName || '品牌待补全' }}</p>
+                            </div>
+                            <span class="model-group__arrow">→</span>
                         </div>
-                        <div class="model-card__body">
-                            <h3 class="model-card__name">{{ model.name }}</h3>
-                            <p class="model-card__brand">{{ brandDisplayMap[model.brandName] || model.brandName || '品牌待补全' }}</p>
-                            <div class="model-card__meta">
-                                <span v-if="model.companies?.length" class="meta-tag">
-                                    {{ model.companies.length }} 家公司
-                                </span>
+                        <div v-if="model.companies?.length" class="company-dual-grid">
+                            <div v-for="company in model.companies" :key="company.id" class="company-dual-card"
+                                @click="router.push({ name: 'CompanyCatalog', params: { companyId: company.id } })">
+                                <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" loading="lazy" decoding="async" />
+                                <div class="company-dual-card__body">
+                                    <p class="company-dual-card__name">{{ company.name }}</p>
+                                    <p class="company-dual-card__region">{{ company.regionName || regionsById[company.regionId] || '地区待补全' }}</p>
+                                </div>
                             </div>
                         </div>
+                        <p v-else class="model-group__empty">暂无运营公司</p>
                     </article>
                 </section>
             </template>
@@ -630,17 +639,26 @@ onMounted(() => {
     &.active, &:hover { background: #2563eb; color: #fff; border-color: #2563eb; } }
 .section-title { margin: 0 0 14px; font-size: 1.05rem; font-weight: 700; color: #1e293b; }
 
-/* ========== List View: Model Cards ========== */
-.model-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
-.model-card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 12px rgba(15,23,42,0.06); cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
-    &:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(15,23,42,0.12); } }
-.model-card__image { width: 100%; aspect-ratio: 4 / 3; overflow: hidden; background: #e2e8f0;
+/* ========== List View: Model Groups + Dual Company Grid ========== */
+.model-group-list { display: flex; flex-direction: column; gap: 24px; }
+.model-group { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 2px 12px rgba(15,23,42,0.06); }
+.model-group__head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; cursor: pointer; transition: opacity 0.15s;
+    &:hover { opacity: 0.8; } }
+.model-group__image { width: 72px; height: 54px; border-radius: 10px; overflow: hidden; background: #e2e8f0; flex-shrink: 0;
     img { width: 100%; height: 100%; object-fit: cover; display: block; } }
-.model-card__body { padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
-.model-card__name { margin: 0; font-size: 0.95rem; font-weight: 700; color: #111827; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.model-card__brand { margin: 0; font-size: 0.8rem; color: #64748b; }
-.model-card__meta { display: flex; gap: 6px; margin-top: 4px; }
-.meta-tag { display: inline-flex; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #64748b; font-size: 0.72rem; }
+.model-group__info { flex: 1; min-width: 0; }
+.model-group__name { margin: 0; font-size: 1.05rem; font-weight: 700; color: #111827; }
+.model-group__brand { margin: 2px 0 0; font-size: 0.8rem; color: #64748b; }
+.model-group__arrow { font-size: 1.1rem; color: #cbd5e1; flex-shrink: 0; }
+.model-group__empty { color: #94a3b8; font-size: 0.85rem; text-align: center; padding: 12px; }
+
+.company-dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.company-dual-card { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #f8fafc; border: 1px solid #f1f5f9; cursor: pointer; transition: background 0.15s, border-color 0.15s; min-width: 0;
+    &:hover { background: #eef2ff; border-color: #c7d2fe; }
+    img { width: 56px; height: 42px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #e2e8f0; } }
+.company-dual-card__body { flex: 1; min-width: 0; }
+.company-dual-card__name { margin: 0; font-size: 0.85rem; font-weight: 600; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-dual-card__region { margin: 2px 0 0; font-size: 0.75rem; color: #94a3b8; }
 
 /* ========== Detail View ========== */
 .detail-header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
@@ -808,7 +826,9 @@ onMounted(() => {
 
 /* ========== Responsive ========== */
 @media (max-width: 900px) {
-    .model-card-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .model-group { padding: 16px; }
+    .company-dual-grid { gap: 8px; }
+    .company-dual-card { padding: 8px 10px; img { width: 48px; height: 36px; } }
     .config-year-header__cell { min-width: 140px; }
     .config-row__cell { min-width: 140px; }
     .photo-year-header__cell { min-width: 100px; }
@@ -817,9 +837,9 @@ onMounted(() => {
 }
 
 @media (max-width: 560px) {
-    .model-card-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .model-card__body { padding: 10px 12px; }
-    .model-card__name { font-size: 0.85rem; }
+    .model-group { padding: 12px; }
+    .company-dual-grid { grid-template-columns: 1fr; gap: 6px; }
+    .company-dual-card { padding: 8px 10px; img { width: 44px; height: 32px; } }
     .config-year-header__spacer { min-width: 70px; max-width: 70px; }
     .config-row__label { min-width: 70px; max-width: 70px; }
     .config-year-header__cell { min-width: 120px; }
