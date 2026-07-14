@@ -52,11 +52,21 @@
                                     :alt="model.name" loading="lazy" decoding="async" />
                             </span>
                             <span class="col-name">
-                                <span class="model-name-text">{{ model.name }}</span>
+                                <span class="model-name-text">
+                                    <template v-if="highlightText(model.name).length > 1">
+                                        {{ highlightText(model.name)[0] }}<mark>{{ highlightText(model.name)[1] }}</mark>{{ highlightText(model.name)[2] }}
+                                    </template>
+                                    <template v-else>{{ model.name }}</template>
+                                </span>
                                 <span class="model-count-badge">{{ model.companies?.length || 0 }}家</span>
                             </span>
                             <span class="col-brand">
-                                <span class="brand-tag">{{ brandDisplayMap[model.brandName] || model.brandName || '?' }}</span>
+                                <span class="brand-tag">
+                                    <template v-if="highlightText(brandDisplayMap[model.brandName] || model.brandName || '?').length > 1">
+                                        {{ highlightText(brandDisplayMap[model.brandName] || model.brandName || '?')[0] }}<mark>{{ highlightText(brandDisplayMap[model.brandName] || model.brandName || '?')[1] }}</mark>{{ highlightText(brandDisplayMap[model.brandName] || model.brandName || '?')[2] }}
+                                    </template>
+                                    <template v-else>{{ brandDisplayMap[model.brandName] || model.brandName || '?' }}</template>
+                                </span>
                             </span>
                             <span class="col-companies">
                                 <span v-for="c in (model.companies || []).slice(0, 8)" :key="c.id"
@@ -327,6 +337,18 @@ const searchedModels = computed(() => {
 
 const selectBrandFilter = (brandName) => {
     brandFilter.value = brandFilter.value === brandName ? '' : brandName;
+};
+
+const highlightText = (text) => {
+    if (!searchQuery.value.trim() || !text) return text;
+    const q = searchQuery.value.trim();
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx < 0) return text;
+    return [
+        text.slice(0, idx),
+        text.slice(idx, idx + q.length),
+        text.slice(idx + q.length)
+    ];
 };
 
 const modelDetail = computed(() =>
@@ -831,7 +853,10 @@ onMounted(() => {
     &:last-child { border-bottom: none; }
     &:hover { background: #fafbff; } }
 .col-img img { width: 40px; height: 30px; border-radius: 6px; object-fit: cover; background: #e2e8f0; display: block; }
-.model-name-text { font-weight: 600; color: #111827; font-size: 0.9rem; display: block; }
+.model-name-text { font-weight: 600; color: #111827; font-size: 0.9rem; display: block;
+    mark { background: #dbeafe; color: #1d4ed8; padding: 1px 0; border-radius: 2px; } }
+.brand-tag { font-size: 0.78rem; color: #64748b;
+    mark { background: #dbeafe; color: #1d4ed8; padding: 1px 0; border-radius: 2px; } }
 .model-count-badge { display: inline-block; font-size: 0.7rem; color: #94a3b8; }
 .brand-tag { font-size: 0.78rem; color: #64748b; }
 .col-companies { display: flex; flex-wrap: wrap; gap: 4px; }
