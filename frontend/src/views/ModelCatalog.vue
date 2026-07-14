@@ -6,51 +6,70 @@
                 <header class="catalog-header">
                     <div>
                         <p class="eyebrow">Model</p>
-                        <h1>按车型检索运营公司</h1>
-                        <p class="subtitle">收录 {{ catalog.length }} 款车型 / {{ totalCompanies }} 家运营公司</p>
+                        <h1>车型目录</h1>
+                        <p class="subtitle">{{ catalog.length }} 款车型 · {{ totalCompanies }} 家公司</p>
                     </div>
                 </header>
 
-                <section v-if="brandFilters.length" class="filter-bar">
-                    <p class="filter-label">品牌</p>
-                    <div class="chip-row">
-                        <button
-                            v-for="brand in brandFilters"
-                            :key="brand"
-                            type="button"
-                            :class="['filter-chip', { active: brand === brandFilter }]"
-                            @click="selectBrandFilter(brand)"
-                        >
-                            {{ brand }}
-                        </button>
+                <!-- Search + Filters -->
+                <div class="list-toolbar">
+                    <div class="search-input-wrap">
+                        <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16">
+                            <circle cx="11" cy="11" r="7" stroke="#94a3b8" stroke-width="2" fill="none"/>
+                            <line x1="16" y1="16" x2="21" y2="21" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <input v-model="searchQuery" type="text" class="search-input"
+                            placeholder="搜索车型名称或品牌..." />
+                        <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">×</button>
                     </div>
-                </section>
+                    <div v-if="brandFilters.length" class="chip-row">
+                        <button :class="['filter-chip', { active: !brandFilter }]" @click="brandFilter = ''">全部</button>
+                        <button v-for="brand in brandFilters" :key="brand"
+                            :class="['filter-chip', { active: brand === brandFilter }]"
+                            @click="selectBrandFilter(brand)">{{ brand }}</button>
+                    </div>
+                </div>
 
                 <section v-if="loading" class="state state--loading">正在加载车型...</section>
-                <section v-else-if="!filteredModels.length" class="state state--empty">暂无车型数据</section>
+                <section v-else-if="!searchedModels.length" class="state state--empty">
+                    {{ searchQuery ? '无匹配车型' : '暂无车型数据' }}
+                </section>
 
-                <section v-else class="model-group-grid">
-                    <article v-for="model in filteredModels" :key="model.id" class="model-group">
-                        <div class="model-group__head"
-                            @click="router.push({ name: 'ModelCatalog', params: { modelId: model.id } })">
-                            <div class="model-group__info">
-                                <h2 class="model-group__name">{{ model.name }}</h2>
-                                <p class="model-group__brand">{{ brandDisplayMap[model.brandName] || model.brandName || '品牌待补全' }}</p>
-                            </div>
-                            <span class="model-group__arrow">→</span>
+                <!-- Dense Table -->
+                <section v-else class="model-table-wrap">
+                    <div class="model-table">
+                        <div class="model-table__row model-table__head">
+                            <span class="col-img"></span>
+                            <span class="col-name">车型</span>
+                            <span class="col-brand">品牌</span>
+                            <span class="col-companies">运营公司</span>
                         </div>
-                        <div v-if="model.companies?.length" class="company-dual-grid">
-                            <div v-for="company in model.companies" :key="company.id" class="company-dual-card"
-                                @click="router.push({ name: 'CompanyCatalog', params: { companyId: company.id } })">
-                                <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" loading="lazy" decoding="async" />
-                                <div class="company-dual-card__body">
-                                    <p class="company-dual-card__name">{{ company.name }}</p>
-                                    <p class="company-dual-card__region">{{ company.regionName || regionsById[company.regionId] || '地区待补全' }}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <p v-else class="model-group__empty">暂无运营公司</p>
-                    </article>
+                        <router-link v-for="model in searchedModels" :key="model.id"
+                            class="model-table__row model-table__body"
+                            :to="{ name: 'ModelCatalog', params: { modelId: model.id } }">
+                            <span class="col-img">
+                                <img :src="model.thumbnailUrl || (model.companies && model.companies[0]?.thumbnailUrl) || placeholderLogo"
+                                    :alt="model.name" loading="lazy" decoding="async" />
+                            </span>
+                            <span class="col-name">
+                                <span class="model-name-text">{{ model.name }}</span>
+                                <span class="model-count-badge">{{ model.companies?.length || 0 }}家</span>
+                            </span>
+                            <span class="col-brand">
+                                <span class="brand-tag">{{ brandDisplayMap[model.brandName] || model.brandName || '?' }}</span>
+                            </span>
+                            <span class="col-companies">
+                                <span v-for="c in (model.companies || []).slice(0, 8)" :key="c.id"
+                                    class="company-mini-chip"
+                                    @click.stop="$router.push({ name: 'CompanyCatalog', params: { companyId: c.id } })">
+                                    {{ c.name }}
+                                </span>
+                                <span v-if="(model.companies || []).length > 8" class="company-mini-chip company-mini-chip--more">
+                                    +{{ model.companies.length - 8 }}
+                                </span>
+                            </span>
+                        </router-link>
+                    </div>
                 </section>
             </template>
 
@@ -281,6 +300,7 @@ const brandFilters = computed(() => {
 });
 
 const brandFilter = ref('');
+const searchQuery = ref('');
 
 const baseModels = computed(() => {
     if (!selectedModelId.value) return catalog.value;
@@ -290,6 +310,19 @@ const baseModels = computed(() => {
 const filteredModels = computed(() => {
     if (!brandFilter.value) return baseModels.value;
     return baseModels.value.filter((model) => model.brandName === brandFilter.value);
+});
+
+const searchedModels = computed(() => {
+    let list = filteredModels.value;
+    const q = searchQuery.value.trim().toLowerCase();
+    if (q) {
+        list = list.filter((m) => {
+            const name = (m.name || '').toLowerCase();
+            const brand = (brandDisplayMap.value[m.brandName] || m.brandName || '').toLowerCase();
+            return name.includes(q) || brand.includes(q);
+        });
+    }
+    return list;
 });
 
 const selectBrandFilter = (brandName) => {
@@ -777,23 +810,39 @@ onMounted(() => {
     &.active, &:hover { background: #2563eb; color: #fff; border-color: #2563eb; } }
 .section-title { margin: 0 0 14px; font-size: 1.05rem; font-weight: 700; color: #1e293b; }
 
-/* ========== List View: 2-col Model Groups + Dual Company Grid ========== */
-.model-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.model-group { border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; background: #fff; }
-.model-group__head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; }
-.model-group__info { flex: 1; min-width: 0; }
-.model-group__name { margin: 0; font-size: 0.95rem; font-weight: 700; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.model-group__brand { margin: 2px 0 0; font-size: 0.75rem; color: #94a3b8; }
-.model-group__arrow { font-size: 0.9rem; color: #94a3b8; flex-shrink: 0; }
-.model-group__empty { color: #94a3b8; font-size: 0.8rem; text-align: center; padding: 8px; }
-
-.company-dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.company-dual-card { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid #e2e8f0; cursor: pointer; transition: border-color 0.15s, background 0.15s; min-width: 0;
-    &:hover { border-color: #2563eb; background: #fafbff; }
-    img { width: 48px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #e2e8f0; } }
-.company-dual-card__body { flex: 1; min-width: 0; }
-.company-dual-card__name { margin: 0; font-size: 0.82rem; font-weight: 600; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.company-dual-card__region { margin: 1px 0 0; font-size: 0.72rem; color: #94a3b8; }
+/* ========== List View: Dense Table ========== */
+.list-toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.search-input-wrap {
+    display: flex; align-items: center; gap: 8px;
+    background: #fff; border-radius: 14px; padding: 10px 16px;
+    box-shadow: 0 1px 4px rgba(15,23,42,0.05);
+}
+.search-icon { flex-shrink: 0; }
+.search-input {
+    flex: 1; border: none; outline: none; font-size: 0.92rem; color: #1e293b; background: transparent;
+    &::placeholder { color: #cbd5e1; }
+}
+.search-clear { border: none; background: #f1f5f9; color: #64748b; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-size: 0.85rem; }
+.model-table-wrap { background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 6px rgba(15,23,42,0.05); }
+.model-table { display: flex; flex-direction: column; }
+.model-table__row { display: grid; grid-template-columns: 56px 1fr 80px 1fr; gap: 12px; align-items: center; padding: 10px 16px; text-decoration: none; }
+.model-table__head { background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; position: sticky; top: 0; z-index: 2; }
+.model-table__body { border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s;
+    &:last-child { border-bottom: none; }
+    &:hover { background: #fafbff; } }
+.col-img img { width: 40px; height: 30px; border-radius: 6px; object-fit: cover; background: #e2e8f0; display: block; }
+.model-name-text { font-weight: 600; color: #111827; font-size: 0.9rem; display: block; }
+.model-count-badge { display: inline-block; font-size: 0.7rem; color: #94a3b8; }
+.brand-tag { font-size: 0.78rem; color: #64748b; }
+.col-companies { display: flex; flex-wrap: wrap; gap: 4px; }
+.company-mini-chip {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    background: #f1f5f9; color: #475569; font-size: 0.72rem;
+    cursor: pointer; transition: background 0.15s; text-decoration: none;
+    &:hover { background: #dbeafe; color: #2563eb; }
+    &--more { background: transparent; color: #94a3b8; cursor: default;
+        &:hover { background: transparent; color: #94a3b8; } }
+}
 
 /* ========== Detail View ========== */
 .detail-header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
@@ -1012,6 +1061,7 @@ onMounted(() => {
 
 /* ========== Responsive ========== */
 @media (max-width: 900px) {
+    .model-table__row { grid-template-columns: 48px 1fr 64px 1fr; gap: 8px; padding: 8px 12px; font-size: 0.82rem; }
     .company-card-grid { grid-template-columns: 1fr; gap: 14px; }
     .config-year-header__cell { min-width: 140px; }
     .config-row__cell { min-width: 140px; }
@@ -1021,6 +1071,8 @@ onMounted(() => {
 }
 
 @media (max-width: 560px) {
+    .model-table__row { grid-template-columns: 40px 1fr 56px; gap: 6px; padding: 8px 10px; }
+    .col-companies { display: none; }
     .company-card-grid { grid-template-columns: 1fr; gap: 10px; }
     .company-card__image img { height: 160px; }
     .config-year-header__spacer { min-width: 70px; max-width: 70px; }
