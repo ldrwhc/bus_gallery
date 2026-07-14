@@ -19,6 +19,7 @@
         <result property="uploaderUsername" column="uploader_username"/>
         <result property="uploaderDisplayName" column="uploader_display_name"/>
         <result property="exifJson" column="exif_json"/>
+        <result property="routeId" column="route_id"/>
         <result property="createTime" column="created_at"/>
         <result property="vehicleId" column="vehicle_id"/>
     </resultMap>
@@ -30,6 +31,7 @@
         content_type, hash, uploader,
         uploader_id, uploader_username, uploader_display_name,
         exif_json,
+        route_id,
         created_at,
         NULL AS vehicle_id
     </sql>
@@ -41,6 +43,7 @@
         i.content_type, i.hash, i.uploader,
         i.uploader_id, i.uploader_username, i.uploader_display_name,
         i.exif_json,
+        i.route_id,
         i.created_at,
         NULL AS vehicle_id
     </sql>
@@ -51,6 +54,7 @@
         i.content_type, i.hash, i.uploader,
         i.uploader_id, i.uploader_username, i.uploader_display_name,
         i.exif_json,
+        i.route_id,
         i.created_at,
         vi.vehicle_id AS vehicle_id
     </sql>
@@ -89,13 +93,15 @@
         size_bytes, width, height,
         content_type, hash, uploader,
         uploader_id, uploader_username, uploader_display_name,
-        exif_json
+        exif_json,
+        route_id
         ) VALUES (
         #{objectName}, #{url}, #{thumbnailUrl},
         #{sizeBytes}, #{width}, #{height},
         #{mimeType}, #{hash}, #{uploadUser},
         #{uploaderId}, #{uploaderUsername}, #{uploaderDisplayName},
-        #{exifJson}
+        #{exifJson},
+        #{routeId}
         )
     </insert>
 
@@ -113,7 +119,8 @@
         uploader_id   = #{uploaderId},
         uploader_username = #{uploaderUsername},
         uploader_display_name = #{uploaderDisplayName},
-        exif_json      = #{exifJson}
+        exif_json      = #{exifJson},
+        route_id       = #{routeId}
         WHERE id = #{id}
     </update>
 
