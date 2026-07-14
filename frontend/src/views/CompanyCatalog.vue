@@ -322,7 +322,7 @@ const goModel = (modelId) => {
 };
 
 const clearCompanyFilter = () => {
-    router.push({ name: 'CompanyCatalog' });
+    if (window.history.length > 1) { router.back(); } else { router.push({ name: 'CompanyCatalog' }); }
 };
 
 const companyDetail = computed(() =>

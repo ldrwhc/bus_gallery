@@ -170,7 +170,7 @@ const toggleBrandExpand = (brandId) => {
 };
 
 const clearBrandFilter = () => {
-    router.push({ name: 'BrandCatalog' });
+    if (window.history.length > 1) { router.back(); } else { router.push({ name: 'BrandCatalog' }); }
 };
 
 const regionsById = computed(() => {

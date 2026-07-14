@@ -376,7 +376,7 @@ const regionsById = computed(() => {
 });
 
 const clearModelFilter = () => {
-    router.push({ name: 'ModelCatalog' });
+    if (window.history.length > 1) { router.back(); } else { router.push({ name: 'ModelCatalog' }); }
 };
 
 // ===================== Detail View =====================
