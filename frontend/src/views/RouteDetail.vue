@@ -28,8 +28,8 @@
                         <div v-for="vr in variantRoutes" :key="vr.id" class="variant-line"
                              :class="{ 'variant-line--active': vr.id === routeInfo.id }">
                             <el-tag size="small" type="warning">{{ subTypeLabel(vr.subType) }}</el-tag>
-                            <span v-if="vr.isLoop">环线</span>
-                            <span v-else>{{ vr.startStop || '?' }} ↔ {{ vr.endStop || '?' }}</span>
+                            <el-tag v-if="vr.isLoop" size="small" type="info">环线</el-tag>
+                            <span>{{ vr.startStop || '?' }} ↔ {{ vr.endStop || '?' }}</span>
                         </div>
                     </div>
                 </section>

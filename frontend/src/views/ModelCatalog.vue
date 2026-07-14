@@ -98,7 +98,11 @@
                                 <div v-for="row in configTable.rows" :key="row.label" class="config-row">
                                     <div class="config-row__label">{{ row.label }}</div>
                                     <div v-for="year in configTable.years" :key="year" class="config-row__cell">
-                                        {{ formatConfigCell(row.cells[year]) }}
+                                        <template v-if="!row.cells[year].length">—</template>
+                                        <span v-for="item in row.cells[year]" :key="item.value" class="config-chip">
+                                            {{ item.value }}
+                                            <strong>{{ item.count }}</strong>
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -361,21 +365,18 @@ const CONFIG_FIELDS = [
 ];
 
 const configTable = computed(() => {
-    // Group vehicles by year, collect unique configs per field
-    const yearMap = new Map(); // year -> Map<fieldKey, Set<values>>
+    // Group vehicles by year, collect per-config counts
+    const yearMap = new Map(); // year -> Map<fieldKey, Map<value, count>>
     displayVehicles.value.forEach((r) => {
         const year = extractYear(r?.vehicle?.launchDate) || '年份未知';
-        if (!yearMap.has(year)) {
-            yearMap.set(year, new Map());
-        }
+        if (!yearMap.has(year)) yearMap.set(year, new Map());
         const fieldMap = yearMap.get(year);
         CONFIG_FIELDS.forEach((field) => {
             const val = field.get(r);
             if (!val) return;
-            if (!fieldMap.has(field.key)) {
-                fieldMap.set(field.key, new Set());
-            }
-            fieldMap.get(field.key).add(val);
+            if (!fieldMap.has(field.key)) fieldMap.set(field.key, new Map());
+            const countMap = fieldMap.get(field.key);
+            countMap.set(val, (countMap.get(val) || 0) + 1);
         });
     });
 
@@ -391,20 +392,17 @@ const configTable = computed(() => {
         const cells = {};
         years.forEach((year) => {
             const fieldMap = yearMap.get(year);
-            cells[year] = fieldMap ? Array.from(fieldMap.get(field.key) || []) : [];
+            const countMap = fieldMap?.get(field.key);
+            cells[year] = countMap
+                ? Array.from(countMap.entries()).map(([value, count]) => ({ value, count }))
+                : [];
         });
-        // Only include row if at least one cell has data
         const hasData = Object.values(cells).some((arr) => arr.length > 0);
         return { label: field.label, cells, hasData };
     }).filter((row) => row.hasData);
 
     return { years, rows };
 });
-
-const formatConfigCell = (values) => {
-    if (!values || !values.length) return '—';
-    return values.join(' / ');
-};
 
 // ===== Photo Table =====
 const photoTable = computed(() => {
@@ -714,8 +712,18 @@ onMounted(() => {
 }
 .config-row__cell {
     min-width: 180px; flex: 1;
-    padding: 10px 14px; font-size: 0.85rem; color: #1e293b;
-    display: flex; align-items: center;
+    padding: 8px 10px; font-size: 0.85rem; color: #1e293b;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px;
+}
+.config-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 999px;
+    background: #f1f5f9; color: #334155; font-size: 0.82rem;
+    white-space: nowrap;
+    strong {
+        background: #fff; padding: 1px 5px; border-radius: 6px;
+        font-size: 0.72rem; color: #0f172a; min-width: 14px; text-align: center;
+    }
 }
 
 /* ===== Photo Table ===== */
