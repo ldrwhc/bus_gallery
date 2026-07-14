@@ -91,6 +91,8 @@
                                     <div v-for="year in configTable.years" :key="year" class="config-year-header__cell">
                                         <span class="year-badge">{{ year }}</span>
                                         <span class="year-count-badge">{{ yearVehicleCount[year] || 0 }}</span>
+                                        <button class="year-menu-btn" type="button" title="查看该年份车辆列表"
+                                            @click.stop="openVehicleList(year)">⋮</button>
                                     </div>
                                 </div>
                                 <div v-for="row in configTable.rows" :key="row.label" class="config-row">
@@ -142,6 +144,70 @@
                 </template>
             </template>
         </main>
+
+        <teleport to="body">
+            <transition name="fade">
+                <div v-if="vehicleListVisible" class="vehicle-overlay" @click.self="closeVehicleList">
+                    <div class="vehicle-overlay__panel">
+                        <header class="vehicle-overlay__header">
+                            <div>
+                                <p class="vehicle-overlay__eyebrow">车辆列表</p>
+                                <h3>{{ vehicleListTitle }}</h3>
+                            </div>
+                            <button class="close-btn" type="button" @click="closeVehicleList">×</button>
+                        </header>
+                        <div class="vehicle-overlay__pager">
+                            <button class="pager-btn" type="button"
+                                :disabled="vehicleListLoading || vehicleListPage <= 1"
+                                @click="loadVehicleListPage(vehicleListPage - 1)">上一页</button>
+                            <span class="pager-text">第 {{ vehicleListPage }} 页 · 每页 {{ vehicleListPageSize }} 条 · 共 {{ vehicleListTotal }} 条</span>
+                            <button class="pager-btn" type="button"
+                                :disabled="vehicleListLoading || !vehicleListHasNext"
+                                @click="loadVehicleListPage(vehicleListPage + 1)">下一页</button>
+                        </div>
+                        <div class="vehicle-overlay__content">
+                            <table class="vehicle-overlay__table">
+                                <thead>
+                                    <tr>
+                                        <th>年份</th>
+                                        <th>车牌</th>
+                                        <th>自编号</th>
+                                        <th>照片</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-if="vehicleListLoading">
+                                        <td colspan="4">正在加载...</td>
+                                    </tr>
+                                    <tr v-else-if="!groupedVehicleRows.length">
+                                        <td colspan="4">暂无车辆</td>
+                                    </tr>
+                                    <tr v-for="row in groupedVehicleRows" :key="row.key">
+                                        <td><span class="year-tag">{{ row.year }}</span></td>
+                                        <td><span class="plate">{{ row.plate }}</span></td>
+                                        <td>
+                                            <div class="multi-value">
+                                                <span v-for="record in row.records" :key="`${row.key}-code-${record.id}`" class="code">{{ record.customNumber }}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="thumb-list">
+                                                <button v-for="record in row.records" :key="`${row.key}-thumb-${record.id}`"
+                                                    class="vehicle-overlay__thumb" type="button"
+                                                    @click="openVehicleDetail(record.vehicle?.id)">
+                                                    <img :src="resolveListImage(record.images) || placeholderLogo"
+                                                        :alt="record.vehicle?.plateNumber || '缩略图'" loading="lazy" decoding="async" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </teleport>
 
         <VehicleDetailModal
             v-if="vehicleDetailVisible"
@@ -435,6 +501,93 @@ const closeVehicleDetail = () => {
     activeVehicleId.value = null;
 };
 
+// ===== Vehicle List Overlay =====
+const vehicleListVisible = ref(false);
+const vehicleListTitle = ref('');
+const vehicleListItems = ref([]);
+const vehicleListPage = ref(1);
+const vehicleListTotal = ref(0);
+const vehicleListHasNext = ref(false);
+const vehicleListLoading = ref(false);
+const vehicleListPageSize = 30;
+const vehicleListYear = ref('');
+
+const groupedVehicleRows = computed(() => {
+    if (!vehicleListItems.value.length) return [];
+    const map = new Map();
+    vehicleListItems.value.forEach((record, index) => {
+        const plate = record?.vehicle?.plateNumber?.trim() || '未上牌';
+        if (!map.has(plate)) map.set(plate, []);
+        map.get(plate).push({ record, index });
+    });
+    return Array.from(map.entries()).map(([plate, entries], groupIndex) => {
+        const years = [...new Set(entries.map(({ record }) => extractYear(record?.vehicle?.launchDate) || '年份未知'))].join(', ');
+        return {
+            key: `${plate}-${groupIndex}`,
+            plate,
+            year: years,
+            records: entries.map(({ record }) => ({
+                id: record?.vehicle?.id || `${plate}-${Math.random()}`,
+                customNumber: record?.vehicle?.customNumber || '无自编号',
+                vehicle: record?.vehicle,
+                images: record?.images || []
+            }))
+        };
+    });
+});
+
+const resolveListImage = (images = []) => {
+    const first = images?.[0];
+    if (!first) return null;
+    return first.thumbnailUrl || null;
+};
+
+const openVehicleList = (year) => {
+    vehicleListYear.value = year;
+    vehicleListTitle.value = `${modelDetail.value?.name || '车型'} · ${year} 年`;
+    vehicleListPage.value = 1;
+    vehicleListTotal.value = 0;
+    vehicleListHasNext.value = false;
+    vehicleListItems.value = [];
+    vehicleListVisible.value = true;
+    loadVehicleListPage(1).catch((error) => console.error(error));
+};
+
+const closeVehicleList = () => {
+    vehicleListVisible.value = false;
+    vehicleListItems.value = [];
+    vehicleListYear.value = '';
+};
+
+const loadVehicleListPage = async (targetPage) => {
+    const page = Math.max(1, Number(targetPage) || 1);
+    vehicleListLoading.value = true;
+    try {
+        let filtered = displayVehicles.value.filter((record) => {
+            const vehicle = record?.vehicle;
+            if (!vehicle) return false;
+            const year = extractYear(vehicle?.launchDate);
+            return year === vehicleListYear.value;
+        });
+
+        // Sort by customNumber ascending
+        filtered.sort((a, b) => {
+            const ca = a?.vehicle?.customNumber || '';
+            const cb = b?.vehicle?.customNumber || '';
+            return ca.localeCompare(cb, 'zh-CN', { numeric: true });
+        });
+
+        const start = (page - 1) * vehicleListPageSize;
+        const paged = filtered.slice(start, start + vehicleListPageSize);
+        vehicleListItems.value = paged;
+        vehicleListPage.value = page;
+        vehicleListTotal.value = filtered.length;
+        vehicleListHasNext.value = start + vehicleListPageSize < filtered.length;
+    } finally {
+        vehicleListLoading.value = false;
+    }
+};
+
 // ===== Watcher =====
 watch(
     () => [selectedModelId.value, scopedCompanyId.value],
@@ -615,6 +768,48 @@ onMounted(() => {
     img { width: 100px; height: 70px; object-fit: cover; display: block; }
     &:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 }
+
+/* ===== Year Menu Button ===== */
+.year-menu-btn {
+    border: none; background: transparent; color: #94a3b8;
+    width: 26px; height: 26px; border-radius: 50%;
+    cursor: pointer; font-size: 1.1rem; line-height: 1;
+    flex-shrink: 0; margin-left: auto;
+    transition: background 0.15s, color 0.15s;
+    &:hover { background: rgba(255,255,255,0.2); color: #fff; }
+}
+
+/* ===== Vehicle List Overlay ===== */
+.vehicle-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.65);
+    backdrop-filter: blur(6px); display: flex; align-items: center;
+    justify-content: center; padding: 24px; z-index: 120;
+}
+.vehicle-overlay__panel {
+    width: min(900px, 100%); max-height: 90vh; background: #fff;
+    border-radius: 28px; padding: 24px; display: flex; flex-direction: column;
+    gap: 16px; box-shadow: 0 30px 60px rgba(15,23,42,0.3); overflow: hidden;
+}
+.vehicle-overlay__header { display: flex; justify-content: space-between; align-items: flex-start; }
+.vehicle-overlay__eyebrow { text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.75rem; color: #94a3b8; margin: 0 0 4px; }
+.vehicle-overlay__pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: #f8fafc; }
+.vehicle-overlay__content { flex: 1; overflow-y: auto; padding-right: 8px; }
+.vehicle-overlay__table { width: 100%; border-collapse: collapse; font-size: 0.95rem;
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; }
+    th { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+}
+.vehicle-overlay__thumb { border: none; padding: 0; border-radius: 10px; overflow: hidden; cursor: pointer; background: #0f172a;
+    img { width: 90px; height: 60px; object-fit: cover; display: block; transition: transform 0.2s; }
+    &:hover img { transform: scale(1.05); }
+}
+.plate { font-weight: 600; color: #1f2937; }
+.year-tag { background: #eef2ff; color: #1d4ed8; padding: 2px 8px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.code { color: #94a3b8; }
+.multi-value { display: flex; flex-wrap: wrap; gap: 8px; }
+.thumb-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.close-btn { border: none; background: #f1f5f9; width: 36px; height: 36px; border-radius: 50%; font-size: 1.3rem; cursor: pointer; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.18s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
 /* ========== Responsive ========== */
 @media (max-width: 900px) {
