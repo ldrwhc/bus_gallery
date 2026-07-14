@@ -309,8 +309,8 @@ const allVehicles = ref([]);
 const vehiclesLoading = ref(false);
 
 const scopedCompanyName = computed(() => {
-    if (!isCompanyScoped.value || !allVehicles.value.length) return '';
-    const first = allVehicles.value[0];
+    if (!isCompanyScoped.value || !displayVehicles.value.length) return '';
+    const first = displayVehicles.value[0];
     return first?.vehicle?.company?.name || first?.vehicle?.companyName || '';
 });
 
