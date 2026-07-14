@@ -126,46 +126,19 @@
                     </section>
                 </template>
 
-                <!-- ===== Non-scoped: company-grouped config + photos ===== -->
+                <!-- ===== Non-scoped: City-grouped company pills ===== -->
                 <template v-else>
-                    <div v-if="!companyGroupedData.length" class="state state--empty">暂无车辆数据</div>
-                    <section v-for="cg in companyGroupedData" :key="cg.companyName" class="company-group-section">
-                        <router-link class="company-group__name"
-                            :to="{ name: 'CompanyCatalog', params: { companyId: cg.companyId } }">
-                            {{ cg.companyName }} <span class="company-group__count">{{ cg.vehicleCount }} 辆车</span>
-                        </router-link>
-                        <!-- Config table per company -->
-                        <div v-if="cg.configTable.years.length" class="config-table-wrap">
-                            <div class="config-table-scroll">
-                                <div class="config-year-header">
-                                    <div class="config-year-header__spacer"></div>
-                                    <div v-for="year in cg.configTable.years" :key="year" class="config-year-header__cell">
-                                        <span class="year-badge">{{ year }}</span>
-                                        <span class="year-count-badge">{{ cg.yearCounts[year] || 0 }}</span>
-                                    </div>
-                                </div>
-                                <div v-for="row in cg.configTable.rows" :key="row.label" class="config-row">
-                                    <div class="config-row__label">{{ row.label }}</div>
-                                    <div v-for="year in cg.configTable.years" :key="year" class="config-row__cell">
-                                        <template v-if="!row.cells[year]?.length">—</template>
-                                        <span v-for="item in row.cells[year]" :key="item.value" class="config-chip">
-                                            {{ item.value }}<strong>{{ item.count }}</strong>
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Photos -->
-                        <div v-if="cg.photos.length" class="photo-grid">
-                            <div v-for="photo in cg.photos.slice(0, 8)" :key="photo.key" class="photo-item" @click="openVehicleDetail(photo.vehicleId)">
-                                <div class="photo-imgbox">
-                                    <img :src="photo.thumbnailUrl || placeholderLogo" :alt="photo.plate" loading="lazy" decoding="async" />
-                                </div>
-                                <div class="photo-caption">
-                                    <span class="photo-plate">{{ photo.plate }}</span>
-                                    <span class="photo-year">{{ photo.year }}</span>
-                                </div>
-                            </div>
+                    <div v-if="!cityGroupedCompanies.length" class="state state--empty">暂无运营公司</div>
+                    <section v-for="city in cityGroupedCompanies" :key="city.regionName" class="city-group">
+                        <h3 class="city-group__name">{{ city.regionName }}</h3>
+                        <div class="city-group__pills">
+                            <router-link v-for="co in city.companies" :key="co.id"
+                                class="city-company-pill"
+                                :to="{ name: 'CompanyCatalog', params: { companyId: co.id } }">
+                                <img v-if="co.thumbnailUrl" :src="co.thumbnailUrl" :alt="co.name" loading="lazy" decoding="async" />
+                                <span class="city-company-pill__name">{{ co.name }}</span>
+                                <span class="city-company-pill__count">{{ co.vehicleCount }}</span>
+                            </router-link>
                         </div>
                     </section>
                 </template>
@@ -498,89 +471,45 @@ const photoTable = computed(() => {
     return { years, routes };
 });
 
-// ===== Non-scoped: Company-grouped config + photos =====
-const companyGroupedData = computed(() => {
+// ===== Non-scoped: City-grouped company pills =====
+const cityGroupedCompanies = computed(() => {
     if (!displayVehicles.value.length) return [];
 
-    // Group by company
-    const companyMap = new Map();
+    // Group by region, then company
+    const regionMap = new Map(); // regionName -> Map<companyId, {id, name, thumbnailUrl, count}>
     displayVehicles.value.forEach((r) => {
-        const name = r?.vehicle?.company?.name || r?.vehicle?.companyName || '未归类公司';
-        const id = r?.vehicle?.company?.id || r?.vehicle?.companyId;
-        const key = `${name}-${id || 'x'}`;
-        if (!companyMap.has(key)) {
-            companyMap.set(key, { companyName: name, companyId: id || null, vehicles: [] });
+        const vehicle = r?.vehicle;
+        if (!vehicle) return;
+        const company = vehicle?.company;
+        const region = company?.region || vehicle?.region;
+        const regionName = region?.name || company?.regionName || vehicle?.regionName || '地区未知';
+        const companyId = company?.id || vehicle?.companyId;
+        const companyName = company?.name || vehicle?.companyName || '未归类公司';
+        const thumbnailUrl = company?.thumbnailUrl || null;
+
+        if (!companyId) return;
+        if (!regionMap.has(regionName)) {
+            regionMap.set(regionName, new Map());
         }
-        companyMap.get(key).vehicles.push(r);
+        const companyMap = regionMap.get(regionName);
+        if (!companyMap.has(companyId)) {
+            companyMap.set(companyId, {
+                id: companyId,
+                name: companyName,
+                thumbnailUrl,
+                vehicleCount: 0
+            });
+        }
+        companyMap.get(companyId).vehicleCount++;
     });
 
-    return Array.from(companyMap.values()).map((cg) => {
-        const vehicles = cg.vehicles;
-        const vehicleCount = vehicles.length;
-
-        // Config table per company
-        const yearMap = new Map();
-        vehicles.forEach((r) => {
-            const year = extractYear(r?.vehicle?.launchDate) || '年份未知';
-            if (!yearMap.has(year)) yearMap.set(year, new Map());
-            const fieldMap = yearMap.get(year);
-            CONFIG_FIELDS.forEach((field) => {
-                const val = field.get(r);
-                if (!val) return;
-                if (!fieldMap.has(field.key)) fieldMap.set(field.key, new Map());
-                const countMap = fieldMap.get(field.key);
-                countMap.set(val, (countMap.get(val) || 0) + 1);
-            });
-        });
-        const years = Array.from(yearMap.keys()).sort((a, b) => {
-            const na = Number(a), nb = Number(b);
-            if (Number.isNaN(na) && Number.isNaN(nb)) return 0;
-            if (Number.isNaN(na)) return 1;
-            if (Number.isNaN(nb)) return -1;
-            return nb - na;
-        });
-        const yearCounts = {};
-        vehicles.forEach((r) => {
-            const y = extractYear(r?.vehicle?.launchDate) || '年份未知';
-            yearCounts[y] = (yearCounts[y] || 0) + 1;
-        });
-        const rows = CONFIG_FIELDS.map((field) => {
-            const cells = {};
-            years.forEach((year) => {
-                const fieldMap = yearMap.get(year);
-                const countMap = fieldMap?.get(field.key);
-                cells[year] = countMap ? Array.from(countMap.entries()).map(([value, count]) => ({ value, count })) : [];
-            });
-            const hasData = Object.values(cells).some((arr) => arr.length > 0);
-            return { label: field.label, cells, hasData };
-        }).filter((row) => row.hasData);
-
-        // Photos
-        const photos = [];
-        vehicles.forEach((record) => {
-            const vehicle = record?.vehicle;
-            if (!vehicle) return;
-            (record.images || []).forEach((img) => {
-                if (!img?.thumbnailUrl && !img?.url) return;
-                photos.push({
-                    key: `${vehicle.id}-${img.id || Math.random()}`,
-                    vehicleId: vehicle.id,
-                    thumbnailUrl: img.thumbnailUrl || img.url,
-                    plate: (vehicle.plateNumber || '未上牌').trim(),
-                    year: extractYear(vehicle.launchDate) || '年份未知'
-                });
-            });
-        });
-
-        return {
-            companyName: cg.companyName,
-            companyId: cg.companyId,
-            vehicleCount,
-            configTable: { years, rows },
-            yearCounts,
-            photos: photos.slice(0, 16) // max 16 photos per company
-        };
-    });
+    return Array.from(regionMap.entries())
+        .map(([regionName, companyMap]) => ({
+            regionName,
+            companies: Array.from(companyMap.values())
+                .sort((a, b) => b.vehicleCount - a.vehicleCount)
+        }))
+        .sort((a, b) => a.regionName.localeCompare(b.regionName, 'zh-CN'));
 });
 
 // ===== Vehicle Detail Modal =====
@@ -889,22 +818,22 @@ onMounted(() => {
     &:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 }
 
-/* ===== Company Group Sections (non-scoped) ===== */
-.company-group-section {
-    margin-bottom: 32px;
-    background: #fff;
-    border-radius: 14px;
-    padding: 20px 24px;
-    box-shadow: 0 1px 6px rgba(15,23,42,0.05);
-}
-.company-group__name {
+/* ===== City-grouped Company Pills (non-scoped) ===== */
+.city-group { margin-bottom: 24px; }
+.city-group__name { margin: 0 0 10px; font-size: 1rem; font-weight: 700; color: #1e293b; }
+.city-group__pills { display: flex; flex-wrap: wrap; gap: 10px; }
+.city-company-pill {
     display: inline-flex; align-items: center; gap: 8px;
-    font-size: 1.05rem; font-weight: 700; color: #1e293b;
-    text-decoration: none; margin-bottom: 14px;
-    &:hover { color: #2563eb; }
+    padding: 8px 14px; border-radius: 999px;
+    border: 1px solid #e2e8f0; background: #fff;
+    text-decoration: none; transition: border-color 0.15s, box-shadow 0.15s;
+    &:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,0.12); }
+    img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: #e2e8f0; }
 }
-.company-group__count {
-    font-weight: 400; font-size: 0.82rem; color: #94a3b8;
+.city-company-pill__name { font-size: 0.85rem; font-weight: 600; color: #1e293b; }
+.city-company-pill__count {
+    display: inline-flex; padding: 1px 8px; border-radius: 999px;
+    background: #f1f5f9; color: #64748b; font-size: 0.75rem; font-weight: 600;
 }
 
 /* ===== Year Menu Button ===== */

@@ -1,0 +1,474 @@
+<!DOCTYPE html><html  lang="zh-CN"><head><meta charset="utf8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>车队信息 - 巴士派迪</title>
+<script src="https://www.googletagmanager.com/gtag/js?id=G-38R9JBD8TE" async></script>
+<style id="vuetify-theme-stylesheet">:root {
+      --v-theme-background: 249,251,251;
+      --v-theme-background-overlay-multiplier: 1;
+      --v-theme-surface: 255,255,255;
+      --v-theme-surface-overlay-multiplier: 1;
+      --v-theme-surface-bright: 255,255,255;
+      --v-theme-surface-bright-overlay-multiplier: 1;
+      --v-theme-surface-light: 238,238,238;
+      --v-theme-surface-light-overlay-multiplier: 1;
+      --v-theme-surface-variant: 232,238,239;
+      --v-theme-surface-variant-overlay-multiplier: 1;
+      --v-theme-on-surface-variant: 69,90,100;
+      --v-theme-primary: 0,105,92;
+      --v-theme-primary-overlay-multiplier: 2;
+      --v-theme-primary-darken-1: 31,85,146;
+      --v-theme-primary-darken-1-overlay-multiplier: 2;
+      --v-theme-secondary: 72,169,166;
+      --v-theme-secondary-overlay-multiplier: 1;
+      --v-theme-secondary-darken-1: 1,135,134;
+      --v-theme-secondary-darken-1-overlay-multiplier: 1;
+      --v-theme-error: 242,19,93;
+      --v-theme-error-overlay-multiplier: 1;
+      --v-theme-info: 66,153,255;
+      --v-theme-info-overlay-multiplier: 1;
+      --v-theme-success: 23,201,100;
+      --v-theme-success-overlay-multiplier: 1;
+      --v-theme-warning: 251,140,0;
+      --v-theme-warning-overlay-multiplier: 1;
+      --v-theme-primary-light: 235,241,241;
+      --v-theme-primary-light-overlay-multiplier: 1;
+      --v-theme-on-background: 69,90,100;
+      --v-theme-on-surface: 69,90,100;
+      --v-theme-dark-accent: 38,50,56;
+      --v-theme-dark-accent-overlay-multiplier: 2;
+      --v-theme-on-surface-bright: 0,0,0;
+      --v-theme-on-surface-light: 0,0,0;
+      --v-theme-on-primary: 255,255,255;
+      --v-theme-on-primary-darken-1: 255,255,255;
+      --v-theme-on-secondary: 255,255,255;
+      --v-theme-on-secondary-darken-1: 255,255,255;
+      --v-theme-on-error: 255,255,255;
+      --v-theme-on-info: 255,255,255;
+      --v-theme-on-success: 0,0,0;
+      --v-theme-on-warning: 255,255,255;
+      --v-theme-on-primary-light: 0,0,0;
+      --v-theme-on-dark-accent: 255,255,255;
+      --v-border-color: 0, 0, 0;
+      --v-border-opacity: 0.12;
+      --v-high-emphasis-opacity: 0.87;
+      --v-medium-emphasis-opacity: 0.6;
+      --v-disabled-opacity: 0.38;
+      --v-idle-opacity: 0.04;
+      --v-hover-opacity: 0.04;
+      --v-focus-opacity: 0.12;
+      --v-selected-opacity: 0.08;
+      --v-activated-opacity: 0.12;
+      --v-pressed-opacity: 0.12;
+      --v-dragged-opacity: 0.08;
+      --v-theme-kbd: 33, 37, 41;
+      --v-theme-on-kbd: 255, 255, 255;
+      --v-theme-code: 245, 245, 245;
+      --v-theme-on-code: 0, 0, 0;
+    }
+    .v-theme--light {
+      color-scheme: normal;
+      --v-theme-background: 249,251,251;
+      --v-theme-background-overlay-multiplier: 1;
+      --v-theme-surface: 255,255,255;
+      --v-theme-surface-overlay-multiplier: 1;
+      --v-theme-surface-bright: 255,255,255;
+      --v-theme-surface-bright-overlay-multiplier: 1;
+      --v-theme-surface-light: 238,238,238;
+      --v-theme-surface-light-overlay-multiplier: 1;
+      --v-theme-surface-variant: 232,238,239;
+      --v-theme-surface-variant-overlay-multiplier: 1;
+      --v-theme-on-surface-variant: 69,90,100;
+      --v-theme-primary: 0,105,92;
+      --v-theme-primary-overlay-multiplier: 2;
+      --v-theme-primary-darken-1: 31,85,146;
+      --v-theme-primary-darken-1-overlay-multiplier: 2;
+      --v-theme-secondary: 72,169,166;
+      --v-theme-secondary-overlay-multiplier: 1;
+      --v-theme-secondary-darken-1: 1,135,134;
+      --v-theme-secondary-darken-1-overlay-multiplier: 1;
+      --v-theme-error: 242,19,93;
+      --v-theme-error-overlay-multiplier: 1;
+      --v-theme-info: 66,153,255;
+      --v-theme-info-overlay-multiplier: 1;
+      --v-theme-success: 23,201,100;
+      --v-theme-success-overlay-multiplier: 1;
+      --v-theme-warning: 251,140,0;
+      --v-theme-warning-overlay-multiplier: 1;
+      --v-theme-primary-light: 235,241,241;
+      --v-theme-primary-light-overlay-multiplier: 1;
+      --v-theme-on-background: 69,90,100;
+      --v-theme-on-surface: 69,90,100;
+      --v-theme-dark-accent: 38,50,56;
+      --v-theme-dark-accent-overlay-multiplier: 2;
+      --v-theme-on-surface-bright: 0,0,0;
+      --v-theme-on-surface-light: 0,0,0;
+      --v-theme-on-primary: 255,255,255;
+      --v-theme-on-primary-darken-1: 255,255,255;
+      --v-theme-on-secondary: 255,255,255;
+      --v-theme-on-secondary-darken-1: 255,255,255;
+      --v-theme-on-error: 255,255,255;
+      --v-theme-on-info: 255,255,255;
+      --v-theme-on-success: 0,0,0;
+      --v-theme-on-warning: 255,255,255;
+      --v-theme-on-primary-light: 0,0,0;
+      --v-theme-on-dark-accent: 255,255,255;
+      --v-border-color: 0, 0, 0;
+      --v-border-opacity: 0.12;
+      --v-high-emphasis-opacity: 0.87;
+      --v-medium-emphasis-opacity: 0.6;
+      --v-disabled-opacity: 0.38;
+      --v-idle-opacity: 0.04;
+      --v-hover-opacity: 0.04;
+      --v-focus-opacity: 0.12;
+      --v-selected-opacity: 0.08;
+      --v-activated-opacity: 0.12;
+      --v-pressed-opacity: 0.12;
+      --v-dragged-opacity: 0.08;
+      --v-theme-kbd: 33, 37, 41;
+      --v-theme-on-kbd: 255, 255, 255;
+      --v-theme-code: 245, 245, 245;
+      --v-theme-on-code: 0, 0, 0;
+    }
+    .v-theme--dark {
+      color-scheme: dark;
+      --v-theme-background: 18,18,18;
+      --v-theme-background-overlay-multiplier: 1;
+      --v-theme-surface: 33,33,33;
+      --v-theme-surface-overlay-multiplier: 1;
+      --v-theme-surface-bright: 204,191,214;
+      --v-theme-surface-bright-overlay-multiplier: 2;
+      --v-theme-surface-light: 66,66,66;
+      --v-theme-surface-light-overlay-multiplier: 1;
+      --v-theme-surface-variant: 200,200,200;
+      --v-theme-surface-variant-overlay-multiplier: 2;
+      --v-theme-on-surface-variant: 0,0,0;
+      --v-theme-primary: 33,150,243;
+      --v-theme-primary-overlay-multiplier: 2;
+      --v-theme-primary-darken-1: 39,124,193;
+      --v-theme-primary-darken-1-overlay-multiplier: 2;
+      --v-theme-secondary: 84,182,178;
+      --v-theme-secondary-overlay-multiplier: 2;
+      --v-theme-secondary-darken-1: 72,169,166;
+      --v-theme-secondary-darken-1-overlay-multiplier: 2;
+      --v-theme-error: 207,102,121;
+      --v-theme-error-overlay-multiplier: 2;
+      --v-theme-info: 33,150,243;
+      --v-theme-info-overlay-multiplier: 2;
+      --v-theme-success: 76,175,80;
+      --v-theme-success-overlay-multiplier: 2;
+      --v-theme-warning: 251,140,0;
+      --v-theme-warning-overlay-multiplier: 2;
+      --v-theme-on-background: 232,238,239;
+      --v-theme-on-surface: 255,255,255;
+      --v-theme-on-surface-bright: 0,0,0;
+      --v-theme-on-surface-light: 255,255,255;
+      --v-theme-on-primary: 255,255,255;
+      --v-theme-on-primary-darken-1: 255,255,255;
+      --v-theme-on-secondary: 255,255,255;
+      --v-theme-on-secondary-darken-1: 255,255,255;
+      --v-theme-on-error: 255,255,255;
+      --v-theme-on-info: 255,255,255;
+      --v-theme-on-success: 255,255,255;
+      --v-theme-on-warning: 255,255,255;
+      --v-border-color: 255, 255, 255;
+      --v-border-opacity: 0.12;
+      --v-high-emphasis-opacity: 1;
+      --v-medium-emphasis-opacity: 0.7;
+      --v-disabled-opacity: 0.5;
+      --v-idle-opacity: 0.1;
+      --v-hover-opacity: 0.04;
+      --v-focus-opacity: 0.12;
+      --v-selected-opacity: 0.08;
+      --v-activated-opacity: 0.12;
+      --v-pressed-opacity: 0.16;
+      --v-dragged-opacity: 0.08;
+      --v-theme-kbd: 33, 37, 41;
+      --v-theme-on-kbd: 255, 255, 255;
+      --v-theme-code: 52, 52, 52;
+      --v-theme-on-code: 204, 204, 204;
+    }
+    .bg-background {
+      --v-theme-overlay-multiplier: var(--v-theme-background-overlay-multiplier);
+      background-color: rgb(var(--v-theme-background)) !important;
+      color: rgb(var(--v-theme-on-background)) !important;
+    }
+    .bg-surface {
+      --v-theme-overlay-multiplier: var(--v-theme-surface-overlay-multiplier);
+      background-color: rgb(var(--v-theme-surface)) !important;
+      color: rgb(var(--v-theme-on-surface)) !important;
+    }
+    .bg-surface-bright {
+      --v-theme-overlay-multiplier: var(--v-theme-surface-bright-overlay-multiplier);
+      background-color: rgb(var(--v-theme-surface-bright)) !important;
+      color: rgb(var(--v-theme-on-surface-bright)) !important;
+    }
+    .bg-surface-light {
+      --v-theme-overlay-multiplier: var(--v-theme-surface-light-overlay-multiplier);
+      background-color: rgb(var(--v-theme-surface-light)) !important;
+      color: rgb(var(--v-theme-on-surface-light)) !important;
+    }
+    .bg-surface-variant {
+      --v-theme-overlay-multiplier: var(--v-theme-surface-variant-overlay-multiplier);
+      background-color: rgb(var(--v-theme-surface-variant)) !important;
+      color: rgb(var(--v-theme-on-surface-variant)) !important;
+    }
+    .bg-primary {
+      --v-theme-overlay-multiplier: var(--v-theme-primary-overlay-multiplier);
+      background-color: rgb(var(--v-theme-primary)) !important;
+      color: rgb(var(--v-theme-on-primary)) !important;
+    }
+    .bg-primary-darken-1 {
+      --v-theme-overlay-multiplier: var(--v-theme-primary-darken-1-overlay-multiplier);
+      background-color: rgb(var(--v-theme-primary-darken-1)) !important;
+      color: rgb(var(--v-theme-on-primary-darken-1)) !important;
+    }
+    .bg-secondary {
+      --v-theme-overlay-multiplier: var(--v-theme-secondary-overlay-multiplier);
+      background-color: rgb(var(--v-theme-secondary)) !important;
+      color: rgb(var(--v-theme-on-secondary)) !important;
+    }
+    .bg-secondary-darken-1 {
+      --v-theme-overlay-multiplier: var(--v-theme-secondary-darken-1-overlay-multiplier);
+      background-color: rgb(var(--v-theme-secondary-darken-1)) !important;
+      color: rgb(var(--v-theme-on-secondary-darken-1)) !important;
+    }
+    .bg-error {
+      --v-theme-overlay-multiplier: var(--v-theme-error-overlay-multiplier);
+      background-color: rgb(var(--v-theme-error)) !important;
+      color: rgb(var(--v-theme-on-error)) !important;
+    }
+    .bg-info {
+      --v-theme-overlay-multiplier: var(--v-theme-info-overlay-multiplier);
+      background-color: rgb(var(--v-theme-info)) !important;
+      color: rgb(var(--v-theme-on-info)) !important;
+    }
+    .bg-success {
+      --v-theme-overlay-multiplier: var(--v-theme-success-overlay-multiplier);
+      background-color: rgb(var(--v-theme-success)) !important;
+      color: rgb(var(--v-theme-on-success)) !important;
+    }
+    .bg-warning {
+      --v-theme-overlay-multiplier: var(--v-theme-warning-overlay-multiplier);
+      background-color: rgb(var(--v-theme-warning)) !important;
+      color: rgb(var(--v-theme-on-warning)) !important;
+    }
+    .bg-primary-light {
+      --v-theme-overlay-multiplier: var(--v-theme-primary-light-overlay-multiplier);
+      background-color: rgb(var(--v-theme-primary-light)) !important;
+      color: rgb(var(--v-theme-on-primary-light)) !important;
+    }
+    .bg-dark-accent {
+      --v-theme-overlay-multiplier: var(--v-theme-dark-accent-overlay-multiplier);
+      background-color: rgb(var(--v-theme-dark-accent)) !important;
+      color: rgb(var(--v-theme-on-dark-accent)) !important;
+    }
+    .text-background {
+      color: rgb(var(--v-theme-background)) !important;
+    }
+    .border-background {
+      --v-border-color: var(--v-theme-background);
+    }
+    .text-surface {
+      color: rgb(var(--v-theme-surface)) !important;
+    }
+    .border-surface {
+      --v-border-color: var(--v-theme-surface);
+    }
+    .text-surface-bright {
+      color: rgb(var(--v-theme-surface-bright)) !important;
+    }
+    .border-surface-bright {
+      --v-border-color: var(--v-theme-surface-bright);
+    }
+    .text-surface-light {
+      color: rgb(var(--v-theme-surface-light)) !important;
+    }
+    .border-surface-light {
+      --v-border-color: var(--v-theme-surface-light);
+    }
+    .text-surface-variant {
+      color: rgb(var(--v-theme-surface-variant)) !important;
+    }
+    .border-surface-variant {
+      --v-border-color: var(--v-theme-surface-variant);
+    }
+    .on-surface-variant {
+      color: rgb(var(--v-theme-on-surface-variant)) !important;
+    }
+    .text-primary {
+      color: rgb(var(--v-theme-primary)) !important;
+    }
+    .border-primary {
+      --v-border-color: var(--v-theme-primary);
+    }
+    .text-primary-darken-1 {
+      color: rgb(var(--v-theme-primary-darken-1)) !important;
+    }
+    .border-primary-darken-1 {
+      --v-border-color: var(--v-theme-primary-darken-1);
+    }
+    .text-secondary {
+      color: rgb(var(--v-theme-secondary)) !important;
+    }
+    .border-secondary {
+      --v-border-color: var(--v-theme-secondary);
+    }
+    .text-secondary-darken-1 {
+      color: rgb(var(--v-theme-secondary-darken-1)) !important;
+    }
+    .border-secondary-darken-1 {
+      --v-border-color: var(--v-theme-secondary-darken-1);
+    }
+    .text-error {
+      color: rgb(var(--v-theme-error)) !important;
+    }
+    .border-error {
+      --v-border-color: var(--v-theme-error);
+    }
+    .text-info {
+      color: rgb(var(--v-theme-info)) !important;
+    }
+    .border-info {
+      --v-border-color: var(--v-theme-info);
+    }
+    .text-success {
+      color: rgb(var(--v-theme-success)) !important;
+    }
+    .border-success {
+      --v-border-color: var(--v-theme-success);
+    }
+    .text-warning {
+      color: rgb(var(--v-theme-warning)) !important;
+    }
+    .border-warning {
+      --v-border-color: var(--v-theme-warning);
+    }
+    .text-primary-light {
+      color: rgb(var(--v-theme-primary-light)) !important;
+    }
+    .border-primary-light {
+      --v-border-color: var(--v-theme-primary-light);
+    }
+    .on-background {
+      color: rgb(var(--v-theme-on-background)) !important;
+    }
+    .on-surface {
+      color: rgb(var(--v-theme-on-surface)) !important;
+    }
+    .text-dark-accent {
+      color: rgb(var(--v-theme-dark-accent)) !important;
+    }
+    .border-dark-accent {
+      --v-border-color: var(--v-theme-dark-accent);
+    }
+    .on-surface-bright {
+      color: rgb(var(--v-theme-on-surface-bright)) !important;
+    }
+    .on-surface-light {
+      color: rgb(var(--v-theme-on-surface-light)) !important;
+    }
+    .on-primary {
+      color: rgb(var(--v-theme-on-primary)) !important;
+    }
+    .on-primary-darken-1 {
+      color: rgb(var(--v-theme-on-primary-darken-1)) !important;
+    }
+    .on-secondary {
+      color: rgb(var(--v-theme-on-secondary)) !important;
+    }
+    .on-secondary-darken-1 {
+      color: rgb(var(--v-theme-on-secondary-darken-1)) !important;
+    }
+    .on-error {
+      color: rgb(var(--v-theme-on-error)) !important;
+    }
+    .on-info {
+      color: rgb(var(--v-theme-on-info)) !important;
+    }
+    .on-success {
+      color: rgb(var(--v-theme-on-success)) !important;
+    }
+    .on-warning {
+      color: rgb(var(--v-theme-on-warning)) !important;
+    }
+    .on-primary-light {
+      color: rgb(var(--v-theme-on-primary-light)) !important;
+    }
+    .on-dark-accent {
+      color: rgb(var(--v-theme-on-dark-accent)) !important;
+    }
+</style>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/entry.X3-e-zGT.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/_id_.CjcZ2tWo.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Header.CEyU-vEa.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Logo.BTHsgc41.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/VChip.BgnjZCg3.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/History.y6e6sKxk.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/DialogCloseButton.CwhzndGP.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Tabbed.Dy61Ypzy.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Footer.BAJNN-zr.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/free-mode.KLJ79M38.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/VAlert.BlJspLtK.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/_mid_.2aBtanU6.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Livery.BL3wQLej.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Imgbox.CI_tEIm-.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Page.DaTNxT4v.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/VTooltip.fl0ZvfAg.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Clickable.BNMH3fB6.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/DataTable.CF55O2II.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/FlatPagination.B3RCmMmj.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/VSection.CeqcJYv_.css" crossorigin>
+<link rel="stylesheet" href="https://cdn.buspedia.top/_nuxt/Default.DGtE868x.css" crossorigin>
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CvsLx4LW.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/SLzEVeXu.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/B_Q1qz6z.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/flX-dW4L.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CUprtUgx.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/S4GUy2Us.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/LxRsyeMo.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/FrI3gxX4.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CCYHjkwE.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/BydzyLbu.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CsReLV8C.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/DEBG6oU0.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/BaKTWEiS.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CjifoXP4.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/jWphmM86.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/C0WCwWRc.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/DwkY9aSX.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/GFTroJ1V.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/BuUvUeuG.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/DgHS6xNn.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/D6-XlEtG.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CG07AlHj.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CcoWDlWM.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/Bmfy5Ble.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/C4VWt079.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CQcBeS0v.js">
+<link rel="modulepreload" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/CvYoa44f.js">
+<link rel="preload" as="fetch" fetchpriority="low" crossorigin="anonymous" href="https://cdn.buspedia.top/_nuxt/builds/meta/84de971f-b419-410e-b55c-3df4528fcdf3.json">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/B656AAEM.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/BP1BA8ze.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/BFYyLxPz.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/C_IYcx06.js">
+<link rel="prefetch" as="script" crossorigin href="https://cdn.buspedia.top/_nuxt/dgZXNmIX.js">
+<meta name="theme-color" content="#E8EEEF">
+<script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-38R9JBD8TE');
+      </script>
+<script>
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement('script');
+          hm.src = 'https://hm.baidu.com/hm.js?aa035a02cd192eed74f8fb8c1a1daf74';
+          var s = document.getElementsByTagName('script')[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      </script>
+<script>console.log = () => {};</script>
+<script type="module" src="https://cdn.buspedia.top/_nuxt/CvsLx4LW.js" crossorigin></script>
+<script id="unhead:payload" type="application/json">{"titleTemplate":"%s - 巴士派迪"}</script></head><body><div id="__nuxt"><div class="v-application v-theme--light v-layout v-layout--full-height v-locale--is-ltr" style=""><div class="v-application__wrap"><!--[--><span></span><span></span><span></span><span></span><main class="v-main" style="--v-layout-left:0px;--v-layout-right:0px;--v-layout-top:0px;--v-layout-bottom:0px;transition:none !important;"><!--[--><div class="loading-overlay-wrapper" role="alert" aria-live="assertive" style="display:none;" data-v-a4f1ada9 data-v-a4f1ada9><div class="v-container v-container--fluid v-locale--is-ltr fill-height" style="" data-v-a4f1ada9><div class="v-row align-center justify-center fill-height text-center" style="" data-v-a4f1ada9><div class="v-col v-col-12" style="" data-v-a4f1ada9><div class="v-progress-circular v-progress-circular--indeterminate v-theme--light text-primary mb-4" style="width:75px;height:75px;" role="progressbar" aria-valuemin="0" aria-valuemax="100" data-v-a4f1ada9><svg style="transform:rotate(calc(-90deg + 0deg));" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 43.47826086956522 43.47826086956522"><circle class="v-progress-circular__underlay" style="" fill="transparent" cx="50%" cy="50%" r="20" stroke-width="3.4782608695652177" stroke-dasharray="125.66370614359172" stroke-dashoffset="0"></circle><circle class="v-progress-circular__overlay" fill="transparent" cx="50%" cy="50%" r="20" stroke-width="3.4782608695652177" stroke-dasharray="125.66370614359172" stroke-dashoffset="125.66370614359172px"></circle></svg><!----></div><p class="loading-text text-h6 font-weight-medium" data-v-a4f1ada9></p></div></div></div></div><div class="v-container v-container--fluid v-locale--is-ltr pa-0" style="" id="page"><!--[--><!--[--><!--[--><!----><!----><!--]--><div class="d-flex" data-v-d55b55f9 data-v-0a1313ca><div class="v-container v-container--fluid v-locale--is-ltr pa-0 tabbed-page-layout-wrapper flex-grow-1 mb-12 mb-sm-0" style="" id="page-wrapper" data-v-0a1313ca><!--[--><!--]--><!----><div class="v-container v-locale--is-ltr page-content-area px-4" style="" id="page-content-area" data-v-0a1313ca><!--[--><!--]--><!----><!--[--><!--[--><!----><!----><!--]--><!----><!--]--></div><footer class="page-footer-wrapper d-none d-sm-block" data-v-0a1313ca style="--59c633ef:rgb(var(--v-theme-surface-variant));" data-v-cf2e53de><div class="v-container v-locale--is-ltr page-footer-container text-caption d-flex align-center flex-wrap py-2" style="" data-v-cf2e53de><span data-v-cf2e53de>© 2018-2026 — 巴士派迪</span><button type="button" class="v-btn v-theme--light text-primary v-btn--density-default v-btn--size-small v-btn--variant-text ms-2 pa-1" style="" data-v-cf2e53de><!--[--><span class="v-btn__overlay"></span><span class="v-btn__underlay"></span><!--]--><!----><span class="v-btn__content" data-no-activator><!--[--><!--[-->联系我们<!--]--><!--]--></span><!----><!----></button><div class="v-spacer" style="" data-v-cf2e53de></div><a href="/bans" class="ml-3 text-caption footer-link" data-v-cf2e53de>小黑屋</a><a class="ml-3 text-caption footer-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" data-v-cf2e53de>沪ICP备18035488号-1</a></div><!--[--><!----><!----><!--]--></footer></div><div data-v-0a1313ca data-v-f5696166><!----><!--[--><nav class="v-navigation-drawer v-navigation-drawer--right v-navigation-drawer--floating v-navigation-drawer--temporary v-theme--light v-navigation-drawer--mobile pt-12" style="right:0;z-index:1004;transform:translateX(220px);position:fixed;transition:none !important;" data-v-f5696166><!----><!----><div class="v-navigation-drawer__content"><!--[--><div class="nav-inner" data-v-f5696166><button class="nav-top" data-v-f5696166><i class="mdi-arrow-up mdi v-icon notranslate v-theme--light" style="font-size:13px;height:13px;width:13px;" aria-hidden="true" data-v-f5696166></i> 回到顶部</button><!----></div><!--]--></div><!----></nav><!----><!--]--></div></div><!--]--><!--]--></div><!--]--></main><!--]--></div></div></div><div id="teleports"></div><script type="application/json" data-nuxt-data="nuxt-app" data-ssr="true" id="__NUXT_DATA__">[["ShallowReactive",1],{"data":2,"state":4,"once":7,"_errors":8,"serverRendered":11,"path":12,"pinia":13},["ShallowReactive",3],{"comp-basic-gsa39c":-1},["Reactive",5],{"$si18n:locale":6},"zh-cn",["Set"],["ShallowReactive",9],{"comp-basic-gsa39c":10},null,true,"/comp/gsa39c/fleet/i6fmdp",{"auth":14,"ui":18,"cache":22,"client":26},{"token":10,"refresh":10,"user":10,"isLogin":15,"isRefreshingToken":15,"authStatus":16,"authError":10,"clientId":10,"expiration":17},false,"idle",0,{"alert":19,"userDialog":21,"appStatus":16,"appError":10,"lang":10},{"show":15,"msg":20,"color":20},"",{"login":15,"register":15,"forget":15,"modifyPwd":15},{"data":23,"locationHistory":24,"locale":10},{},{"lastPhoto":-1,"lastSearch":25},[],{"clientId":27},"5692ed5d-4fc4-4983-9e11-b93c55f3635f"]</script>
+<script>window.__NUXT__={};window.__NUXT__.config={public:{port:"13001",endpoint:"https://api.buspedia.top/",isProduction:true,amapKey:"00056e7fd1376c56f5f51d0559b314ed",amapSecurityJsCode:"19407602235ba8b396a19f403f79b214",photoBaseUrl:"https://storage.buspedia.top/photo/",piniaPluginPersistedstate:{},"nuxt-scripts":{version:"",defaultScriptOptions:{trigger:"onNuxtReady"}},mdi:{defaultSize:"1em"}},app:{baseURL:"/",buildId:"84de971f-b419-410e-b55c-3df4528fcdf3",buildAssetsDir:"_nuxt/",cdnURL:"https://cdn.buspedia.top"}}</script></body></html>
