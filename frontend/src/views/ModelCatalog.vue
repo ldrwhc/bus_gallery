@@ -1,31 +1,16 @@
 <template>
     <div class="page model-catalog">
         <main class="catalog-main constrained">
-            <!-- ========== List View Header ========== -->
-            <header v-if="!selectedModelId" class="catalog-header">
-                <div>
-                    <p class="eyebrow">Model</p>
-                    <h1>按车型检索运营公司</h1>
-                    <p class="subtitle">收录 {{ catalog.length }} 款车型 / {{ totalCompanies }} 家运营公司</p>
-                </div>
-            </header>
-
-            <!-- ========== Detail View Header ========== -->
-            <header v-else class="detail-header">
-                <a class="back-link" @click.prevent="clearModelFilter">← 返回全部车型</a>
-                <div v-if="scopedCompanyName" class="detail-headline">
-                    <p class="detail-company-label">公交公司</p>
-                    <h1 class="detail-company-name">{{ scopedCompanyName }}</h1>
-                    <p class="detail-model-sub">{{ modelDetail?.name || '车型加载中...' }}</p>
-                </div>
-                <div v-else-if="modelDetail" class="detail-headline">
-                    <h1 class="detail-model-name">{{ modelDetail.name }}</h1>
-                    <p class="detail-model-brand">{{ modelDetail.brand?.chnName || modelDetail.brand?.name || '品牌待补全' }}</p>
-                </div>
-            </header>
-
             <!-- ========== List View ========== -->
             <template v-if="!selectedModelId">
+                <header class="catalog-header">
+                    <div>
+                        <p class="eyebrow">Model</p>
+                        <h1>按车型检索运营公司</h1>
+                        <p class="subtitle">收录 {{ catalog.length }} 款车型 / {{ totalCompanies }} 家运营公司</p>
+                    </div>
+                </header>
+
                 <section v-if="brandFilters.length" class="filter-bar">
                     <p class="filter-label">品牌</p>
                     <div class="chip-row">
@@ -51,121 +36,108 @@
                                 <h2>{{ model.name }}</h2>
                                 <p class="tag">{{ brandDisplayMap[model.brandName] || model.brandName || '品牌待补全' }}</p>
                             </div>
-                            <button
-                                class="pill-btn"
-                                type="button"
-                                @click="router.push({ name: 'ModelCatalog', params: { modelId: model.id } })"
-                            >
+                            <button class="pill-btn" type="button"
+                                @click="router.push({ name: 'ModelCatalog', params: { modelId: model.id } })">
                                 查看该车型
                             </button>
                         </div>
-
                         <div class="company-grid">
                             <div v-for="company in model.companies || []" :key="company.id" class="company-pill">
                                 <img :src="company.thumbnailUrl || placeholderLogo" :alt="company.name" loading="lazy" decoding="async" />
-                        <div class="company-pill__body">
-                            <p class="company-name">{{ company.name }}</p>
-                            <p class="company-region">
-                                {{ company.regionName || regionsById[company.regionId] || '地区待补全' }}
-                            </p>
-                        </div>
-                        <div class="company-actions">
-                            <button
-                                class="text-btn"
-                                type="button"
-                                @click="router.push({ name: 'CompanyCatalog', params: { companyId: company.id } })"
-                            >
-                                查看公司
-                            </button>
-                        </div>
-                    </div>
+                                <div class="company-pill__body">
+                                    <p class="company-name">{{ company.name }}</p>
+                                    <p class="company-region">{{ company.regionName || regionsById[company.regionId] || '地区待补全' }}</p>
+                                </div>
+                                <div class="company-actions">
+                                    <button class="text-btn" type="button"
+                                        @click="router.push({ name: 'CompanyCatalog', params: { companyId: company.id } })">
+                                        查看公司
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </article>
                 </section>
             </template>
 
-            <!-- ========== Detail View: Fleet Page ========== -->
+            <!-- ========== Detail View ========== -->
             <template v-else>
+                <header class="detail-header">
+                    <a class="back-link" @click.prevent="clearModelFilter">← 返回全部车型</a>
+                    <div v-if="isCompanyScoped && scopedCompanyName" class="detail-headline">
+                        <p class="detail-eyebrow">公交公司</p>
+                        <h1 class="detail-company-name">{{ scopedCompanyName }}</h1>
+                        <p class="detail-model-sub">{{ modelDetail?.name || '车型加载中...' }}</p>
+                    </div>
+                    <div v-else-if="modelDetail" class="detail-headline">
+                        <h1 class="detail-model-name">{{ modelDetail.name }}</h1>
+                        <p class="detail-model-brand">{{ modelDetail.brand?.chnName || modelDetail.brand?.name || '品牌待补全' }}</p>
+                    </div>
+                </header>
+
                 <section v-if="vehiclesLoading && !allVehicles.length" class="state state--loading">
                     正在加载车辆数据...
                 </section>
 
                 <template v-else>
-                    <!-- Fleet Config Card (company-scoped only, buspedia style) -->
-                    <section v-if="isCompanyScoped" class="fleet-section">
+                    <!-- ===== Config Table ===== -->
+                    <section class="fleet-section">
                         <h2 class="section-title">车辆概况</h2>
-                        <div class="fleet-config-card">
-                            <div class="config-year-header">
-                                <span v-for="yb in yearBreakdown" :key="yb.year" class="config-year-chip">
-                                    {{ yb.year }} <strong>{{ yb.count }}</strong>
-                                </span>
-                            </div>
-                            <div class="config-grid">
-                                <div v-if="numberRangeText" class="config-row">
-                                    <span class="config-label">自编号段</span>
-                                    <span class="config-value">{{ numberRangeText }}</span>
-                                </div>
-                                <div class="config-row">
-                                    <span class="config-label">投放年份</span>
-                                    <span class="config-value">{{ yearBreakdown.map(y => y.year).join('、') || '—' }}</span>
-                                </div>
-                                <div class="config-row">
-                                    <span class="config-label">车辆数量</span>
-                                    <span class="config-value">{{ totalVehicleCount }} 辆</span>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- Fleet Overview (non-scoped) -->
-                    <section v-else class="fleet-overview">
-                        <div class="section-head">
-                            <h2 class="section-title">车队概况</h2>
-                            <span class="section-badge">{{ totalVehicleCount }} 辆车 · {{ fleetCompanyNames.length }} 家公司</span>
-                        </div>
-                        <div class="overview-card">
-                            <div class="overview-grid">
-                                <div v-if="yearBreakdown.length" class="overview-item">
-                                    <span class="overview-label">投放年份</span>
-                                    <div class="overview-chips">
-                                        <span v-for="yb in yearBreakdown" :key="yb.year" class="year-chip">
-                                            {{ yb.year }} <strong>{{ yb.count }}</strong>
-                                        </span>
+                        <div v-if="!configTable.years.length" class="state state--empty">暂无配置数据</div>
+                        <div v-else class="config-table-wrap">
+                            <div class="config-table-scroll">
+                                <div class="config-year-header">
+                                    <div class="config-year-header__spacer"></div>
+                                    <div v-for="year in configTable.years" :key="year" class="config-year-header__cell">
+                                        <span class="year-badge">{{ year }}</span>
+                                        <span class="year-count-badge">{{ yearVehicleCount[year] || 0 }}</span>
                                     </div>
                                 </div>
-                                <div v-if="fleetCompanyNames.length" class="overview-item">
-                                    <span class="overview-label">运营公司</span>
-                                    <div class="overview-chips">
-                                        <span v-for="cn in fleetCompanyNames" :key="cn.name" class="company-chip"
-                                            @click="router.push({ name: 'CompanyCatalog', params: { companyId: cn.id } })"
-                                        >{{ cn.name }} <strong>{{ cn.count }}</strong></span>
-                                    </div>
-                                </div>
-                                <div v-if="numberRanges.length" class="overview-item">
-                                    <span class="overview-label">自编号段</span>
-                                    <div class="overview-chips">
-                                        <span v-for="nr in numberRanges" :key="nr" class="range-chip">{{ nr }}</span>
+                                <div v-for="row in configTable.rows" :key="row.label" class="config-row">
+                                    <div class="config-row__label">{{ row.label }}</div>
+                                    <div v-for="year in configTable.years" :key="year" class="config-row__cell">
+                                        {{ formatConfigCell(row.cells[year]) }}
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </section>
 
-                    <!-- Photos: "使用线路" style -->
-                    <section class="photo-gallery-section">
+                    <!-- ===== Photo Table ===== -->
+                    <section class="photo-section">
                         <h2 class="section-title">车辆照片</h2>
-                        <div class="photo-grid">
-                            <div v-for="photo in allPhotos" :key="photo.key" class="photo-item" @click="openVehicleDetail(photo.vehicleId)">
-                                <div class="photo-imgbox">
-                                    <img :src="photo.thumbnailUrl || placeholderLogo" :alt="photo.plate" loading="lazy" decoding="async" />
+                        <div v-if="!photoTable.years.length" class="state state--empty">暂无照片数据</div>
+                        <div v-else class="photo-table-wrap">
+                            <div class="photo-table-scroll">
+                                <div class="photo-year-header">
+                                    <div class="photo-year-header__spacer">线路</div>
+                                    <div v-for="year in photoTable.years" :key="year" class="photo-year-header__cell">
+                                        {{ year }}
+                                    </div>
                                 </div>
-                                <div class="photo-caption">
-                                    <span class="photo-plate">{{ photo.plate }}</span>
-                                    <span class="photo-year">{{ photo.year }}</span>
+                                <div v-for="route in photoTable.routes" :key="route.key" class="photo-row">
+                                    <div class="photo-row__route">
+                                        <router-link v-if="route.routeId"
+                                            :to="{ name: 'RouteDetail', params: { routeId: route.routeId } }"
+                                            class="route-link">
+                                            {{ route.routeNumber }}
+                                        </router-link>
+                                        <span v-else class="route-link route-link--plain">{{ route.routeNumber }}</span>
+                                    </div>
+                                    <div v-for="year in photoTable.years" :key="year" class="photo-row__cell">
+                                        <button
+                                            v-for="img in (route.cells[year] || [])"
+                                            :key="img.id"
+                                            class="photo-thumb"
+                                            type="button"
+                                            @click="openVehicleDetail(img.vehicleId)"
+                                        >
+                                            <img :src="img.thumbnailUrl || placeholderLogo" :alt="route.routeNumber" loading="lazy" decoding="async" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <p v-if="!allPhotos.length" class="photo-empty">暂无车辆照片</p>
                     </section>
                 </template>
             </template>
@@ -186,6 +158,7 @@ import { computed, ref, watch, onMounted, defineAsyncComponent } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
+import { normalizeFuelType } from '@/utils/fuel';
 
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
@@ -275,14 +248,23 @@ const scopedCompanyName = computed(() => {
     return first?.vehicle?.company?.name || first?.vehicle?.companyName || '';
 });
 
-const formatYear = (date) => {
-    if (!date) return '年份未知';
+const extractYear = (date) => {
+    if (!date) return null;
     const parsed = new Date(date);
-    if (Number.isNaN(parsed.getTime())) return '年份未知';
+    if (Number.isNaN(parsed.getTime())) return null;
     return `${parsed.getFullYear()}`;
 };
 
-// ---- Filtered Vehicles (client-side safety net) ----
+const extractExifYear = (exif) => {
+    if (!exif || typeof exif !== 'object') return null;
+    const shotTime = exif['拍摄时间'] || exif['DateTimeOriginal'] || exif['Date/Time Original'] || '';
+    if (!shotTime) return null;
+    // Format: "2024-05-15 14:30:00" or similar
+    const match = String(shotTime).match(/^(\d{4})/);
+    return match ? match[1] : null;
+};
+
+// Client-side company filter
 const displayVehicles = computed(() => {
     if (!isCompanyScoped.value) return allVehicles.value;
     const cid = scopedCompanyId.value;
@@ -292,94 +274,138 @@ const displayVehicles = computed(() => {
     });
 });
 
-// ---- Fleet Overview Data ----
-const totalVehicleCount = computed(() => displayVehicles.value.length);
-
-const fleetCompanyNames = computed(() => {
-    const map = new Map();
+const yearVehicleCount = computed(() => {
+    const map = {};
     displayVehicles.value.forEach((r) => {
-        const name = r?.vehicle?.company?.name || r?.vehicle?.companyName || '未归类';
-        const id = r?.vehicle?.company?.id || r?.vehicle?.companyId;
-        map.set(name, { name, id: id || null, count: (map.get(name)?.count || 0) + 1 });
+        const year = extractYear(r?.vehicle?.launchDate) || '年份未知';
+        map[year] = (map[year] || 0) + 1;
     });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+    return map;
 });
 
-const yearBreakdown = computed(() => {
-    const map = new Map();
-    displayVehicles.value.forEach((r) => {
-        const y = formatYear(r?.vehicle?.launchDate);
-        map.set(y, (map.get(y) || 0) + 1);
-    });
-    return Array.from(map.entries())
-        .map(([year, count]) => ({ year, count }))
-        .sort((a, b) => {
-            const na = Number(a.year), nb = Number(b.year);
-            if (Number.isNaN(na) && Number.isNaN(nb)) return 0;
-            if (Number.isNaN(na)) return 1;
-            if (Number.isNaN(nb)) return -1;
-            return nb - na;
-        });
-});
+// ===== Config Table =====
+const CONFIG_FIELDS = [
+    { key: 'powertrain', label: '动力系统', get: (v) => v?.vehicleConfig?.engine || v?.vehicleConfig?.motor || '' },
+    { key: 'fuelType', label: '燃料', get: (v) => normalizeFuelType(v?.vehicleConfig?.fuelType) || '' },
+    { key: 'transmission', label: '变速箱', get: (v) => v?.vehicleConfig?.transmissionSystem || '' },
+    { key: 'stepType', label: '踏步', get: (v) => v?.vehicleConfig?.stepType || '' },
+    { key: 'suspension', label: '悬挂', get: (v) => v?.vehicleConfig?.suspension || '' },
+    { key: 'axle', label: '车桥', get: (v) => v?.vehicleConfig?.axle || '' },
+    { key: 'airConditioned', label: '空调', get: (v) => (v?.vehicle?.airConditioned === true ? '有' : v?.vehicle?.airConditioned === false ? '无' : '') }
+];
 
-const numberRanges = computed(() => {
-    const codes = [];
+const configTable = computed(() => {
+    // Group vehicles by year, collect unique configs per field
+    const yearMap = new Map(); // year -> Map<fieldKey, Set<values>>
     displayVehicles.value.forEach((r) => {
-        const cn = r?.vehicle?.customNumber;
-        if (cn && cn.trim()) codes.push(cn.trim());
-    });
-    if (!codes.length) return [];
-    codes.sort((a, b) => a.localeCompare(b, 'zh-CN', { numeric: true }));
-    if (codes.length <= 3) return codes;
-    return [`${codes[0]} ~ ${codes[codes.length - 1]}（${codes.length}个）`];
-});
-
-const numberRangeText = computed(() => {
-    const codes = [];
-    displayVehicles.value.forEach((r) => {
-        const cn = r?.vehicle?.customNumber;
-        if (cn && cn.trim()) codes.push(cn.trim());
-    });
-    if (!codes.length) return '';
-    codes.sort((a, b) => a.localeCompare(b, 'zh-CN', { numeric: true }));
-    if (codes.length === 1) return codes[0];
-    // Find contiguous ranges
-    const ranges = [];
-    let start = codes[0], end = codes[0];
-    for (let i = 1; i < codes.length; i++) {
-        if (codes[i] === end || i > 0) {
-            // Non-numeric comparison for codes
-            end = codes[i];
+        const year = extractYear(r?.vehicle?.launchDate) || '年份未知';
+        if (!yearMap.has(year)) {
+            yearMap.set(year, new Map());
         }
-    }
-    return `${codes[0]} ~ ${codes[codes.length - 1]}`;
-});
-
-// ---- Photos ----
-const allPhotos = computed(() => {
-    if (!displayVehicles.value.length) return [];
-    const photos = [];
-    displayVehicles.value.forEach((record) => {
-        const vehicle = record?.vehicle;
-        if (!vehicle) return;
-        const imgUrl = record.images?.[0]?.thumbnailUrl || null;
-        if (!imgUrl) return; // skip vehicles without photos
-        photos.push({
-            key: `${vehicle.id || Math.random()}`,
-            vehicleId: vehicle.id,
-            thumbnailUrl: imgUrl,
-            plate: (vehicle.plateNumber || '未上牌').trim(),
-            year: formatYear(vehicle.launchDate),
-            companyName: vehicle?.company?.name || vehicle?.companyName || '',
-            yearNum: Number(formatYear(vehicle.launchDate)) || 9999
+        const fieldMap = yearMap.get(year);
+        CONFIG_FIELDS.forEach((field) => {
+            const val = field.get(r);
+            if (!val) return;
+            if (!fieldMap.has(field.key)) {
+                fieldMap.set(field.key, new Set());
+            }
+            fieldMap.get(field.key).add(val);
         });
     });
-    // Sort by year desc
-    photos.sort((a, b) => b.yearNum - a.yearNum || a.plate.localeCompare(b.plate));
-    return photos;
+
+    const years = Array.from(yearMap.keys()).sort((a, b) => {
+        const na = Number(a), nb = Number(b);
+        if (Number.isNaN(na) && Number.isNaN(nb)) return 0;
+        if (Number.isNaN(na)) return 1;
+        if (Number.isNaN(nb)) return -1;
+        return nb - na;
+    });
+
+    const rows = CONFIG_FIELDS.map((field) => {
+        const cells = {};
+        years.forEach((year) => {
+            const fieldMap = yearMap.get(year);
+            cells[year] = fieldMap ? Array.from(fieldMap.get(field.key) || []) : [];
+        });
+        // Only include row if at least one cell has data
+        const hasData = Object.values(cells).some((arr) => arr.length > 0);
+        return { label: field.label, cells, hasData };
+    }).filter((row) => row.hasData);
+
+    return { years, rows };
 });
 
-// ---- Vehicle Detail Modal ----
+const formatConfigCell = (values) => {
+    if (!values || !values.length) return '—';
+    return values.join(' / ');
+};
+
+// ===== Photo Table =====
+const photoTable = computed(() => {
+    // Collect all images with route + exif year
+    const routeMap = new Map(); // key -> { routeNumber, routeId, yearMap: { year: [images] } }
+    const yearSet = new Set();
+
+    displayVehicles.value.forEach((record) => {
+        const images = Array.isArray(record?.images) ? record.images : [];
+        const vehicleId = record?.vehicle?.id;
+
+        images.forEach((img) => {
+            if (!img?.thumbnailUrl && !img?.url) return;
+            const exifYear = extractExifYear(img?.exif) || '未知年份';
+            yearSet.add(exifYear);
+
+            const routeNumber = img?.routeNumber?.trim() || '未归类';
+            const routeId = img?.routeId || null;
+            const key = routeNumber;
+
+            if (!routeMap.has(key)) {
+                routeMap.set(key, { routeNumber, routeId, yearMap: new Map() });
+            }
+            const entry = routeMap.get(key);
+            if (!entry.yearMap.has(exifYear)) {
+                entry.yearMap.set(exifYear, []);
+            }
+            entry.yearMap.get(exifYear).push({
+                id: img.id || `${vehicleId}-${Math.random()}`,
+                thumbnailUrl: img.thumbnailUrl || img.url,
+                vehicleId
+            });
+        });
+    });
+
+    const years = Array.from(yearSet).sort((a, b) => {
+        const na = Number(a), nb = Number(b);
+        if (Number.isNaN(na) && Number.isNaN(nb)) return 0;
+        if (Number.isNaN(na)) return 1;
+        if (Number.isNaN(nb)) return -1;
+        return nb - na;
+    });
+
+    const routes = Array.from(routeMap.values())
+        .map((entry) => {
+            const cells = {};
+            years.forEach((year) => {
+                cells[year] = entry.yearMap.get(year) || [];
+            });
+            return {
+                key: entry.routeNumber,
+                routeNumber: entry.routeNumber,
+                routeId: entry.routeId,
+                cells
+            };
+        })
+        // Sort: known routes first, then alphabetically; "未归类" last
+        .sort((a, b) => {
+            if (a.routeNumber === '未归类') return 1;
+            if (b.routeNumber === '未归类') return -1;
+            return a.routeNumber.localeCompare(b.routeNumber, 'zh-CN', { numeric: true });
+        });
+
+    return { years, routes };
+});
+
+// ===== Vehicle Detail Modal =====
 const activeVehicleId = ref(null);
 const vehicleDetailVisible = computed(() => Boolean(activeVehicleId.value));
 const activeVehicleDetail = computed(() =>
@@ -403,7 +429,7 @@ const closeVehicleDetail = () => {
     activeVehicleId.value = null;
 };
 
-// ---- Watcher ----
+// ===== Watcher =====
 watch(
     () => [selectedModelId.value, scopedCompanyId.value],
     async ([modelId, companyId]) => {
@@ -420,11 +446,7 @@ watch(
         try {
             const params = { size: 500 };
             if (companyId) params.companyId = companyId;
-            const data = await store.dispatch('models/loadModelVehicles', {
-                modelId,
-                params,
-                force: true
-            });
+            const data = await store.dispatch('models/loadModelVehicles', { modelId, params, force: true });
             allVehicles.value = Array.isArray(data) ? data : [];
         } catch (error) {
             console.error(error);
@@ -444,598 +466,178 @@ onMounted(() => {
 
 <style scoped lang="scss">
 /* ========== Shared ========== */
-.page {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background: #f1f5f9;
-}
-
-.constrained {
-    width: min(1200px, 100%);
-    margin: 0 auto;
-    flex: 1;
-    padding: 32px 24px 72px;
-}
-
-.catalog-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 24px;
-    align-items: flex-start;
-    gap: 12px;
-    flex-wrap: wrap;
-    h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; color: #111827; }
-}
-
-.eyebrow {
-    text-transform: uppercase;
-    letter-spacing: 0.3em;
-    font-size: 0.72rem;
-    color: #9ca3af;
-    margin: 0 0 4px;
-}
-
-.subtitle {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #6b7280;
-}
-
-.ghost-btn {
-    border: 1px solid rgba(37, 99, 235, 0.3);
-    border-radius: 999px;
-    height: 30px;
-    padding: 0 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
-    background: rgba(37, 99, 235, 0.06);
-    color: #1d4ed8;
-    font-weight: 500;
-    font-size: 0.78rem;
-    line-height: 1;
-    cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-
-    &:hover {
-        background: rgba(37, 99, 235, 0.12);
-        border-color: rgba(37, 99, 235, 0.42);
-        color: #1e40af;
-    }
-}
-
-.state {
-    border-radius: 16px;
-    padding: 48px;
-    text-align: center;
-    background: #fff;
-    color: #475569;
-
-    &--loading {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
-
-    &--empty {
-        color: #94a3b8;
-    }
-}
-
-.pill-btn {
-    border: 1px solid rgba(37, 99, 235, 0.3);
-    border-radius: 999px;
-    height: 30px;
-    padding: 0 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
-    background: rgba(37, 99, 235, 0.06);
-    color: #1d4ed8;
-    font-weight: 500;
-    font-size: 0.78rem;
-    line-height: 1;
-    cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-
-    &:hover {
-        background: rgba(37, 99, 235, 0.12);
-        border-color: rgba(37, 99, 235, 0.42);
-        color: #1e40af;
-    }
-}
-
-.filter-bar {
-    background: #fff;
-    border-radius: 18px;
-    padding: 16px 20px;
-    margin-bottom: 24px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
-}
-
-.filter-label {
-    margin: 0 0 8px;
-    font-size: 0.9rem;
-    color: #475569;
-}
-
-.chip-row {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-}
-
-.filter-chip {
-    border: 1px solid rgba(37, 99, 235, 0.2);
-    border-radius: 999px;
-    padding: 6px 16px;
-    background: transparent;
-    color: #2563eb;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-
-    &.active,
-    &:hover {
-        background: #2563eb;
-        color: #fff;
-        border-color: #2563eb;
-    }
-}
+.page { min-height: 100vh; display: flex; flex-direction: column; background: #f1f5f9; }
+.constrained { width: min(1200px, 100%); margin: 0 auto; flex: 1; padding: 32px 24px 72px; }
+.catalog-header { display: flex; justify-content: space-between; margin-bottom: 24px; align-items: flex-start; gap: 12px; flex-wrap: wrap;
+    h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; color: #111827; } }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.3em; font-size: 0.72rem; color: #9ca3af; margin: 0 0 4px; }
+.subtitle { margin: 0; font-size: 0.9rem; color: #6b7280; }
+.state { border-radius: 16px; padding: 48px; text-align: center; background: #fff; color: #475569;
+    &--loading { background: #dbeafe; color: #1d4ed8; }
+    &--empty { color: #94a3b8; } }
+.pill-btn { border: 1px solid rgba(37,99,235,0.3); border-radius: 999px; height: 30px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; background: rgba(37,99,235,0.06); color: #1d4ed8; font-weight: 500; font-size: 0.78rem; cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s;
+    &:hover { background: rgba(37,99,235,0.12); border-color: rgba(37,99,235,0.42); color: #1e40af; } }
+.filter-bar { background: #fff; border-radius: 18px; padding: 16px 20px; margin-bottom: 24px; box-shadow: 0 8px 24px rgba(15,23,42,0.05); }
+.filter-label { margin: 0 0 8px; font-size: 0.9rem; color: #475569; }
+.chip-row { display: flex; gap: 8px; overflow-x: auto; }
+.filter-chip { border: 1px solid rgba(37,99,235,0.2); border-radius: 999px; padding: 6px 16px; background: transparent; color: #2563eb; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    &.active, &:hover { background: #2563eb; color: #fff; border-color: #2563eb; } }
+.section-title { margin: 0 0 14px; font-size: 1.05rem; font-weight: 700; color: #1e293b; }
 
 /* ========== List View ========== */
-.model-list {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.model-block {
-    background: #fff;
-    border-radius: 24px;
-    padding: 28px;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-}
-
-.model-block__header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 18px;
-}
-
-.tag {
-    margin-top: 6px;
-    display: inline-flex;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
-    font-size: 0.85rem;
-}
-
-.company-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-}
-
-.company-pill {
-    border: 1px solid #e2e8f0;
-    border-radius: 18px;
-    padding: 14px 20px;
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    background: #f8fafc;
-    white-space: normal;
-    justify-content: space-between;
-    min-width: 0;
-
-    img {
-        width: 80px;
-        height: 60px;
-        object-fit: cover;
-        border-radius: 12px;
-    }
-}
-
-.company-pill__body {
-    flex: 1 1 0;
-    min-width: 0;
-}
-
-.company-name {
-    font-weight: 600;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    line-height: 1.35;
-}
-
-.company-region {
-    color: #475569;
-    white-space: normal;
-    line-height: 1.35;
-}
-
-.company-actions {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    margin-left: 8px;
-}
-
-.text-btn,
-.text-btn:visited {
-    border: none;
-    background: none;
-    color: #2563eb;
-    font-weight: 600;
-    cursor: pointer;
-    margin-left: auto;
-}
+.model-list { display: flex; flex-direction: column; gap: 24px; }
+.model-block { background: #fff; border-radius: 24px; padding: 28px; box-shadow: 0 12px 32px rgba(15,23,42,0.08); }
+.model-block__header { display: flex; justify-content: space-between; margin-bottom: 18px; }
+.tag { margin-top: 6px; display: inline-flex; padding: 4px 12px; border-radius: 999px; background: rgba(37,99,235,0.1); color: #2563eb; font-size: 0.85rem; }
+.company-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.company-pill { border: 1px solid #e2e8f0; border-radius: 18px; padding: 14px 20px; display: flex; gap: 16px; align-items: center; background: #f8fafc; justify-content: space-between; min-width: 0;
+    img { width: 80px; height: 60px; object-fit: cover; border-radius: 12px; } }
+.company-pill__body { flex: 1 1 0; min-width: 0; }
+.company-name { font-weight: 600; overflow-wrap: anywhere; line-height: 1.35; }
+.company-region { color: #475569; line-height: 1.35; }
+.company-actions { flex: 0 0 auto; display: flex; align-items: center; margin-left: 8px; }
+.text-btn, .text-btn:visited { border: none; background: none; color: #2563eb; font-weight: 600; cursor: pointer; margin-left: auto; }
 
 /* ========== Detail View ========== */
-.detail-header {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 24px;
-}
+.detail-header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
+.back-link { color: #2563eb; text-decoration: none; font-size: 14px; display: inline-block; cursor: pointer;
+    &:hover { text-decoration: underline; } }
+.detail-headline { display: flex; flex-direction: column; gap: 2px; }
+.detail-eyebrow { margin: 0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3em; color: #9ca3af; }
+.detail-company-name { margin: 0; font-size: 1.5rem; font-weight: 700; color: #111827; }
+.detail-model-sub { margin: 0; font-size: 1rem; color: #6b7280; }
+.detail-model-name { margin: 0; font-size: 1.6rem; font-weight: 700; color: #111827; }
+.detail-model-brand { margin: 0; font-size: 0.95rem; color: #6b7280; }
 
-.back-link {
-    color: #2563eb;
-    text-decoration: none;
-    font-size: 14px;
-    display: inline-block;
-    cursor: pointer;
-    &:hover { text-decoration: underline; }
-}
+/* ===== Fleet Section ===== */
+.fleet-section { margin-bottom: 32px; }
+.photo-section { margin-bottom: 32px; }
 
-.detail-headline {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.detail-company-label {
-    margin: 0;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3em;
-    color: #9ca3af;
-}
-
-.detail-company-name {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #111827;
-}
-
-.detail-model-sub {
-    margin: 0;
-    font-size: 1rem;
-    color: #6b7280;
-}
-
-.detail-model-name {
-    margin: 0;
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #111827;
-}
-
-.detail-model-brand {
-    margin: 0;
-    font-size: 0.95rem;
-    color: #6b7280;
-}
-
-/* ---- Section Title ---- */
-.section-title {
-    margin: 0 0 12px;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: #1e293b;
-}
-
-/* ---- Fleet Config Card (buspedia style) ---- */
-.fleet-section {
-    margin-bottom: 28px;
-}
-
-.fleet-config-card {
-    background: #fff;
-    border-radius: 14px;
-    padding: 18px 20px;
-    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.05);
-}
+/* ===== Config Table ===== */
+.config-table-wrap { background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 8px rgba(15,23,42,0.06); }
+.config-table-scroll { overflow-x: auto; }
 
 .config-year-header {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 14px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #f1f5f9;
-    flex-wrap: wrap;
+    display: flex; align-items: stretch; min-width: fit-content;
+    border-bottom: 1px solid #e2e8f0; background: #f8fafc;
 }
-
-.config-year-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 12px;
-    border-radius: 8px;
-    background: #00695c;
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 500;
-
-    strong {
-        background: rgba(255,255,255,0.2);
-        padding: 1px 6px;
-        border-radius: 6px;
-        font-size: 0.78rem;
-    }
+.config-year-header__spacer {
+    min-width: 90px; max-width: 90px; flex-shrink: 0;
+    padding: 12px 14px; font-size: 0.78rem; color: #94a3b8; font-weight: 600;
+    display: flex; align-items: center;
+    position: sticky; left: 0; background: #f8fafc; z-index: 2;
 }
-
-.config-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+.config-year-header__cell {
+    min-width: 180px; flex: 1;
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px;
+}
+.year-badge {
+    display: inline-flex; padding: 4px 12px; border-radius: 8px;
+    background: #00695c; color: #fff; font-size: 0.88rem; font-weight: 600;
+}
+.year-count-badge {
+    display: inline-flex; padding: 2px 8px; border-radius: 6px;
+    background: rgba(0,105,92,0.1); color: #00695c; font-size: 0.78rem; font-weight: 600;
 }
 
 .config-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    display: flex; align-items: stretch; min-width: fit-content;
+    border-bottom: 1px solid #f1f5f9;
+    &:last-child { border-bottom: none; }
+}
+.config-row__label {
+    min-width: 90px; max-width: 90px; flex-shrink: 0;
+    padding: 10px 14px; font-size: 0.82rem; color: #64748b; font-weight: 500;
+    display: flex; align-items: center;
+    position: sticky; left: 0; background: #fff; z-index: 1;
+    border-right: 1px solid #f1f5f9;
+}
+.config-row__cell {
+    min-width: 180px; flex: 1;
+    padding: 10px 14px; font-size: 0.85rem; color: #1e293b;
+    display: flex; align-items: center;
 }
 
-.config-label {
-    font-size: 0.82rem;
-    color: #94a3b8;
-    min-width: 64px;
+/* ===== Photo Table ===== */
+.photo-table-wrap { background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 8px rgba(15,23,42,0.06); }
+.photo-table-scroll { overflow-x: auto; }
+
+.photo-year-header {
+    display: flex; align-items: stretch; min-width: fit-content;
+    border-bottom: 1px solid #e2e8f0; background: #f8fafc;
+}
+.photo-year-header__spacer {
+    min-width: 80px; max-width: 80px; flex-shrink: 0;
+    padding: 12px 14px; font-size: 0.78rem; color: #94a3b8; font-weight: 600;
+    display: flex; align-items: center;
+    position: sticky; left: 0; background: #f8fafc; z-index: 2;
+}
+.photo-year-header__cell {
+    min-width: 140px; flex: 1;
+    padding: 10px 14px;
+    font-size: 0.85rem; font-weight: 600; color: #475569;
+    display: flex; align-items: center;
 }
 
-.config-value {
-    font-size: 0.88rem;
-    color: #334155;
-    font-weight: 500;
+.photo-row {
+    display: flex; align-items: stretch; min-width: fit-content;
+    border-bottom: 1px solid #f1f5f9;
+    &:last-child { border-bottom: none; }
 }
-
-/* ---- Fleet Overview (non-scoped) ---- */
-.fleet-overview {
-    margin-bottom: 28px;
+.photo-row__route {
+    min-width: 80px; max-width: 80px; flex-shrink: 0;
+    padding: 10px 14px;
+    display: flex; align-items: flex-start;
+    position: sticky; left: 0; background: #fff; z-index: 1;
+    border-right: 1px solid #f1f5f9;
 }
-
-.section-head {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    margin-bottom: 10px;
+.route-link { color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.82rem;
+    &:hover { text-decoration: underline; }
+    &:visited { color: #2563eb; }
+    &--plain { color: #94a3b8; cursor: default; }
 }
-
-.section-badge {
-    font-size: 0.82rem;
-    color: #64748b;
-    margin-left: 4px;
-}
-
-.overview-card {
-    background: #fff;
-    border-radius: 14px;
-    padding: 18px 20px;
-    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.05);
-}
-
-.overview-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.overview-item {
-    display: flex;
+.photo-row__cell {
+    min-width: 140px; flex: 1;
+    padding: 6px;
+    display: flex; flex-wrap: wrap; gap: 4px;
     align-items: flex-start;
-    gap: 12px;
 }
-
-.overview-label {
-    font-size: 0.82rem;
-    color: #94a3b8;
-    min-width: 64px;
-    padding-top: 2px;
-}
-
-.overview-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.year-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: #eef2ff;
-    color: #1d4ed8;
-    font-size: 0.85rem;
-    font-weight: 500;
-
-    strong {
-        background: #fff;
-        padding: 1px 6px;
-        border-radius: 8px;
-        font-size: 0.78rem;
-        color: #0f172a;
-    }
-}
-
-.company-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: #f0fdf4;
-    color: #15803d;
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.15s;
-
-    &:hover { background: #dcfce7; }
-
-    strong {
-        background: #fff;
-        padding: 1px 6px;
-        border-radius: 8px;
-        font-size: 0.78rem;
-        color: #0f172a;
-    }
-}
-
-.range-chip {
-    display: inline-flex;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: #fff7ed;
-    color: #c2410c;
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-
-/* ---- Photo Gallery ---- */
-.photo-gallery-section {
-    margin-top: 0;
-}
-
-.photo-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 12px;
-}
-
-.photo-item {
-    cursor: pointer;
-    border-radius: 12px;
-    overflow: hidden;
-    transition: transform 0.15s, box-shadow 0.15s;
-
-    &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-    }
-}
-
-.photo-imgbox {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    overflow: hidden;
-    background: #e2e8f0;
-
-    img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-}
-
-.photo-caption {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 10px;
-    background: #fff;
-    border: 1px solid #f1f5f9;
-    border-top: none;
-    border-radius: 0 0 12px 12px;
-}
-
-.photo-plate {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #1e293b;
-}
-
-.photo-year {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    background: #f8fafc;
-    padding: 1px 8px;
-    border-radius: 6px;
-}
-
-.photo-empty {
-    text-align: center;
-    color: #94a3b8;
-    padding: 32px;
-    background: #fff;
-    border-radius: 14px;
+.photo-thumb {
+    border: none; padding: 0; border-radius: 6px; overflow: hidden;
+    cursor: pointer; background: #e2e8f0; transition: transform 0.15s; flex-shrink: 0;
+    img { width: 100px; height: 70px; object-fit: cover; display: block; }
+    &:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 }
 
 /* ========== Responsive ========== */
 @media (max-width: 900px) {
-    .company-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .model-block {
-        padding: 18px;
-    }
-
-    .model-block__header {
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-
-    .company-pill {
-        padding: 12px;
-        gap: 10px;
-        align-items: flex-start;
-    }
-
-    .company-pill img {
-        width: 70px;
-        height: 52px;
-        flex: 0 0 auto;
-    }
-
+    .company-grid { grid-template-columns: 1fr; }
+    .model-block { padding: 18px; }
+    .model-block__header { flex-wrap: wrap; gap: 10px; }
+    .company-pill { padding: 12px; gap: 10px; align-items: flex-start; }
+    .company-pill img { width: 70px; height: 52px; flex: 0 0 auto; }
     .company-pill__body { min-width: 0; }
     .company-actions { margin-left: 0; align-self: flex-start; }
     .text-btn, .text-btn:visited { margin-left: 0; white-space: nowrap; }
-
-    .photo-grid {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 8px;
-    }
+    .config-year-header__cell { min-width: 140px; }
+    .config-row__cell { min-width: 140px; }
+    .photo-year-header__cell { min-width: 100px; }
+    .photo-row__cell { min-width: 100px; }
+    .photo-thumb img { width: 70px; height: 50px; }
 }
 
 @media (max-width: 560px) {
-    .company-pill {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 8px 10px;
-    }
-
+    .company-pill { display: grid; grid-template-columns: 1fr auto; gap: 8px 10px; }
     .company-pill img { display: none; }
     .company-pill__body { grid-column: 1 / 2; }
     .company-actions { grid-column: 2 / 3; grid-row: 1 / 2; justify-self: end; }
-
-    .photo-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-    }
-
-    .photo-caption { padding: 4px 6px; }
-    .photo-plate { font-size: 0.75rem; }
-
-    .overview-card, .fleet-config-card { padding: 14px 16px; }
-    .overview-item { flex-direction: column; gap: 4px; }
+    .config-year-header__spacer { min-width: 70px; max-width: 70px; }
+    .config-row__label { min-width: 70px; max-width: 70px; }
+    .config-year-header__cell { min-width: 120px; }
+    .config-row__cell { min-width: 120px; font-size: 0.8rem; }
+    .photo-year-header__spacer { min-width: 60px; max-width: 60px; }
+    .photo-row__route { min-width: 60px; max-width: 60px; }
+    .photo-thumb img { width: 56px; height: 40px; }
 }
 </style>
