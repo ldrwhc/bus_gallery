@@ -132,7 +132,7 @@
                                     v-if="isAuthenticated"
                                     class="photo-card__menu"
                                     type="button"
-                                    @click.stop="router.push({ name: 'ModelCatalog', params: { modelId: item.modelId } })"
+                                    @click.stop="router.push({ name: 'ModelCatalog', params: { modelId: item.modelId }, query: { companyId: selectedCompanyId } })"
                                 >⋮</button>
                             </div>
                             <div class="photo-card__media">

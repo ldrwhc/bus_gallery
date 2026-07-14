@@ -1,16 +1,27 @@
 <template>
     <div class="page model-catalog">
         <main class="catalog-main constrained">
-            <header class="catalog-header">
+            <!-- ========== List View Header ========== -->
+            <header v-if="!selectedModelId" class="catalog-header">
                 <div>
                     <p class="eyebrow">Model</p>
                     <h1>按车型检索运营公司</h1>
                     <p class="subtitle">收录 {{ catalog.length }} 款车型 / {{ totalCompanies }} 家运营公司</p>
                 </div>
+            </header>
 
-                <button v-if="selectedModelId" class="ghost-btn catalog-back-btn" type="button" @click="clearModelFilter">
-                    返回全部车型
-                </button>
+            <!-- ========== Detail View Header ========== -->
+            <header v-else class="detail-header">
+                <a class="back-link" @click.prevent="clearModelFilter">← 返回全部车型</a>
+                <div v-if="scopedCompanyName" class="detail-headline">
+                    <p class="detail-company-label">公交公司</p>
+                    <h1 class="detail-company-name">{{ scopedCompanyName }}</h1>
+                    <p class="detail-model-sub">{{ modelDetail?.name || '车型加载中...' }}</p>
+                </div>
+                <div v-else-if="modelDetail" class="detail-headline">
+                    <h1 class="detail-model-name">{{ modelDetail.name }}</h1>
+                    <p class="detail-model-brand">{{ modelDetail.brand?.chnName || modelDetail.brand?.name || '品牌待补全' }}</p>
+                </div>
             </header>
 
             <!-- ========== List View ========== -->
@@ -75,21 +86,39 @@
 
             <!-- ========== Detail View: Fleet Page ========== -->
             <template v-else>
-                <header class="detail-header">
-                    <a class="back-link" @click.prevent="clearModelFilter">← 返回全部车型</a>
-                    <div v-if="modelDetail" class="detail-headline">
-                        <h1 class="detail-model-name">{{ modelDetail.name }}</h1>
-                        <p class="detail-model-brand">{{ modelDetail.brand?.chnName || modelDetail.brand?.name || '品牌待补全' }}</p>
-                    </div>
-                </header>
-
                 <section v-if="vehiclesLoading && !allVehicles.length" class="state state--loading">
                     正在加载车辆数据...
                 </section>
 
                 <template v-else>
-                    <!-- Fleet Overview Card -->
-                    <section class="fleet-overview">
+                    <!-- Fleet Config Card (company-scoped only, buspedia style) -->
+                    <section v-if="isCompanyScoped" class="fleet-section">
+                        <h2 class="section-title">车辆概况</h2>
+                        <div class="fleet-config-card">
+                            <div class="config-year-header">
+                                <span v-for="yb in yearBreakdown" :key="yb.year" class="config-year-chip">
+                                    {{ yb.year }} <strong>{{ yb.count }}</strong>
+                                </span>
+                            </div>
+                            <div class="config-grid">
+                                <div v-if="numberRangeText" class="config-row">
+                                    <span class="config-label">自编号段</span>
+                                    <span class="config-value">{{ numberRangeText }}</span>
+                                </div>
+                                <div class="config-row">
+                                    <span class="config-label">投放年份</span>
+                                    <span class="config-value">{{ yearBreakdown.map(y => y.year).join('、') || '—' }}</span>
+                                </div>
+                                <div class="config-row">
+                                    <span class="config-label">车辆数量</span>
+                                    <span class="config-value">{{ totalVehicleCount }} 辆</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Fleet Overview (non-scoped) -->
+                    <section v-else class="fleet-overview">
                         <div class="section-head">
                             <h2 class="section-title">车队概况</h2>
                             <span class="section-badge">{{ totalVehicleCount }} 辆车 · {{ fleetCompanyNames.length }} 家公司</span>
@@ -122,39 +151,11 @@
                         </div>
                     </section>
 
-                    <!-- Filter Chips -->
-                    <section v-if="fleetCompanyNames.length > 1 || availableYears.length > 1" class="filter-bar fleet-filter-bar">
-                        <div v-if="fleetCompanyNames.length > 1" class="filter-row">
-                            <span class="filter-row__label">公司</span>
-                            <div class="chip-row">
-                                <button :class="['filter-chip', { active: !galleryCompanyFilter }]" @click="galleryCompanyFilter = ''">全部</button>
-                                <button v-for="cn in fleetCompanyNames" :key="cn.name"
-                                    :class="['filter-chip', { active: cn.name === galleryCompanyFilter }]"
-                                    @click="galleryCompanyFilter = galleryCompanyFilter === cn.name ? '' : cn.name"
-                                >{{ cn.name }}</button>
-                            </div>
-                        </div>
-                        <div v-if="availableYears.length > 1" class="filter-row">
-                            <span class="filter-row__label">年份</span>
-                            <div class="chip-row">
-                                <button :class="['filter-chip', { active: !galleryYearFilter }]" @click="galleryYearFilter = ''">全部</button>
-                                <button v-for="y in availableYears" :key="y"
-                                    :class="['filter-chip', { active: y === galleryYearFilter }]"
-                                    @click="galleryYearFilter = galleryYearFilter === y ? '' : y"
-                                >{{ y }}</button>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- Photo Gallery -->
-                    <section v-if="!filteredPhotoGroups.length && allVehicles.length" class="state state--empty">
-                        暂无符合筛选条件的照片
-                    </section>
-
-                    <section v-for="group in filteredPhotoGroups" :key="group.companyName" class="photo-section">
-                        <h3 class="company-section-title">{{ group.companyName }} <span class="photo-count">{{ group.photos.length }} 张</span></h3>
+                    <!-- Photos: "使用线路" style -->
+                    <section class="photo-gallery-section">
+                        <h2 class="section-title">车辆照片</h2>
                         <div class="photo-grid">
-                            <div v-for="photo in group.photos" :key="photo.key" class="photo-item" @click="openVehicleDetail(photo.vehicleId)">
+                            <div v-for="photo in allPhotos" :key="photo.key" class="photo-item" @click="openVehicleDetail(photo.vehicleId)">
                                 <div class="photo-imgbox">
                                     <img :src="photo.thumbnailUrl || placeholderLogo" :alt="photo.plate" loading="lazy" decoding="async" />
                                 </div>
@@ -164,6 +165,7 @@
                                 </div>
                             </div>
                         </div>
+                        <p v-if="!allPhotos.length" class="photo-empty">暂无车辆照片</p>
                     </section>
                 </template>
             </template>
@@ -201,6 +203,15 @@ const selectedModelId = computed(() => {
     const numeric = Number(id);
     return Number.isNaN(numeric) ? null : numeric;
 });
+
+const scopedCompanyId = computed(() => {
+    const cid = route.query.companyId;
+    if (!cid) return null;
+    const numeric = Number(cid);
+    return Number.isNaN(numeric) || numeric <= 0 ? null : numeric;
+});
+
+const isCompanyScoped = computed(() => Boolean(scopedCompanyId.value));
 
 const brandFilters = computed(() => {
     const set = new Set();
@@ -257,8 +268,12 @@ const clearModelFilter = () => {
 // ===================== Detail View =====================
 const allVehicles = ref([]);
 const vehiclesLoading = ref(false);
-const galleryCompanyFilter = ref('');
-const galleryYearFilter = ref('');
+
+const scopedCompanyName = computed(() => {
+    if (!isCompanyScoped.value || !allVehicles.value.length) return '';
+    const first = allVehicles.value[0];
+    return first?.vehicle?.company?.name || first?.vehicle?.companyName || '';
+});
 
 const formatYear = (date) => {
     if (!date) return '年份未知';
@@ -267,12 +282,22 @@ const formatYear = (date) => {
     return `${parsed.getFullYear()}`;
 };
 
-// ---- Fleet Overview ----
-const totalVehicleCount = computed(() => allVehicles.value.length);
+// ---- Filtered Vehicles (client-side safety net) ----
+const displayVehicles = computed(() => {
+    if (!isCompanyScoped.value) return allVehicles.value;
+    const cid = scopedCompanyId.value;
+    return allVehicles.value.filter((r) => {
+        const vcid = r?.vehicle?.company?.id || r?.vehicle?.companyId;
+        return Number(vcid) === cid;
+    });
+});
+
+// ---- Fleet Overview Data ----
+const totalVehicleCount = computed(() => displayVehicles.value.length);
 
 const fleetCompanyNames = computed(() => {
     const map = new Map();
-    allVehicles.value.forEach((r) => {
+    displayVehicles.value.forEach((r) => {
         const name = r?.vehicle?.company?.name || r?.vehicle?.companyName || '未归类';
         const id = r?.vehicle?.company?.id || r?.vehicle?.companyId;
         map.set(name, { name, id: id || null, count: (map.get(name)?.count || 0) + 1 });
@@ -282,7 +307,7 @@ const fleetCompanyNames = computed(() => {
 
 const yearBreakdown = computed(() => {
     const map = new Map();
-    allVehicles.value.forEach((r) => {
+    displayVehicles.value.forEach((r) => {
         const y = formatYear(r?.vehicle?.launchDate);
         map.set(y, (map.get(y) || 0) + 1);
     });
@@ -299,74 +324,59 @@ const yearBreakdown = computed(() => {
 
 const numberRanges = computed(() => {
     const codes = [];
-    allVehicles.value.forEach((r) => {
+    displayVehicles.value.forEach((r) => {
         const cn = r?.vehicle?.customNumber;
         if (cn && cn.trim()) codes.push(cn.trim());
     });
     if (!codes.length) return [];
-    // Simple grouping: sort and show min~max if consecutive, else list top ranges
     codes.sort((a, b) => a.localeCompare(b, 'zh-CN', { numeric: true }));
-    // Show first few and last few as ranges
     if (codes.length <= 3) return codes;
     return [`${codes[0]} ~ ${codes[codes.length - 1]}（${codes.length}个）`];
 });
 
-// ---- Photo Gallery ----
-const photoData = computed(() => {
-    if (!allVehicles.value.length) return [];
+const numberRangeText = computed(() => {
+    const codes = [];
+    displayVehicles.value.forEach((r) => {
+        const cn = r?.vehicle?.customNumber;
+        if (cn && cn.trim()) codes.push(cn.trim());
+    });
+    if (!codes.length) return '';
+    codes.sort((a, b) => a.localeCompare(b, 'zh-CN', { numeric: true }));
+    if (codes.length === 1) return codes[0];
+    // Find contiguous ranges
+    const ranges = [];
+    let start = codes[0], end = codes[0];
+    for (let i = 1; i < codes.length; i++) {
+        if (codes[i] === end || i > 0) {
+            // Non-numeric comparison for codes
+            end = codes[i];
+        }
+    }
+    return `${codes[0]} ~ ${codes[codes.length - 1]}`;
+});
 
-    const companyMap = new Map();
-    allVehicles.value.forEach((record) => {
+// ---- Photos ----
+const allPhotos = computed(() => {
+    if (!displayVehicles.value.length) return [];
+    const photos = [];
+    displayVehicles.value.forEach((record) => {
         const vehicle = record?.vehicle;
         if (!vehicle) return;
-        const companyName = vehicle?.company?.name || vehicle?.companyName || '未归类公司';
-        const companyId = vehicle?.company?.id || vehicle?.companyId;
-        if (!companyMap.has(companyName)) {
-            companyMap.set(companyName, { companyName, companyId: companyId || null, photos: [] });
-        }
-        const group = companyMap.get(companyName);
         const imgUrl = record.images?.[0]?.thumbnailUrl || null;
-        const plate = (vehicle.plateNumber || '未上牌').trim();
-        const year = formatYear(vehicle.launchDate);
-        const yearNum = Number(year);
-        group.photos.push({
-            key: `${companyName}-${vehicle.id || Math.random()}`,
+        if (!imgUrl) return; // skip vehicles without photos
+        photos.push({
+            key: `${vehicle.id || Math.random()}`,
             vehicleId: vehicle.id,
             thumbnailUrl: imgUrl,
-            plate,
-            year,
-            yearNum: Number.isNaN(yearNum) ? 9999 : yearNum,
-            customNumber: vehicle.customNumber || ''
+            plate: (vehicle.plateNumber || '未上牌').trim(),
+            year: formatYear(vehicle.launchDate),
+            companyName: vehicle?.company?.name || vehicle?.companyName || '',
+            yearNum: Number(formatYear(vehicle.launchDate)) || 9999
         });
     });
-
-    // Sort photos within each company by year desc
-    for (const [, group] of companyMap) {
-        group.photos.sort((a, b) => b.yearNum - a.yearNum || a.plate.localeCompare(b.plate));
-    }
-
-    return Array.from(companyMap.values());
-});
-
-const availableYears = computed(() => {
-    const years = new Set();
-    photoData.value.forEach((g) => g.photos.forEach((p) => {
-        if (p.year !== '年份未知') years.add(p.year);
-    }));
-    return Array.from(years).sort((a, b) => Number(b) - Number(a));
-});
-
-const filteredPhotoGroups = computed(() => {
-    return photoData.value
-        .map((group) => {
-            const filtered = group.photos.filter((p) => {
-                if (galleryCompanyFilter.value && group.companyName !== galleryCompanyFilter.value) return false;
-                if (galleryYearFilter.value && p.year !== galleryYearFilter.value) return false;
-                return true;
-            });
-            return filtered.length ? { ...group, photos: filtered } : null;
-        })
-        .filter(Boolean);
+    // Sort by year desc
+    photos.sort((a, b) => b.yearNum - a.yearNum || a.plate.localeCompare(b.plate));
+    return photos;
 });
 
 // ---- Vehicle Detail Modal ----
@@ -395,24 +405,24 @@ const closeVehicleDetail = () => {
 
 // ---- Watcher ----
 watch(
-    () => selectedModelId.value,
-    async (id) => {
-        galleryCompanyFilter.value = '';
-        galleryYearFilter.value = '';
+    () => [selectedModelId.value, scopedCompanyId.value],
+    async ([modelId, companyId]) => {
         allVehicles.value = [];
         activeVehicleId.value = null;
 
-        if (!id) {
+        if (!modelId) {
             store.dispatch('models/loadModelCatalog');
             return;
         }
-        await store.dispatch('models/loadModelDetail', { modelId: id });
+        await store.dispatch('models/loadModelDetail', { modelId });
 
         vehiclesLoading.value = true;
         try {
+            const params = { size: 500 };
+            if (companyId) params.companyId = companyId;
             const data = await store.dispatch('models/loadModelVehicles', {
-                modelId: id,
-                params: { size: 500 },
+                modelId,
+                params,
                 force: true
             });
             allVehicles.value = Array.isArray(data) ? data : [];
@@ -575,23 +585,6 @@ onMounted(() => {
     }
 }
 
-.filter-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 6px;
-    &:last-child { margin-bottom: 0; }
-}
-
-.filter-row__label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #94a3b8;
-    min-width: 36px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
 /* ========== List View ========== */
 .model-list {
     display: flex;
@@ -706,6 +699,27 @@ onMounted(() => {
     gap: 2px;
 }
 
+.detail-company-label {
+    margin: 0;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    color: #9ca3af;
+}
+
+.detail-company-name {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.detail-model-sub {
+    margin: 0;
+    font-size: 1rem;
+    color: #6b7280;
+}
+
 .detail-model-name {
     margin: 0;
     font-size: 1.6rem;
@@ -719,9 +733,81 @@ onMounted(() => {
     color: #6b7280;
 }
 
-/* ---- Fleet Overview Card ---- */
+/* ---- Section Title ---- */
+.section-title {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* ---- Fleet Config Card (buspedia style) ---- */
+.fleet-section {
+    margin-bottom: 28px;
+}
+
+.fleet-config-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.05);
+}
+
+.config-year-header {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f1f5f9;
+    flex-wrap: wrap;
+}
+
+.config-year-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: #00695c;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 500;
+
+    strong {
+        background: rgba(255,255,255,0.2);
+        padding: 1px 6px;
+        border-radius: 6px;
+        font-size: 0.78rem;
+    }
+}
+
+.config-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.config-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.config-label {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    min-width: 64px;
+}
+
+.config-value {
+    font-size: 0.88rem;
+    color: #334155;
+    font-weight: 500;
+}
+
+/* ---- Fleet Overview (non-scoped) ---- */
 .fleet-overview {
-    margin-bottom: 24px;
+    margin-bottom: 28px;
 }
 
 .section-head {
@@ -731,29 +817,23 @@ onMounted(() => {
     margin-bottom: 10px;
 }
 
-.section-title {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #1e293b;
-}
-
 .section-badge {
     font-size: 0.82rem;
     color: #64748b;
+    margin-left: 4px;
 }
 
 .overview-card {
     background: #fff;
-    border-radius: 16px;
-    padding: 20px 24px;
-    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.05);
 }
 
 .overview-grid {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
 }
 
 .overview-item {
@@ -808,9 +888,7 @@ onMounted(() => {
     cursor: pointer;
     transition: background 0.15s;
 
-    &:hover {
-        background: #dcfce7;
-    }
+    &:hover { background: #dcfce7; }
 
     strong {
         background: #fff;
@@ -831,29 +909,9 @@ onMounted(() => {
     font-weight: 500;
 }
 
-.fleet-filter-bar {
-    margin-bottom: 24px;
-}
-
 /* ---- Photo Gallery ---- */
-.photo-section {
-    margin-bottom: 32px;
-}
-
-.company-section-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1e293b;
-    margin: 0 0 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    .photo-count {
-        font-weight: 400;
-        font-size: 0.82rem;
-        color: #94a3b8;
-    }
+.photo-gallery-section {
+    margin-top: 0;
 }
 
 .photo-grid {
@@ -913,6 +971,14 @@ onMounted(() => {
     border-radius: 6px;
 }
 
+.photo-empty {
+    text-align: center;
+    color: #94a3b8;
+    padding: 32px;
+    background: #fff;
+    border-radius: 14px;
+}
+
 /* ========== Responsive ========== */
 @media (max-width: 900px) {
     .company-grid {
@@ -940,20 +1006,9 @@ onMounted(() => {
         flex: 0 0 auto;
     }
 
-    .company-pill__body {
-        min-width: 0;
-    }
-
-    .company-actions {
-        margin-left: 0;
-        align-self: flex-start;
-    }
-
-    .text-btn,
-    .text-btn:visited {
-        margin-left: 0;
-        white-space: nowrap;
-    }
+    .company-pill__body { min-width: 0; }
+    .company-actions { margin-left: 0; align-self: flex-start; }
+    .text-btn, .text-btn:visited { margin-left: 0; white-space: nowrap; }
 
     .photo-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -968,40 +1023,19 @@ onMounted(() => {
         gap: 8px 10px;
     }
 
-    .company-pill img {
-        display: none;
-    }
-
-    .company-pill__body {
-        grid-column: 1 / 2;
-    }
-
-    .company-actions {
-        grid-column: 2 / 3;
-        grid-row: 1 / 2;
-        justify-self: end;
-    }
+    .company-pill img { display: none; }
+    .company-pill__body { grid-column: 1 / 2; }
+    .company-actions { grid-column: 2 / 3; grid-row: 1 / 2; justify-self: end; }
 
     .photo-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 6px;
     }
 
-    .photo-caption {
-        padding: 4px 6px;
-    }
+    .photo-caption { padding: 4px 6px; }
+    .photo-plate { font-size: 0.75rem; }
 
-    .photo-plate {
-        font-size: 0.75rem;
-    }
-
-    .overview-card {
-        padding: 14px 16px;
-    }
-
-    .overview-item {
-        flex-direction: column;
-        gap: 4px;
-    }
+    .overview-card, .fleet-config-card { padding: 14px 16px; }
+    .overview-item { flex-direction: column; gap: 4px; }
 }
 </style>
