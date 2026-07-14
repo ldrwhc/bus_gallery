@@ -899,7 +899,7 @@ onMounted(() => {
     position: sticky; left: 0; background: #f8fafc; z-index: 2;
 }
 .config-year-header__cell {
-    min-width: 180px; flex: 1;
+    width: 180px; flex-shrink: 0;
     padding: 10px 14px;
     display: flex; align-items: center; gap: 8px;
 }
@@ -925,7 +925,7 @@ onMounted(() => {
     border-right: 1px solid #f1f5f9;
 }
 .config-row__cell {
-    min-width: 180px; flex: 1;
+    width: 180px; flex-shrink: 0;
     padding: 8px 10px; font-size: 0.85rem; color: #1e293b;
     display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px;
 }
@@ -1088,8 +1088,8 @@ onMounted(() => {
 @media (max-width: 900px) {
     .model-table__row { grid-template-columns: 48px 1fr 64px 1fr; gap: 8px; padding: 8px 12px; font-size: 0.82rem; }
     .company-card-grid { grid-template-columns: 1fr; gap: 14px; }
-    .config-year-header__cell { min-width: 140px; }
-    .config-row__cell { min-width: 140px; }
+    .config-year-header__cell { width: 140px; }
+    .config-row__cell { width: 140px; }
     .photo-year-header__cell { min-width: 100px; }
     .photo-row__cell { min-width: 100px; }
     .photo-thumb img { width: 70px; height: 50px; }
@@ -1102,8 +1102,8 @@ onMounted(() => {
     .company-card__image img { height: 160px; }
     .config-year-header__spacer { min-width: 70px; max-width: 70px; }
     .config-row__label { min-width: 70px; max-width: 70px; }
-    .config-year-header__cell { min-width: 120px; }
-    .config-row__cell { min-width: 120px; font-size: 0.8rem; }
+    .config-year-header__cell { width: 120px; }
+    .config-row__cell { width: 120px; font-size: 0.8rem; }
     .photo-year-header__spacer { min-width: 60px; max-width: 60px; }
     .photo-row__route { min-width: 60px; max-width: 60px; }
     .photo-thumb img { width: 56px; height: 40px; }
