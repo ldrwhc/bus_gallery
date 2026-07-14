@@ -56,7 +56,7 @@
                                     <template v-if="highlightText(model.name).length > 1">
                                         {{ highlightText(model.name)[0] }}<mark>{{ highlightText(model.name)[1] }}</mark>{{ highlightText(model.name)[2] }}
                                     </template>
-                                    <template v-else>{{ model.name }}</template>
+                                    <template v-else>{{ highlightText(model.name)[0] }}</template>
                                 </span>
                                 <span class="model-count-badge">{{ model.companies?.length || 0 }}家</span>
                             </span>
@@ -65,7 +65,7 @@
                                     <template v-if="highlightText(brandDisplayMap[model.brandName] || model.brandName || '?').length > 1">
                                         {{ highlightText(brandDisplayMap[model.brandName] || model.brandName || '?')[0] }}<mark>{{ highlightText(brandDisplayMap[model.brandName] || model.brandName || '?')[1] }}</mark>{{ highlightText(brandDisplayMap[model.brandName] || model.brandName || '?')[2] }}
                                     </template>
-                                    <template v-else>{{ brandDisplayMap[model.brandName] || model.brandName || '?' }}</template>
+                                    <template v-else>{{ highlightText(brandDisplayMap[model.brandName] || model.brandName || '?')[0] }}</template>
                                 </span>
                             </span>
                             <span class="col-companies">
@@ -340,10 +340,10 @@ const selectBrandFilter = (brandName) => {
 };
 
 const highlightText = (text) => {
-    if (!searchQuery.value.trim() || !text) return text;
+    if (!searchQuery.value.trim() || !text) return [String(text || '')];
     const q = searchQuery.value.trim();
     const idx = text.toLowerCase().indexOf(q.toLowerCase());
-    if (idx < 0) return text;
+    if (idx < 0) return [String(text || '')];
     return [
         text.slice(0, idx),
         text.slice(idx, idx + q.length),
