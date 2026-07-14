@@ -76,10 +76,10 @@
                                 <el-tag v-if="r.subType" size="small" type="warning">
                                     {{ subTypeLabel(r.subType) }}
                                 </el-tag>
+                                <el-tag v-if="r.isLoop" size="small" type="info">环线</el-tag>
                             </div>
                             <div class="route-item__stops">
-                                <template v-if="r.isLoop">环线</template>
-                                <template v-else-if="r.downStartStop || r.downEndStop">
+                                <template v-if="r.downStartStop || r.downEndStop">
                                     上行 {{ r.startStop || '?' }} → {{ r.endStop || '?' }}
                                     | 下行 {{ r.downStartStop || r.endStop || '?' }} → {{ r.downEndStop || r.startStop || '?' }}
                                 </template>
