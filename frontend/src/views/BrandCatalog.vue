@@ -42,12 +42,14 @@
                             <h2>{{ brand.chnName || brand.name }}</h2>
                             <p class="tag">车型 {{ brand.models?.length || 0 }}</p>
                         </div>
-                        <button class="pill-btn" type="button" @click="viewBrand(brand.id)">
-                            查看该品牌
+                        <button class="pill-btn" type="button"
+                            @click="toggleBrandExpand(brand.id)"
+                            v-if="(brand.models?.length || 0) > 10">
+                            {{ expandedBrandIds.has(brand.id) ? '收起' : `查看全部 ${brand.models.length} 款` }}
                         </button>
                     </div>
                     <div class="model-grid">
-                        <div v-for="model in brand.models || []" :key="model.id" class="model-card">
+                        <div v-for="model in (expandedBrandIds.has(brand.id) ? brand.models : (brand.models || []).slice(0, 10))" :key="model.id" class="model-card">
                             <router-link class="model-name" :to="{ name: 'ModelCatalog', params: { modelId: model.id } }">
                                 {{ model.name }}
                             </router-link>
@@ -78,7 +80,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
@@ -128,20 +130,21 @@ const selectInitialFilter = (initial) => {
 
 const placeholderLogo = placeholderBus;
 
-const viewBrand = (brandId) => {
-    router.push({ name: 'BrandCatalog', params: { brandId } });
+const expandedBrandIds = ref(new Set());
+
+const toggleBrandExpand = (brandId) => {
+    const next = new Set(expandedBrandIds.value);
+    if (next.has(brandId)) {
+        next.delete(brandId);
+    } else {
+        next.add(brandId);
+    }
+    expandedBrandIds.value = next;
 };
 
 const clearBrandFilter = () => {
     router.push({ name: 'BrandCatalog' });
 };
-
-watch(
-    () => selectedBrandId.value,
-    () => {
-        initialFilter.value = '';
-    }
-);
 
 const regionsById = computed(() => {
     const map = {};
