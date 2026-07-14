@@ -39,7 +39,9 @@
                 <article v-for="brand in filteredBrands" :key="brand.id" class="brand-card">
                     <div class="brand-card__header">
                         <div class="brand-card__title">
-                            <h2>{{ brand.chnName || brand.name }}</h2>
+                            <router-link class="brand-name-link" :to="{ name: 'BrandCatalog', params: { brandId: brand.id } }">
+                                <h2>{{ brand.chnName || brand.name }}</h2>
+                            </router-link>
                             <p class="tag">车型 {{ brand.models?.length || 0 }}</p>
                         </div>
                         <button class="pill-btn" type="button"
@@ -280,6 +282,9 @@ onMounted(() => {
     align-items: center;
     gap: 10px;
     h2 { margin: 0; }
+}
+.brand-name-link { text-decoration: none; color: inherit;
+    &:hover h2 { color: #2563eb; }
 }
 
 .tag {
