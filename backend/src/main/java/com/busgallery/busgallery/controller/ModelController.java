@@ -1,10 +1,12 @@
 package com.busgallery.busgallery.controller;
 
+import com.busgallery.busgallery.entity.BusRoute;
 import com.busgallery.busgallery.entity.Company;
 import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.Model;
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.entity.VehicleConfig;
+import com.busgallery.busgallery.mapper.BusRouteMapper;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.ModelService;
 import com.busgallery.busgallery.service.VehicleService;
@@ -29,6 +31,7 @@ public class ModelController {
     private final ModelService modelService;
     private final VehicleService vehicleService;
     private final ImageService imageService;
+    private final BusRouteMapper busRouteMapper;
 
     /**
      * list方法用于处理list相关的业务逻辑。
@@ -60,7 +63,19 @@ public class ModelController {
         for (Vehicle vehicle : vehicles) {
             VehicleConfig config = vehicleService.findConfigByVehicleId(vehicle.getId());
             List<Image> images = imageService.listByVehicle(vehicle.getId());
-            result.add(VehicleController.assembleDetail(vehicle, config, images));
+            VehicleController.VehicleDetailResponse detail = VehicleController.assembleDetail(vehicle, config, images);
+            // Fill routeNumber for images that have routeId set
+            if (detail != null && detail.getImages() != null) {
+                for (VehicleController.ImageDTO imgDto : detail.getImages()) {
+                    if (imgDto.getRouteId() != null && !StringUtils.hasText(imgDto.getRouteNumber())) {
+                        BusRoute br = busRouteMapper.selectById(imgDto.getRouteId());
+                        if (br != null) {
+                            imgDto.setRouteNumber(br.getRouteNumber());
+                        }
+                    }
+                }
+            }
+            result.add(detail);
         }
         return result;
     }

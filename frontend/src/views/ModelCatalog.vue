@@ -355,8 +355,14 @@ const photoTable = computed(() => {
             const exifYear = extractExifYear(img?.exif) || '未知年份';
             yearSet.add(exifYear);
 
-            const routeNumber = img?.routeNumber?.trim() || '未归类';
-            const routeId = img?.routeId || null;
+            // Route: prefer image.routeNumber, fallback to vehicle routes
+            let routeNumber = img?.routeNumber?.trim() || '';
+            let routeId = img?.routeId || null;
+            if (!routeNumber && routeId && record?.vehicle?.routes) {
+                const match = record.vehicle.routes.find((r) => Number(r.routeId) === Number(routeId));
+                if (match?.routeNumber) routeNumber = match.routeNumber.trim();
+            }
+            if (!routeNumber) routeNumber = '未归类';
             const key = routeNumber;
 
             if (!routeMap.has(key)) {
