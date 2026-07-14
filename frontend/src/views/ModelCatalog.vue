@@ -150,7 +150,12 @@
                                     </div>
                                     <div v-for="row in card.configRows" :key="row.label" class="info-line">
                                         <span class="info-label">{{ row.label }}</span>
-                                        <span class="info-value">{{ row.items.map(i => i.value).join(' / ') }}</span>
+                                        <span class="info-values">
+                                            <span v-for="item in row.items" :key="item.value" class="info-chip-sm">
+                                                {{ item.value }}
+                                                <strong>{{ item.count }}</strong>
+                                            </span>
+                                        </span>
                                     </div>
                                 </div>
                             </article>
@@ -946,9 +951,18 @@ onMounted(() => {
     background: #00695c; color: #fff; font-size: 0.72rem; font-weight: 500;
     strong { font-weight: 700; opacity: 0.85; }
 }
-.info-line { display: flex; gap: 6px; margin-bottom: 2px; font-size: 0.75rem; line-height: 1.5; }
+.info-line { display: flex; gap: 6px; margin-bottom: 3px; font-size: 0.75rem; line-height: 1.5; align-items: baseline; }
 .info-label { color: #94a3b8; min-width: 36px; flex-shrink: 0; }
-.info-value { color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.info-values { display: flex; flex-wrap: wrap; gap: 3px; }
+.info-chip-sm {
+    display: inline-flex; align-items: center; gap: 2px;
+    padding: 1px 6px; border-radius: 999px;
+    background: #f1f5f9; color: #475569; font-size: 0.72rem; white-space: nowrap;
+    strong {
+        background: #fff; padding: 0 5px; border-radius: 4px;
+        font-size: 0.68rem; color: #0f172a; font-weight: 600;
+    }
+}
 
 /* ===== Year Menu Button ===== */
 .year-menu-btn {
