@@ -897,11 +897,12 @@ onMounted(() => {
     padding: 12px 14px; font-size: 0.78rem; color: #94a3b8; font-weight: 600;
     display: flex; align-items: center;
     position: sticky; left: 0; background: #f8fafc; z-index: 2;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.06);
 }
 .config-year-header__cell {
     width: 180px; flex-shrink: 0;
     padding: 10px 14px;
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 6px;
 }
 .year-badge {
     display: inline-flex; padding: 4px 12px; border-radius: 8px;
@@ -922,12 +923,12 @@ onMounted(() => {
     padding: 10px 14px; font-size: 0.82rem; color: #64748b; font-weight: 500;
     display: flex; align-items: center;
     position: sticky; left: 0; background: #fff; z-index: 1;
-    border-right: 1px solid #f1f5f9;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.06);
 }
 .config-row__cell {
     width: 180px; flex-shrink: 0;
-    padding: 8px 10px; font-size: 0.85rem; color: #1e293b;
-    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px;
+    padding: 10px 12px; font-size: 0.85rem; color: #1e293b;
+    display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px;
 }
 .config-chip {
     display: inline-flex; align-items: center; gap: 4px;
