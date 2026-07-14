@@ -947,9 +947,12 @@ onMounted(() => {
 .company-card__years { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .year-chip-sm {
     display: inline-flex; align-items: center; gap: 2px;
-    padding: 1px 8px; border-radius: 6px;
+    padding: 2px 8px; border-radius: 6px;
     background: #00695c; color: #fff; font-size: 0.72rem; font-weight: 500;
-    strong { font-weight: 700; opacity: 0.85; }
+    strong {
+        background: rgba(255,255,255,0.25); padding: 1px 5px; border-radius: 3px;
+        font-size: 0.68rem; font-weight: 700;
+    }
 }
 .info-line { display: flex; gap: 6px; margin-bottom: 3px; font-size: 0.75rem; line-height: 1.5; align-items: baseline; }
 .info-label { color: #94a3b8; min-width: 36px; flex-shrink: 0; }
@@ -959,8 +962,9 @@ onMounted(() => {
     padding: 1px 6px; border-radius: 999px;
     background: #f1f5f9; color: #475569; font-size: 0.72rem; white-space: nowrap;
     strong {
-        background: #fff; padding: 0 5px; border-radius: 4px;
+        background: #fff; padding: 1px 6px; border-radius: 4px;
         font-size: 0.68rem; color: #0f172a; font-weight: 600;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
     }
 }
 
