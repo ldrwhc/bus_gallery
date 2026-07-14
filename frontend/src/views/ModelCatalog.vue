@@ -126,60 +126,36 @@
                     </section>
                 </template>
 
-                <!-- ===== Non-scoped: Company cards (buspedia style) ===== -->
+                <!-- ===== Non-scoped: City-grouped company cards ===== -->
                 <template v-else>
-                    <div v-if="!companyCards.length" class="state state--empty">暂无运营公司</div>
-                    <div v-else class="company-card-grid">
-                        <article v-for="card in companyCards" :key="card.companyId" class="company-card">
-                            <!-- Company header -->
-                            <div class="company-card__head">
-                                <img v-if="card.thumbnailUrl" :src="card.thumbnailUrl" class="company-card__logo" />
-                                <router-link class="company-card__name"
-                                    :to="{ name: 'CompanyCatalog', params: { companyId: card.companyId } }">
-                                    {{ card.companyName }}
-                                </router-link>
-                                <span class="company-card__count">{{ card.vehicleCount }} 辆车</span>
-                                <button class="company-card__fleet-btn" type="button"
-                                    title="查看该公司此车型车队详情"
-                                    @click="router.push({ name: 'ModelCatalog', params: { modelId: selectedModelId }, query: { companyId: card.companyId } })">
-                                    🚌
-                                </button>
-                            </div>
-                            <!-- Preview image -->
-                            <div v-if="card.previewImage" class="company-card__image">
-                                <img :src="card.previewImage" :alt="card.companyName" loading="lazy" decoding="async" />
-                            </div>
-                            <!-- Config info list -->
-                            <div class="company-card__info">
-                                <!-- Production years -->
-                                <div v-if="card.yearItems.length" class="info-line">
-                                    <span class="info-label">生产年份</span>
-                                    <div class="info-values">
-                                        <span v-for="yi in card.yearItems" :key="yi.year" class="info-chip info-chip--year">
-                                            {{ yi.year }}年
-                                            <strong>{{ yi.count }}</strong>
+                    <div v-if="!cityGroupedCards.length" class="state state--empty">暂无运营公司</div>
+                    <section v-for="city in cityGroupedCards" :key="city.regionName" class="city-section">
+                        <h3 class="city-section__title">{{ city.regionName }}</h3>
+                        <div class="company-card-grid">
+                            <article v-for="card in city.cards" :key="card.companyId" class="company-card"
+                                @click="router.push({ name: 'ModelCatalog', params: { modelId: selectedModelId }, query: { companyId: card.companyId } })">
+                                <div class="company-card__image">
+                                    <img :src="card.previewImage || placeholderLogo" :alt="card.companyName" loading="lazy" decoding="async" />
+                                    <span class="company-card__badge">{{ card.vehicleCount }}辆</span>
+                                </div>
+                                <div class="company-card__body">
+                                    <div class="company-card__head">
+                                        <img v-if="card.thumbnailUrl" :src="card.thumbnailUrl" class="company-card__logo" />
+                                        <span class="company-card__name">{{ card.companyName }}</span>
+                                    </div>
+                                    <div class="company-card__years">
+                                        <span v-for="yi in card.yearItems" :key="yi.year" class="year-chip-sm">
+                                            {{ yi.year }} <strong>{{ yi.count }}</strong>
                                         </span>
                                     </div>
-                                </div>
-                                <!-- Config rows -->
-                                <div v-for="row in card.configRows" :key="row.label" class="info-line">
-                                    <span class="info-label">{{ row.label }}</span>
-                                    <div class="info-values">
-                                        <span v-for="item in row.items" :key="item.value" class="info-chip">
-                                            {{ item.value }}
-                                            <template v-if="item.years && item.years.length">
-                                                <span v-for="y in item.years" :key="y.year" class="info-chip__year">
-                                                    {{ y.year }}
-                                                    <strong>{{ y.count }}</strong>
-                                                </span>
-                                            </template>
-                                            <strong v-else-if="item.count > 0">{{ item.count }}</strong>
-                                        </span>
+                                    <div v-for="row in card.configRows" :key="row.label" class="info-line">
+                                        <span class="info-label">{{ row.label }}</span>
+                                        <span class="info-value">{{ row.items.map(i => i.value).join(' / ') }}</span>
                                     </div>
                                 </div>
-                            </div>
-                        </article>
-                    </div>
+                            </article>
+                        </div>
+                    </section>
                 </template>
             </template>
         </main>
@@ -510,24 +486,32 @@ const photoTable = computed(() => {
     return { years, routes };
 });
 
-// ===== Non-scoped: Company cards (buspedia style) =====
-const companyCards = computed(() => {
+// ===== Non-scoped: City-grouped company cards =====
+const cityGroupedCards = computed(() => {
     if (!displayVehicles.value.length) return [];
 
-    // Group by company
-    const companyMap = new Map();
+    // Group by region then company
+    const regionMap = new Map();
     displayVehicles.value.forEach((r) => {
         const vehicle = r?.vehicle;
         if (!vehicle) return;
         const company = vehicle?.company;
+        const region = company?.region || vehicle?.region;
+        const regionName = region?.name || company?.regionName || vehicle?.regionName || '地区未知';
         const cid = company?.id || vehicle?.companyId;
         if (!cid) return;
+
+        if (!regionMap.has(regionName)) {
+            regionMap.set(regionName, new Map());
+        }
+        const companyMap = regionMap.get(regionName);
         const key = String(cid);
         if (!companyMap.has(key)) {
             companyMap.set(key, {
                 companyId: cid,
                 companyName: company?.name || vehicle?.companyName || '未归类',
                 thumbnailUrl: company?.thumbnailUrl || null,
+                regionName,
                 vehicleCount: 0,
                 vehicles: []
             });
@@ -540,9 +524,11 @@ const companyCards = computed(() => {
         }
     });
 
-    return Array.from(companyMap.values())
-        .sort((a, b) => b.vehicleCount - a.vehicleCount)
-        .map((entry) => {
+    const allCards = [];
+    for (const [regionName, companyMap] of regionMap) {
+        const cards = Array.from(companyMap.values())
+            .sort((a, b) => b.vehicleCount - a.vehicleCount)
+            .map((entry) => {
             const vehicles = entry.vehicles;
 
             // Preview image from first vehicle with an image
@@ -615,6 +601,9 @@ const companyCards = computed(() => {
                 configRows
             };
         });
+        allCards.push({ regionName, cards });
+    }
+    return allCards.sort((a, b) => a.regionName.localeCompare(b.regionName, 'zh-CN'));
 });
 
 // ===== Vehicle Detail Modal =====
@@ -923,62 +912,43 @@ onMounted(() => {
     &:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 }
 
-/* ===== Company Cards (non-scoped buspedia style) ===== */
+/* ===== City-grouped Company Cards (non-scoped) ===== */
+.city-section { margin-bottom: 28px; }
+.city-section__title { margin: 0 0 12px; font-size: 1rem; font-weight: 700; color: #1e293b; }
 .company-card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
 }
 .company-card {
-    background: #fff; border-radius: 14px; overflow: hidden;
-    box-shadow: 0 1px 6px rgba(15,23,42,0.06);
-}
-.company-card__head {
-    display: flex; align-items: center; gap: 10px;
-    padding: 14px 16px 10px;
-}
-.company-card__logo {
-    width: 28px; height: 28px; border-radius: 6px; object-fit: cover; flex-shrink: 0;
-}
-.company-card__name {
-    font-size: 0.95rem; font-weight: 700; color: #1e293b; text-decoration: none; flex: 1;
-    &:hover { color: #2563eb; }
-}
-.company-card__count { font-size: 0.78rem; color: #94a3b8; }
-.company-card__fleet-btn {
-    border: none; background: rgba(37,99,235,0.08); color: #2563eb;
-    width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
-    font-size: 0.9rem; transition: background 0.15s;
-    &:hover { background: rgba(37,99,235,0.15); }
+    background: #fff; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(15,23,42,0.06);
+    cursor: pointer; transition: box-shadow 0.15s, transform 0.15s;
+    &:hover { box-shadow: 0 4px 16px rgba(15,23,42,0.1); transform: translateY(-2px); }
 }
 .company-card__image {
-    width: 100%; overflow: hidden; background: #e2e8f0;
-    img { width: 100%; height: 200px; object-fit: cover; display: block; }
+    position: relative; width: 100%; aspect-ratio: 3/2; overflow: hidden; background: #e2e8f0;
+    img { width: 100%; height: 100%; object-fit: cover; display: block; }
 }
-.company-card__info { padding: 12px 16px 16px; }
-.info-line { display: flex; gap: 10px; margin-bottom: 6px; font-size: 0.85rem;
-    &:last-child { margin-bottom: 0; } }
-.info-label { color: #94a3b8; min-width: 56px; flex-shrink: 0; white-space: nowrap; }
-.info-values { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
-.info-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 2px 10px; border-radius: 999px;
-    background: #f1f5f9; color: #334155; font-size: 0.82rem; white-space: nowrap;
-    strong {
-        background: #fff; padding: 1px 6px; border-radius: 6px;
-        font-size: 0.72rem; color: #0f172a;
-    }
-    &--year {
-        background: #00695c; color: #fff;
-        strong { background: rgba(255,255,255,0.2); color: #fff; }
-    }
+.company-card__badge {
+    position: absolute; bottom: 8px; right: 8px;
+    padding: 2px 8px; border-radius: 6px;
+    background: rgba(0,0,0,0.55); color: #fff; font-size: 0.72rem; font-weight: 600;
 }
-.info-chip__year {
+.company-card__body { padding: 10px 14px 14px; }
+.company-card__head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.company-card__logo { width: 20px; height: 20px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+.company-card__name { font-size: 0.88rem; font-weight: 700; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-card__years { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.year-chip-sm {
     display: inline-flex; align-items: center; gap: 2px;
-    background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px;
-    font-size: 0.7rem;
-    strong { background: transparent; color: inherit; padding: 0; font-size: 0.7rem; }
+    padding: 1px 8px; border-radius: 6px;
+    background: #00695c; color: #fff; font-size: 0.72rem; font-weight: 500;
+    strong { font-weight: 700; opacity: 0.85; }
 }
+.info-line { display: flex; gap: 6px; margin-bottom: 2px; font-size: 0.75rem; line-height: 1.5; }
+.info-label { color: #94a3b8; min-width: 36px; flex-shrink: 0; }
+.info-value { color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== Year Menu Button ===== */
 .year-menu-btn {
