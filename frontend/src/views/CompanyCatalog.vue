@@ -132,7 +132,7 @@
                                     v-if="isAuthenticated"
                                     class="photo-card__menu"
                                     type="button"
-                                    @click.stop="openVehicleList(item.sampleYear, item)"
+                                    @click.stop="router.push({ name: 'ModelCatalog', params: { modelId: item.modelId } })"
                                 >⋮</button>
                             </div>
                             <div class="photo-card__media">
