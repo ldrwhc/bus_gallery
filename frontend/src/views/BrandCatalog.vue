@@ -258,5 +258,14 @@ onMounted(() => {
     &--empty { color: #94a3b8; } }
 .ghost-btn { border: 1px solid rgba(99,102,241,0.28); border-radius: 999px; height: 30px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; background: rgba(99,102,241,0.06); color: #4338ca; font-weight: 500; font-size: 0.78rem; line-height: 1; cursor: pointer;
     &:hover { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.4); color: #3730a3; } }
-@media (max-width: 560px) { .model-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
+@media (max-width: 640px) {
+    .brand-card { padding: 16px; border-radius: 16px; }
+    .brand-card__header { margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+    .model-grid { grid-template-columns: 1fr; gap: 8px; }
+    .model-card { flex-direction: row; align-items: center; padding: 8px 10px; gap: 8px; border-radius: 12px; }
+    .model-card__image { width: 80px; flex-shrink: 0; border-radius: 8px; }
+    .model-name { font-size: 0.88rem; min-width: 0; }
+    .city-links, .city-link--placeholder { display: none; }
+    .constrained { padding: 20px 12px 48px; }
+}
 </style>
