@@ -1089,8 +1089,6 @@ onMounted(() => {
 @media (max-width: 900px) {
     .model-table__row { grid-template-columns: 48px 1fr 64px 1fr; gap: 8px; padding: 8px 12px; font-size: 0.82rem; }
     .company-card-grid { grid-template-columns: 1fr; gap: 14px; }
-    .config-year-header__cell { width: 180px; }
-    .config-row__cell { width: 180px; }
     .photo-year-header__cell { min-width: 100px; }
     .photo-row__cell { min-width: 100px; }
     .photo-thumb img { width: 70px; height: 50px; }
@@ -1101,10 +1099,8 @@ onMounted(() => {
     .col-companies { display: none; }
     .company-card-grid { grid-template-columns: 1fr; gap: 10px; }
     .company-card__image img { height: 160px; }
-    .config-year-header__spacer { min-width: 70px; max-width: 70px; }
-    .config-row__label { min-width: 70px; max-width: 70px; }
-    .config-year-header__cell { width: 160px; }
-    .config-row__cell { width: 160px; font-size: 0.78rem; }
+    .config-year-header__spacer { min-width: 80px; max-width: 80px; }
+    .config-row__label { min-width: 80px; max-width: 80px; }
     .photo-year-header__spacer { min-width: 60px; max-width: 60px; }
     .photo-row__route { min-width: 60px; max-width: 60px; }
     .photo-thumb img { width: 56px; height: 40px; }
