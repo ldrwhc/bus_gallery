@@ -900,7 +900,7 @@ onMounted(() => {
     box-shadow: 2px 0 6px rgba(0,0,0,0.06);
 }
 .config-year-header__cell {
-    width: 180px; flex-shrink: 0;
+    width: 220px; flex-shrink: 0;
     padding: 10px 14px;
     display: flex; align-items: center; gap: 6px;
 }
@@ -926,18 +926,18 @@ onMounted(() => {
     box-shadow: 2px 0 6px rgba(0,0,0,0.06);
 }
 .config-row__cell {
-    width: 180px; flex-shrink: 0;
-    padding: 10px 12px; font-size: 0.85rem; color: #1e293b;
+    width: 220px; flex-shrink: 0;
+    padding: 10px 12px; font-size: 0.83rem; color: #1e293b;
     display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px;
 }
 .config-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 10px; border-radius: 999px;
-    background: #f1f5f9; color: #334155; font-size: 0.82rem;
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 8px; border-radius: 999px;
+    background: #f1f5f9; color: #334155; font-size: 0.78rem;
     white-space: nowrap;
     strong {
         background: #fff; padding: 1px 5px; border-radius: 6px;
-        font-size: 0.72rem; color: #0f172a; min-width: 14px; text-align: center;
+        font-size: 0.7rem; color: #0f172a; min-width: 14px; text-align: center;
     }
 }
 
@@ -1089,8 +1089,8 @@ onMounted(() => {
 @media (max-width: 900px) {
     .model-table__row { grid-template-columns: 48px 1fr 64px 1fr; gap: 8px; padding: 8px 12px; font-size: 0.82rem; }
     .company-card-grid { grid-template-columns: 1fr; gap: 14px; }
-    .config-year-header__cell { width: 140px; }
-    .config-row__cell { width: 140px; }
+    .config-year-header__cell { width: 180px; }
+    .config-row__cell { width: 180px; }
     .photo-year-header__cell { min-width: 100px; }
     .photo-row__cell { min-width: 100px; }
     .photo-thumb img { width: 70px; height: 50px; }
@@ -1103,8 +1103,8 @@ onMounted(() => {
     .company-card__image img { height: 160px; }
     .config-year-header__spacer { min-width: 70px; max-width: 70px; }
     .config-row__label { min-width: 70px; max-width: 70px; }
-    .config-year-header__cell { width: 120px; }
-    .config-row__cell { width: 120px; font-size: 0.8rem; }
+    .config-year-header__cell { width: 160px; }
+    .config-row__cell { width: 160px; font-size: 0.78rem; }
     .photo-year-header__spacer { min-width: 60px; max-width: 60px; }
     .photo-row__route { min-width: 60px; max-width: 60px; }
     .photo-thumb img { width: 56px; height: 40px; }
