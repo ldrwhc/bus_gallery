@@ -852,7 +852,7 @@ onMounted(() => {
 .model-table__body { border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s;
     &:last-child { border-bottom: none; }
     &:hover { background: #fafbff; } }
-.col-img img { width: 40px; height: 30px; border-radius: 6px; object-fit: cover; background: #e2e8f0; display: block; }
+.col-img img { width: 56px; aspect-ratio: 16/9; border-radius: 6px; object-fit: cover; background: #e2e8f0; display: block; }
 .model-name-text { font-weight: 600; color: #111827; font-size: 0.9rem; display: block;
     mark { background: #dbeafe; color: #1d4ed8; padding: 1px 0; border-radius: 2px; } }
 .brand-tag { font-size: 0.78rem; color: #64748b;
@@ -1006,7 +1006,7 @@ onMounted(() => {
     &:hover { box-shadow: 0 4px 16px rgba(15,23,42,0.1); transform: translateY(-2px); }
 }
 .company-card__image {
-    position: relative; width: 100%; aspect-ratio: 3/2; overflow: hidden; background: #e2e8f0;
+    position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; background: #e2e8f0;
     img { width: 100%; height: 100%; object-fit: cover; display: block; }
 }
 .company-card__badge {

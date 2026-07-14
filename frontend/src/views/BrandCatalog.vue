@@ -243,7 +243,7 @@ onMounted(() => {
 .model-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .model-card { border-radius: 18px; background: linear-gradient(180deg, #f8fafc, #eef2ff); padding: 12px; display: flex; flex-direction: column; gap: 12px; box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15); }
 .model-name, .model-name:visited { font-weight: 600; color: #1e1b4b; text-decoration: none; }
-.model-card__image { border-radius: 12px; overflow: hidden; height: 120px;
+.model-card__image { border-radius: 12px; overflow: hidden; aspect-ratio: 16/9;
     img { width: 100%; height: 100%; object-fit: cover; } }
 .city-link, .city-link:visited { color: #2563eb; text-decoration: none; font-weight: 600; }
 .city-links { display: flex; align-items: center; flex-wrap: wrap; }
