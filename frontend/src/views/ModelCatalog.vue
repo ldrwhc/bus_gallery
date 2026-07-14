@@ -771,12 +771,12 @@ onMounted(() => {
 
 /* ===== Year Menu Button ===== */
 .year-menu-btn {
-    border: none; background: transparent; color: #94a3b8;
+    border: none; background: rgba(0,0,0,0.08); color: #475569;
     width: 26px; height: 26px; border-radius: 50%;
     cursor: pointer; font-size: 1.1rem; line-height: 1;
-    flex-shrink: 0; margin-left: auto;
+    flex-shrink: 0; margin-left: 8px;
     transition: background 0.15s, color 0.15s;
-    &:hover { background: rgba(255,255,255,0.2); color: #fff; }
+    &:hover { background: #2563eb; color: #fff; }
 }
 
 /* ===== Vehicle List Overlay ===== */
