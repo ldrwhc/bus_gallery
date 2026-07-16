@@ -123,7 +123,7 @@
                                     <div v-for="year in configTable.years" :key="year" class="config-row__cell">
                                         <template v-if="!row.cells[year].length">—</template>
                                         <span v-for="item in row.cells[year]" :key="item.value" class="config-chip">
-                                            <span class="config-chip__text">{{ item.value }}</span><strong>{{ item.count }}</strong>
+                                            {{ item.value }}<strong>{{ item.count }}</strong>
                                         </span>
                                     </div>
                                 </div>
@@ -900,7 +900,7 @@ onMounted(() => {
     box-shadow: 2px 0 6px rgba(0,0,0,0.06);
 }
 .config-year-header__cell {
-    width: 220px; flex-shrink: 0;
+    width: 280px; flex-shrink: 0;
     padding: 10px 14px;
     display: flex; align-items: center; gap: 6px;
 }
@@ -926,10 +926,9 @@ onMounted(() => {
     box-shadow: 2px 0 6px rgba(0,0,0,0.06);
 }
 .config-row__cell {
-    width: 220px; flex-shrink: 0;
+    width: 280px; flex-shrink: 0;
     padding: 10px 12px; font-size: 0.83rem; color: #1e293b;
     display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px;
-    overflow: hidden;
 }
 .config-chip {
     display: inline-flex; align-items: center; gap: 3px;
@@ -937,18 +936,11 @@ onMounted(() => {
     padding: 2px 8px; border-radius: 999px;
     background: #f1f5f9; color: #334155; font-size: 0.78rem;
     white-space: nowrap;
-    overflow: hidden;
     strong {
         background: #fff; padding: 1px 5px; border-radius: 6px;
         font-size: 0.7rem; color: #0f172a; min-width: 14px; text-align: center;
         flex-shrink: 0;
     }
-}
-.config-chip__text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
 }
 
 /* ===== Photo Table ===== */
