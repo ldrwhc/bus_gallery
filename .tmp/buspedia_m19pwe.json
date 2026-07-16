@@ -1,0 +1,67 @@
+{
+  "veh": {
+    "id": 157982,
+    "uid": "m19pwe",
+    "region": {
+      "id": 36,
+      "name": "北京市"
+    },
+    "regist": "京A R1809",
+    "vin": "LVCB4MCD6EM006306",
+    "status": {
+      "报废": "#DC2626"
+    },
+    "date_manuf": "2014-06",
+    "date_serve": "2014-07",
+    "date_retire": null,
+    "comp": {
+      "id": 207,
+      "params": {
+        "id": "cgd1ih"
+      },
+      "name": "北京公交集团",
+      "router": "comp",
+      "asset": "comp",
+      "slug": "bj-bpt"
+    },
+    "ac": "松芝",
+    "manuf_no": null,
+    "meta": [],
+    "no": "24441",
+    "livery": "bjgj-jjz2",
+    "headsign": null
+  },
+  "model": {
+    "id": "7v38v0",
+    "manuf": [
+      {
+        "params": {
+          "id": "ukvm1n"
+        },
+        "name": "福田",
+        "router": "brand",
+        "asset": "brand",
+        "slug": "foton"
+      }
+    ],
+    "series": null,
+    "model": "BJ6160C6CCD",
+    "chassis": null,
+    "bodywork": null,
+    "trans": "ZF EcoLife 6AP1400B (6AT)",
+    "ice": "菲亚特 F2BE0642F*B",
+    "motor": null,
+    "fuel_cell": null,
+    "fuel": "液化天然气",
+    "tyre": "275/70R22.5",
+    "suspension": "气囊",
+    "step": "一踏低地板 ♿",
+    "meta": [
+      {
+        "item": "车桥品牌",
+        "value": "前ZF RL-75C/中ZF AVN-132/后ZF AV-132"
+      }
+    ],
+    "note": null
+  }
+}

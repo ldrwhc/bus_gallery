@@ -80,8 +80,10 @@ MainWindow::MainWindow(ApiClient *client, QWidget *parent)
         }
     });
 
-    // Auto-fill config when model is selected
+    // Auto-fill config when model is selected (suppressed during buspedia scraping
+    // to prevent async DB callback from overwriting fresh buspedia data)
     connect(m_modelField, &AutocompleteField::valueChanged, this, [this]() {
+        if (m_suppressModelAutoFill) return;
         qint64 modelId = m_modelField->selectedId();
         if (modelId > 0) {
             m_catalog->fetchModelVehicles(modelId);
@@ -825,6 +827,10 @@ void MainWindow::fetchFromBuspedia()
         return;
     }
 
+    // Suppress model auto-fill during buspedia scraping to prevent async
+    // DB callback from overwriting fresh buspedia data with stale DB values.
+    m_suppressModelAutoFill = true;
+
     // Remove middle dot, keep spaces for buspedia search
     QString searchPlate = plate;
     searchPlate.remove(QChar(0x00B7));
@@ -836,7 +842,7 @@ void MainWindow::fetchFromBuspedia()
     m_buspediaBtn->setText(QString::fromUtf8("搜索中..."));
     m_progressLabel->setText(QString::fromUtf8("正在 buspedia 搜索 %1...").arg(searchPlate));
 
-    QString searchUrl = QString("https://api.buspedia.top/search?name=%1").arg(QString::fromLatin1(encoded));
+    QString searchUrl = QString("https://api.buspedia.top/search?q=%1").arg(QString::fromLatin1(encoded));
     QNetworkRequest req{QUrl(searchUrl)};
     req.setRawHeader("User-Agent", "Mozilla/5.0 BusGalleryDesktop/1.0");
     req.setRawHeader("Accept", "application/json");
@@ -847,6 +853,7 @@ void MainWindow::fetchFromBuspedia()
     connect(reply, &QNetworkReply::finished, this, [this, reply, searchPlate]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            m_suppressModelAutoFill = false;
             m_buspediaBtn->setEnabled(true);
             m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
             m_progressLabel->setText(QString::fromUtf8("搜索失败: %1").arg(reply->errorString()));
@@ -869,6 +876,7 @@ void MainWindow::fetchFromBuspedia()
         QJsonParseError parseErr;
         QJsonDocument doc = QJsonDocument::fromJson(json, &parseErr);
         if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+            m_suppressModelAutoFill = false;
             m_buspediaBtn->setEnabled(true);
             m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
             m_progressLabel->setText(QString::fromUtf8("搜索解析失败"));
@@ -877,6 +885,7 @@ void MainWindow::fetchFromBuspedia()
         // Search result: {"v": [{id, regist, comp, no, ...}]}
         QJsonArray vehicles = doc.object()["v"].toArray();
         if (vehicles.isEmpty()) {
+            m_suppressModelAutoFill = false;
             m_buspediaBtn->setEnabled(true);
             m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
             m_progressLabel->setText(QString::fromUtf8("未找到 %1，请手动搜索").arg(searchPlate));
@@ -884,6 +893,7 @@ void MainWindow::fetchFromBuspedia()
         }
         QString slug = vehicles[0].toObject()["id"].toString();
         if (slug.isEmpty()) {
+            m_suppressModelAutoFill = false;
             m_buspediaBtn->setEnabled(true);
             m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
             m_progressLabel->setText(QString::fromUtf8("搜索结果无ID"));
@@ -905,6 +915,7 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
     else if (slug.startsWith('/'))
         slug = slug.mid(1);
     if (slug.isEmpty()) {
+        m_suppressModelAutoFill = false;
         m_progressLabel->setText(QString::fromUtf8("无法解析 URL，请粘贴完整的 buspedia 车辆详情链接"));
         return;
     }
@@ -925,6 +936,7 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
         reply->deleteLater();
         m_buspediaBtn->setEnabled(true);
         m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
+        m_suppressModelAutoFill = false;  // re-enable model auto-fill
 
         if (reply->error() != QNetworkReply::NoError) {
             m_progressLabel->setText(QString::fromUtf8("获取失败: %1").arg(reply->errorString()));

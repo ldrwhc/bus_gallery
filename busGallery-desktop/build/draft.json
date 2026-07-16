@@ -1,0 +1,25 @@
+{
+    "airConditioned": true,
+    "axle": "",
+    "brandId": 0,
+    "brandText": "",
+    "companyId": 0,
+    "companyText": "",
+    "customNumber": "",
+    "engine": "",
+    "factoryDate": "2026-07",
+    "fuelType": 0,
+    "launchDate": "2026-07",
+    "modelId": 0,
+    "modelText": "",
+    "motor": "",
+    "plateNumber": "",
+    "regionCity": "",
+    "regionProvince": "",
+    "routes": [
+    ],
+    "savedAt": "2026-07-15T14:06:26",
+    "stepType": "",
+    "suspension": "",
+    "transmission": ""
+}

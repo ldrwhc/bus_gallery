@@ -112,6 +112,7 @@ private:
     QNetworkAccessManager *m_buspediaNam;  // for buspedia.top scraping
     QTimer *m_draftTimer;
     bool m_suppressDraft = true; // don't save while loading draft
+    bool m_suppressModelAutoFill = false; // block model auto-fill during buspedia scraping
 };
 
 #endif // MAINWINDOW_H
