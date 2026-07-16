@@ -900,7 +900,7 @@ onMounted(() => {
     box-shadow: 2px 0 6px rgba(0,0,0,0.06);
 }
 .config-year-header__cell {
-    width: 280px; flex-shrink: 0;
+    width: 320px; flex-shrink: 0;
     padding: 10px 14px;
     display: flex; align-items: center; gap: 6px;
 }
@@ -926,19 +926,18 @@ onMounted(() => {
     box-shadow: 2px 0 6px rgba(0,0,0,0.06);
 }
 .config-row__cell {
-    width: 280px; flex-shrink: 0;
+    width: 320px; flex-shrink: 0;
     padding: 10px 12px; font-size: 0.83rem; color: #1e293b;
     display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px;
 }
 .config-chip {
     display: inline-flex; align-items: center; gap: 3px;
-    max-width: 100%;
-    padding: 2px 8px; border-radius: 999px;
-    background: #f1f5f9; color: #334155; font-size: 0.78rem;
+    padding: 2px 6px; border-radius: 999px;
+    background: #f1f5f9; color: #334155; font-size: 0.75rem;
     white-space: nowrap;
     strong {
-        background: #fff; padding: 1px 5px; border-radius: 6px;
-        font-size: 0.7rem; color: #0f172a; min-width: 14px; text-align: center;
+        background: #e2e8f0; padding: 1px 4px; border-radius: 5px;
+        font-size: 0.68rem; color: #0f172a; min-width: 14px; text-align: center;
         flex-shrink: 0;
     }
 }
