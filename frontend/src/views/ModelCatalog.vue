@@ -137,7 +137,7 @@
                             <div class="photo-table-scroll">
                                 <div class="photo-year-header">
                                     <div class="photo-year-header__spacer">线路</div>
-                                    <div v-for="year in photoTable.years" :key="year" class="photo-year-header__cell">{{ year }}</div>
+                                    <div v-for="year in photoTable.years" :key="year" class="photo-year-header__cell">{{ year }}<span class="photo-count">（{{ photoTable.counts[year] || 0 }}）</span></div>
                                 </div>
                                 <div v-for="route in photoTable.routes" :key="route.key" class="photo-row">
                                     <div class="photo-row__route">
@@ -145,8 +145,8 @@
                                         <span v-else class="route-link route-link--plain">{{ route.routeNumber }}</span>
                                     </div>
                                     <div v-for="year in photoTable.years" :key="year" class="photo-row__cell">
-                                        <button v-for="img in (route.cells[year] || [])" :key="img.id" class="photo-thumb" type="button" @click="openVehicleDetail(img.vehicleId)">
-                                            <img :src="img.thumbnailUrl || placeholderLogo" :alt="route.routeNumber" loading="lazy" decoding="async" />
+                                        <button v-if="(route.cells[year] || [])[0]" class="photo-thumb" type="button" @click="openVehicleDetail((route.cells[year] || [])[0].vehicleId)">
+                                            <img :src="(route.cells[year] || [])[0].thumbnailUrl || placeholderLogo" :alt="route.routeNumber" loading="lazy" decoding="async" />
                                         </button>
                                     </div>
                                 </div>
@@ -520,14 +520,19 @@ const photoTable = computed(() => {
         if (Number.isNaN(na) && Number.isNaN(nb)) return 0;
         if (Number.isNaN(na)) return 1;
         if (Number.isNaN(nb)) return -1;
-        return nb - na;
+        return na - nb;
     });
+
+    const counts = {};
+    years.forEach((y) => { counts[y] = 0; });
 
     const routes = Array.from(routeMap.values())
         .map((entry) => {
             const cells = {};
             years.forEach((year) => {
-                cells[year] = entry.yearMap.get(year) || [];
+                const imgs = entry.yearMap.get(year) || [];
+                cells[year] = imgs;
+                if (imgs.length) counts[year] = (counts[year] || 0) + imgs.length;
             });
             return {
                 key: entry.routeNumber,
@@ -543,7 +548,7 @@ const photoTable = computed(() => {
             return a.routeNumber.localeCompare(b.routeNumber, 'zh-CN', { numeric: true });
         });
 
-    return { years, routes };
+    return { years, routes, counts };
 });
 
 // ===== Non-scoped: City-grouped company cards =====
@@ -936,7 +941,7 @@ onMounted(() => {
     background: #f1f5f9; color: #334155; font-size: 0.75rem;
     white-space: nowrap;
     strong {
-        background: #e2e8f0; padding: 1px 4px; border-radius: 5px;
+        background: #fff; padding: 1px 4px; border-radius: 5px;
         font-size: 0.68rem; color: #0f172a; min-width: 14px; text-align: center;
         flex-shrink: 0;
     }
@@ -951,46 +956,55 @@ onMounted(() => {
     border-bottom: 1px solid #e2e8f0; background: #f8fafc;
 }
 .photo-year-header__spacer {
-    min-width: 80px; max-width: 80px; flex-shrink: 0;
-    padding: 12px 14px; font-size: 0.78rem; color: #94a3b8; font-weight: 600;
+    min-width: 72px; max-width: 72px; flex-shrink: 0;
+    padding: 8px 12px; font-size: 0.75rem; color: #94a3b8; font-weight: 600;
     display: flex; align-items: center;
     position: sticky; left: 0; background: #f8fafc; z-index: 2;
 }
 .photo-year-header__cell {
-    min-width: 140px; flex: 1;
-    padding: 10px 14px;
-    font-size: 0.85rem; font-weight: 600; color: #475569;
+    min-width: 120px; flex: 1;
+    padding: 8px 12px;
+    font-size: 0.82rem; font-weight: 600; color: #475569;
     display: flex; align-items: center;
+}
+.photo-count {
+    font-size: 0.7rem; font-weight: 400; color: #94a3b8; margin-left: 2px;
 }
 
 .photo-row {
     display: flex; align-items: stretch; min-width: fit-content;
-    border-bottom: 1px solid #f1f5f9;
-    &:last-child { border-bottom: none; }
+    transition: background 0.15s;
+    &:nth-child(even) { background: #fafbfc; }
+    &:hover {
+        background: #f1f5f9;
+        .photo-thumb { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    }
+}
+.photo-row + .photo-row {
+    box-shadow: 0 -1px 0 #e5e7eb;
 }
 .photo-row__route {
-    min-width: 80px; max-width: 80px; flex-shrink: 0;
-    padding: 10px 14px;
-    display: flex; align-items: flex-start;
-    position: sticky; left: 0; background: #fff; z-index: 1;
-    border-right: 1px solid #f1f5f9;
+    min-width: 72px; max-width: 72px; flex-shrink: 0;
+    padding: 8px 12px;
+    display: flex; align-items: center;
+    position: sticky; left: 0; background: inherit; z-index: 1;
 }
-.route-link { color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.82rem;
+.route-link { color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.8rem;
     &:hover { text-decoration: underline; }
     &:visited { color: #2563eb; }
     &--plain { color: #94a3b8; cursor: default; }
 }
 .photo-row__cell {
-    min-width: 140px; flex: 1;
-    padding: 6px;
-    display: flex; flex-wrap: wrap; gap: 4px;
-    align-items: flex-start;
+    min-width: 100px; flex: 1;
+    padding: 6px 8px;
+    display: flex; align-items: center; justify-content: center;
 }
 .photo-thumb {
-    border: none; padding: 0; border-radius: 6px; overflow: hidden;
-    cursor: pointer; background: #e2e8f0; transition: transform 0.15s; flex-shrink: 0;
-    img { width: 100px; height: 70px; object-fit: cover; display: block; }
-    &:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    border: none; padding: 0; border-radius: 8px; overflow: hidden;
+    cursor: pointer; background: #e2e8f0;
+    transition: transform 0.2s ease, box-shadow 0.2s ease; flex-shrink: 0;
+    img { width: 90px; height: 64px; object-fit: cover; display: block; }
+    &:hover { transform: scale(1.06); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
 }
 
 /* ===== City-grouped Company Cards (non-scoped) ===== */
