@@ -29,10 +29,22 @@ def fetch_api(path, timeout=15):
 
 
 def search_buspedia(plate):
-    """Search buspedia for a plate number, return the bus slug."""
+    """Search buspedia for a plate number, return the bus slug.
+
+    Note: buspedia search requires `?name=` parameter (NOT `?q=`) and
+    the plate must include spaces (e.g. "京A R1809" not "京AR1809").
+    Response format: {"v": [{"id": "m19pwe", "regist": "...", ...}], ...}
+    """
     try:
-        result = fetch_api(f'/search?q={urllib.parse.quote(plate)}')
-        if isinstance(result, list) and result:
+        # Keep spaces in plate — buspedia search needs them
+        result = fetch_api(f'/search?name={urllib.parse.quote(plate)}')
+        # Response is {"v": [...], "vh": [...], ...}
+        if isinstance(result, dict):
+            vehicles = result.get('v', [])
+            if vehicles and isinstance(vehicles, list) and len(vehicles) > 0:
+                first = vehicles[0]
+                return first.get('id') or first.get('uid') or first.get('slug')
+        elif isinstance(result, list) and result:
             return result[0].get('slug') or result[0].get('id')
     except:
         pass

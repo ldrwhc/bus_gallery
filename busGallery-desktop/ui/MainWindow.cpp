@@ -842,7 +842,7 @@ void MainWindow::fetchFromBuspedia()
     m_buspediaBtn->setText(QString::fromUtf8("搜索中..."));
     m_progressLabel->setText(QString::fromUtf8("正在 buspedia 搜索 %1...").arg(searchPlate));
 
-    QString searchUrl = QString("https://api.buspedia.top/search?q=%1").arg(QString::fromLatin1(encoded));
+    QString searchUrl = QString("https://api.buspedia.top/search?name=%1").arg(QString::fromLatin1(encoded));
     QNetworkRequest req{QUrl(searchUrl)};
     req.setRawHeader("User-Agent", "Mozilla/5.0 BusGalleryDesktop/1.0");
     req.setRawHeader("Accept", "application/json");
