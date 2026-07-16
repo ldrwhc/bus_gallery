@@ -274,6 +274,7 @@ import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import placeholderBus from '@/assets/images/placeholder-bus.png';
 import { normalizeFuelType } from '@/utils/fuel';
+import { formatYearMonth } from '@/utils/formatters';
 
 const VehicleDetailModal = defineAsyncComponent(() => import('@/components/Gallery/VehicleDetailModal.vue'));
 
@@ -432,7 +433,9 @@ const CONFIG_FIELDS = [
     { key: 'stepType', label: '踏步', get: (v) => v?.vehicleConfig?.stepType || '' },
     { key: 'suspension', label: '悬挂', get: (v) => v?.vehicleConfig?.suspension || '' },
     { key: 'axle', label: '车桥', get: (v) => v?.vehicleConfig?.axle || '' },
-    { key: 'airConditioned', label: '空调', get: (v) => (v?.vehicle?.airConditioned === true ? '有' : v?.vehicle?.airConditioned === false ? '无' : '') }
+    { key: 'airConditioned', label: '空调', get: (v) => (v?.vehicle?.airConditioned === true ? '有' : v?.vehicle?.airConditioned === false ? '无' : '') },
+    { key: 'factoryDate', label: '出厂日期', get: (v) => formatYearMonth(v?.vehicle?.factoryDate) || '' },
+    { key: 'launchDate', label: '上线日期', get: (v) => formatYearMonth(v?.vehicle?.launchDate) || '' }
 ];
 
 const configTable = computed(() => {
