@@ -429,11 +429,11 @@ def main():
 
         # Compare and update
         changes = diff_config(old_config, fresh)
+        date_status = update_vehicle_fields(cursor, vehicle_id, fresh, dry_run)
         if changes:
             status = update_vehicle_config(cursor, vehicle_id, config_id, fresh, dry_run)
-            vehicle_status = update_vehicle_fields(cursor, vehicle_id, fresh, dry_run)
             stats["config_updated"] += 1
-            print(f"         UPDATED ({len(changes)} field(s) changed):")
+            print(f"         UPDATED config ({len(changes)} field(s) changed):")
             for label, old_val, new_val in changes:
                 old_display = old_val if old_val else "(empty)"
                 new_display = new_val if new_val else "(empty)"
@@ -449,6 +449,9 @@ def main():
                     ],
                 }
             )
+        elif date_status and date_status != "no_changes":
+            stats["config_updated"] += 1
+            print(f"         UPDATED dates only")
         else:
             stats["config_unchanged"] += 1
             print(f"         unchanged (config matches buspedia)")
