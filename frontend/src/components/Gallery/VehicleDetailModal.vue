@@ -1648,7 +1648,7 @@ const handleClose = () => {
     inset: 0;
     background: rgba(15, 23, 42, 0.8);
     backdrop-filter: blur(16px);
-    z-index: 100;
+    z-index: 200;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2159,7 +2159,7 @@ const handleClose = () => {
     align-items: center;
     justify-content: center;
     padding: 24px;
-    z-index: 120;
+    z-index: 220;
 }
 
 .exif-modal {
