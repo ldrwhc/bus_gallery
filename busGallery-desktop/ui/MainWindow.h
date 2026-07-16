@@ -22,6 +22,9 @@
 #include "ui/RegionPicker.h"
 #include "ui/AutocompleteField.h"
 
+class QFutureWatcherBase;
+struct PlateRecognizeResult;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -43,6 +46,7 @@ private slots:
     void refreshRouteFields();
     void fetchFromBuspedia();
     void fetchBuspediaDetail(const QString &detailUrl);
+    void onAIRecognize();
 
 private:
     void setupUi();
@@ -71,6 +75,7 @@ private:
     ImageDropZone *m_imageDrop;
     QLineEdit *m_plateEdit;
     QPushButton *m_buspediaBtn;
+    QPushButton *m_aiRecognizeBtn;
     QLineEdit *m_customNumEdit;
     AutocompleteField *m_brandField;
     AutocompleteField *m_modelField;
@@ -113,6 +118,9 @@ private:
     QTimer *m_draftTimer;
     bool m_suppressDraft = true; // don't save while loading draft
     bool m_suppressModelAutoFill = false; // block model auto-fill during buspedia scraping
+
+    // AI plate recognition
+    QFutureWatcherBase *m_aiRecognizeWatcher = nullptr;
 };
 
 #endif // MAINWINDOW_H

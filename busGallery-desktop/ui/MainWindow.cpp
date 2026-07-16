@@ -27,6 +27,9 @@
 #include <QSslSocket>
 #include <QInputDialog>
 #include <QDesktopServices>
+#include <QtConcurrent>
+#include <QFutureWatcher>
+#include "api/PlateAssistantBridge.h"
 
 static QString draftPath();
 
@@ -299,6 +302,13 @@ void MainWindow::setupUploadForm(QWidget *page)
     m_buspediaBtn->setProperty("accent", true);
     connect(m_buspediaBtn, &QPushButton::clicked, this, &MainWindow::fetchFromBuspedia);
     plateRow->addWidget(m_buspediaBtn);
+
+    m_aiRecognizeBtn = new QPushButton(QString::fromUtf8("AI识别"), formWidget);
+    m_aiRecognizeBtn->setFixedWidth(72);
+    m_aiRecognizeBtn->setToolTip(QString::fromUtf8("AI 识别图片中的车牌号（需安装 HyperLPR）"));
+    m_aiRecognizeBtn->setProperty("accent", true);
+    connect(m_aiRecognizeBtn, &QPushButton::clicked, this, &MainWindow::onAIRecognize);
+    plateRow->addWidget(m_aiRecognizeBtn);
     auto *plateLabel = new QLabel(QString::fromUtf8("车牌号 <span style='color:red'>*</span>"));
     plateLabel->setTextFormat(Qt::RichText);
     basicGrid->addRow(plateLabel, plateRow);
@@ -1126,6 +1136,70 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
             ? QString::fromUtf8("爬取完成，请核对后提交")
             : QString::fromUtf8("爬取完成%1，请核对后提交").arg(regionNote), 10000);
     });
+}
+
+// ---- AI Plate Recognition ----
+void MainWindow::onAIRecognize()
+{
+    QString imgPath = m_imageDrop->selectedFilePath();
+    if (imgPath.isEmpty()) {
+        QMessageBox::warning(this, QString::fromUtf8("无图片"),
+                             QString::fromUtf8("请先选择车辆图片再使用 AI 识别。"));
+        return;
+    }
+
+    if (m_aiRecognizeWatcher) {
+        // Already running
+        return;
+    }
+
+    m_aiRecognizeBtn->setEnabled(false);
+    m_aiRecognizeBtn->setText(QString::fromUtf8("识别中"));
+    m_progressLabel->setText(QString::fromUtf8("AI 正在识别车牌..."));
+
+    auto *watcher = new QFutureWatcher<PlateRecognizeResult>(this);
+    m_aiRecognizeWatcher = watcher;
+    connect(watcher, &QFutureWatcher<PlateRecognizeResult>::finished, this, [this, watcher]() {
+        m_aiRecognizeBtn->setEnabled(true);
+        m_aiRecognizeBtn->setText(QString::fromUtf8("AI识别"));
+        m_aiRecognizeWatcher = nullptr;
+
+        PlateRecognizeResult result = watcher->result();
+        watcher->deleteLater();
+
+        if (result.ok && !result.plate.isEmpty()) {
+            // Normalize plate format: insert space after province+letter, e.g. "浙A8J401" -> "浙A 8J401"
+            QString plate = result.plate.trimmed().toUpper();
+            plate.replace(QRegularExpression("\\s+"), "");
+            if (plate.length() >= 3)
+                plate.insert(2, ' ');
+            m_plateEdit->setText(plate);
+
+            // Auto-fill region from plate prefix
+            if (!m_regionPicker->hasSelection())
+                m_regionPicker->selectByPlateNumber(plate);
+
+            m_progressLabel->setStyleSheet(QString("color: %1;")
+                .arg(ThemeManager::color(Light::Success, Dark::Success)));
+            m_progressLabel->setText(
+                QString::fromUtf8("识别成功: %1（置信度 %.0f%%），正在爬取参数...")
+                    .arg(plate).arg(result.confidence * 100));
+
+            // Auto-trigger buspedia scraping after recognition
+            fetchFromBuspedia();
+        } else {
+            m_progressLabel->setStyleSheet(QString("color: %1;")
+                .arg(ThemeManager::color(Light::Error, Dark::Error)));
+            m_progressLabel->setText(
+                QString::fromUtf8("识别失败: %1").arg(
+                    result.error.isEmpty() ? QString::fromUtf8("未能识别车牌") : result.error));
+        }
+    });
+
+    QFuture<PlateRecognizeResult> future = QtConcurrent::run([imgPath]() {
+        return PlateAssistantBridge::recognizeFromImage(imgPath, 45000);
+    });
+    watcher->setFuture(future);
 }
 
 static QString draftPath()

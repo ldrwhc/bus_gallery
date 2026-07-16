@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Qt 6
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Concurrent)
 
 set(SOURCES
     main.cpp
@@ -37,6 +37,8 @@ set(SOURCES
     ui/ImageDropZone.cpp
     ui/AutocompleteField.h
     ui/AutocompleteField.cpp
+    api/PlateAssistantBridge.h
+    api/PlateAssistantBridge.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -46,6 +48,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Widgets
     Qt6::Network
+    Qt6::Concurrent
 )
 
 # Windows: hide console window
