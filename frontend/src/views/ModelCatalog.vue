@@ -957,15 +957,18 @@ onMounted(() => {
 }
 .photo-year-header__spacer {
     min-width: 72px; max-width: 72px; flex-shrink: 0;
-    padding: 8px 12px; font-size: 0.75rem; color: #94a3b8; font-weight: 600;
+    padding: 6px 12px; font-size: 0.75rem; color: #94a3b8; font-weight: 600;
     display: flex; align-items: center;
     position: sticky; left: 0; background: #f8fafc; z-index: 2;
+    border-right: 1px solid #e5e7eb;
 }
 .photo-year-header__cell {
-    min-width: 120px; flex: 1;
-    padding: 8px 12px;
+    min-width: 100px; flex: 1;
+    padding: 6px 10px;
     font-size: 0.82rem; font-weight: 600; color: #475569;
-    display: flex; align-items: center;
+    display: flex; align-items: center; justify-content: center;
+    border-right: 1px solid #e5e7eb;
+    &:last-child { border-right: none; }
 }
 .photo-count {
     font-size: 0.7rem; font-weight: 400; color: #94a3b8; margin-left: 2px;
@@ -973,6 +976,7 @@ onMounted(() => {
 
 .photo-row {
     display: flex; align-items: stretch; min-width: fit-content;
+    border-bottom: 1px solid #e5e7eb;
     transition: background 0.15s;
     &:nth-child(even) { background: #fafbfc; }
     &:hover {
@@ -980,14 +984,12 @@ onMounted(() => {
         .photo-thumb { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
     }
 }
-.photo-row + .photo-row {
-    box-shadow: 0 -1px 0 #e5e7eb;
-}
 .photo-row__route {
     min-width: 72px; max-width: 72px; flex-shrink: 0;
-    padding: 8px 12px;
+    padding: 4px 10px;
     display: flex; align-items: center;
     position: sticky; left: 0; background: inherit; z-index: 1;
+    border-right: 1px solid #e5e7eb;
 }
 .route-link { color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.8rem;
     &:hover { text-decoration: underline; }
@@ -996,14 +998,16 @@ onMounted(() => {
 }
 .photo-row__cell {
     min-width: 100px; flex: 1;
-    padding: 6px 8px;
+    padding: 3px 8px;
     display: flex; align-items: center; justify-content: center;
+    border-right: 1px solid #e5e7eb;
+    &:last-child { border-right: none; }
 }
 .photo-thumb {
-    border: none; padding: 0; border-radius: 8px; overflow: hidden;
+    border: none; padding: 0; border-radius: 6px; overflow: hidden;
     cursor: pointer; background: #e2e8f0;
     transition: transform 0.2s ease, box-shadow 0.2s ease; flex-shrink: 0;
-    img { width: 90px; height: 64px; object-fit: cover; display: block; }
+    img { width: 80px; height: 56px; object-fit: cover; display: block; }
     &:hover { transform: scale(1.06); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
 }
 
@@ -1104,9 +1108,9 @@ onMounted(() => {
 @media (max-width: 900px) {
     .model-table__row { grid-template-columns: 48px 1fr 64px 1fr; gap: 8px; padding: 8px 12px; font-size: 0.82rem; }
     .company-card-grid { grid-template-columns: 1fr; gap: 14px; }
-    .photo-year-header__cell { min-width: 100px; }
-    .photo-row__cell { min-width: 100px; }
-    .photo-thumb img { width: 70px; height: 50px; }
+    .photo-year-header__cell { min-width: 80px; }
+    .photo-row__cell { min-width: 80px; }
+    .photo-thumb img { width: 64px; height: 44px; }
 }
 
 @media (max-width: 560px) {
@@ -1114,8 +1118,8 @@ onMounted(() => {
     .col-companies { display: none; }
     .company-card-grid { grid-template-columns: 1fr; gap: 10px; }
     .company-card__image img { height: 160px; }
-    .photo-year-header__spacer { min-width: 60px; max-width: 60px; }
-    .photo-row__route { min-width: 60px; max-width: 60px; }
+    .photo-year-header__spacer { min-width: 56px; max-width: 56px; }
+    .photo-row__route { min-width: 56px; max-width: 56px; }
     .photo-thumb img { width: 56px; height: 40px; }
 }
 </style>

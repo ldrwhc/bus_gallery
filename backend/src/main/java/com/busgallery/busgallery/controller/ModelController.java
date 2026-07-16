@@ -6,7 +6,9 @@ import com.busgallery.busgallery.entity.Image;
 import com.busgallery.busgallery.entity.Model;
 import com.busgallery.busgallery.entity.Vehicle;
 import com.busgallery.busgallery.entity.VehicleConfig;
+import com.busgallery.busgallery.entity.VehicleRoute;
 import com.busgallery.busgallery.mapper.BusRouteMapper;
+import com.busgallery.busgallery.mapper.VehicleRouteMapper;
 import com.busgallery.busgallery.service.ImageService;
 import com.busgallery.busgallery.service.ModelService;
 import com.busgallery.busgallery.service.VehicleService;
@@ -32,6 +34,7 @@ public class ModelController {
     private final VehicleService vehicleService;
     private final ImageService imageService;
     private final BusRouteMapper busRouteMapper;
+    private final VehicleRouteMapper vehicleRouteMapper;
 
     /**
      * list方法用于处理list相关的业务逻辑。
@@ -64,13 +67,49 @@ public class ModelController {
             VehicleConfig config = vehicleService.findConfigByVehicleId(vehicle.getId());
             List<Image> images = imageService.listByVehicle(vehicle.getId());
             VehicleController.VehicleDetailResponse detail = VehicleController.assembleDetail(vehicle, config, images);
-            // Fill routeNumber for images that have routeId set
-            if (detail != null && detail.getImages() != null) {
-                for (VehicleController.ImageDTO imgDto : detail.getImages()) {
-                    if (imgDto.getRouteId() != null && !StringUtils.hasText(imgDto.getRouteNumber())) {
-                        BusRoute br = busRouteMapper.selectById(imgDto.getRouteId());
-                        if (br != null) {
-                            imgDto.setRouteNumber(br.getRouteNumber());
+
+            // Resolve vehicle routes for photo-table grouping
+            List<VehicleRoute> vrs = vehicleRouteMapper.selectByVehicleId(vehicle.getId());
+            List<VehicleController.RouteBrief> routeBriefs = new ArrayList<>();
+            String fallbackRouteNumber = null;
+
+            if (vrs != null && !vrs.isEmpty()) {
+                for (VehicleRoute vr : vrs) {
+                    if (vr.getRoute() != null) {
+                        BusRoute br = vr.getRoute();
+                        VehicleController.RouteBrief rb = new VehicleController.RouteBrief();
+                        rb.setRouteId(br.getId());
+                        rb.setRouteNumber(br.getRouteNumber());
+                        rb.setIsCurrent(Boolean.TRUE.equals(vr.getIsCurrent()));
+                        routeBriefs.add(rb);
+                        // Use first current route as fallback for unlabeled images
+                        if (fallbackRouteNumber == null && Boolean.TRUE.equals(vr.getIsCurrent())) {
+                            fallbackRouteNumber = br.getRouteNumber();
+                        }
+                    }
+                }
+                // Any route as fallback if no current route
+                if (fallbackRouteNumber == null && !routeBriefs.isEmpty()) {
+                    fallbackRouteNumber = routeBriefs.get(0).getRouteNumber();
+                }
+            }
+
+            if (detail != null) {
+                if (detail.getVehicle() != null) {
+                    detail.getVehicle().setRoutes(routeBriefs);
+                }
+                // Fill route info for images
+                if (detail.getImages() != null) {
+                    for (VehicleController.ImageDTO imgDto : detail.getImages()) {
+                        if (imgDto.getRouteId() != null && !StringUtils.hasText(imgDto.getRouteNumber())) {
+                            BusRoute br = busRouteMapper.selectById(imgDto.getRouteId());
+                            if (br != null) {
+                                imgDto.setRouteNumber(br.getRouteNumber());
+                            }
+                        }
+                        // Fallback: use vehicle's current route for unlabeled images
+                        if (!StringUtils.hasText(imgDto.getRouteNumber()) && fallbackRouteNumber != null) {
+                            imgDto.setRouteNumber(fallbackRouteNumber);
                         }
                     }
                 }
