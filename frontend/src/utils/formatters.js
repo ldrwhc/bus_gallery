@@ -15,6 +15,10 @@ export const formatDate = (value, fallback = '-', options = {}) => {
 
 export const formatYearMonth = (value, fallback = '-') => {
     if (!value) return fallback;
+    // Year-only dates stored as "2016-01-01" → display just "2016"
+    if (typeof value === 'string' && /^\d{4}-01-01$/.test(value)) {
+        return value.slice(0, 4);
+    }
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return fallback;
     const year = date.getFullYear();

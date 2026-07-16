@@ -492,16 +492,24 @@ const photoTable = computed(() => {
 
             // Route: image.routeNumber > image.routeId match > vehicle.routes fallback
             let routeNumber = img?.routeNumber?.trim() || '';
-            const routeId = img?.routeId || null;
-            if (!routeNumber && routeId && record?.vehicle?.routes) {
-                const match = record.vehicle.routes.find((r) => Number(r.routeId) === Number(routeId));
+            let routeId = img?.routeId || null;
+            const vehicleRoutes = record?.vehicle?.routes || [];
+            if (!routeNumber && routeId && vehicleRoutes.length) {
+                const match = vehicleRoutes.find((r) => Number(r.routeId) === Number(routeId));
                 if (match?.routeNumber) routeNumber = match.routeNumber.trim();
+            }
+            // Resolve routeId from vehicle routes by matching routeNumber
+            if (!routeId && routeNumber && vehicleRoutes.length) {
+                const match = vehicleRoutes.find((r) => r.routeNumber === routeNumber);
+                if (match?.routeId) routeId = match.routeId;
             }
             if (!routeNumber) routeNumber = '未归类';
             const key = routeNumber;
 
             if (!routeMap.has(key)) {
                 routeMap.set(key, { routeNumber, routeId, yearMap: new Map() });
+            } else if (routeId && !routeMap.get(key).routeId) {
+                routeMap.get(key).routeId = routeId;
             }
             const entry = routeMap.get(key);
             if (!entry.yearMap.has(exifYear)) {
@@ -966,9 +974,9 @@ onMounted(() => {
     border-right: 1px solid #e5e7eb;
 }
 .photo-year-header__cell {
-    width: 140px; flex-shrink: 0;
-    padding: 8px 12px;
-    font-size: 0.85rem; font-weight: 700; color: #334155;
+    width: 180px; flex-shrink: 0;
+    padding: 10px 14px;
+    font-size: 0.88rem; font-weight: 700; color: #334155;
     display: flex; align-items: center; justify-content: center; gap: 4px;
     border-right: 1px solid #e5e7eb;
     &:last-child { border-right: none; }
@@ -980,11 +988,9 @@ onMounted(() => {
 .photo-row {
     display: flex; align-items: stretch; min-width: fit-content;
     border-bottom: 1px solid #f1f5f9;
-    transition: background 0.2s, box-shadow 0.2s;
+    transition: background 0.2s;
     &:hover {
         background: #f8fafc;
-        box-shadow: 0 1px 4px rgba(15,23,42,0.06);
-        position: relative; z-index: 1;
         .photo-thumb { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.13); }
     }
 }
@@ -992,7 +998,7 @@ onMounted(() => {
     min-width: 80px; max-width: 80px; flex-shrink: 0;
     padding: 6px 14px;
     display: flex; align-items: center;
-    position: sticky; left: 0; background: inherit; z-index: 1;
+    position: sticky; left: 0; background: inherit; z-index: 2;
     border-right: 1px solid #e5e7eb;
 }
 .route-link { color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.82rem;
@@ -1001,8 +1007,8 @@ onMounted(() => {
     &--plain { color: #94a3b8; cursor: default; }
 }
 .photo-row__cell {
-    width: 140px; flex-shrink: 0;
-    padding: 8px;
+    width: 180px; flex-shrink: 0;
+    padding: 10px;
     display: flex; align-items: center; justify-content: center;
     border-right: 1px solid #f1f5f9;
     &:last-child { border-right: none; }
@@ -1011,7 +1017,7 @@ onMounted(() => {
     border: none; padding: 0; border-radius: 8px; overflow: hidden;
     cursor: pointer; background: #e2e8f0;
     transition: transform 0.2s ease, box-shadow 0.2s ease; flex-shrink: 0;
-    img { width: 120px; height: 84px; object-fit: cover; display: block; }
+    img { width: 156px; height: 104px; object-fit: cover; display: block; }
     &:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
     img { width: 80px; height: 56px; object-fit: cover; display: block; }
     &:hover { transform: scale(1.06); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
@@ -1114,9 +1120,9 @@ onMounted(() => {
 @media (max-width: 900px) {
     .model-table__row { grid-template-columns: 48px 1fr 64px 1fr; gap: 8px; padding: 8px 12px; font-size: 0.82rem; }
     .company-card-grid { grid-template-columns: 1fr; gap: 14px; }
-    .photo-year-header__cell { width: 110px; }
-    .photo-row__cell { width: 110px; }
-    .photo-thumb img { width: 96px; height: 68px; }
+    .photo-year-header__cell { width: 140px; }
+    .photo-row__cell { width: 140px; }
+    .photo-thumb img { width: 120px; height: 80px; }
 }
 
 @media (max-width: 560px) {

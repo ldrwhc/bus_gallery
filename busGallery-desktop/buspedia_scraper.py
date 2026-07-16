@@ -108,10 +108,23 @@ def scrape_bus_detail(slug_or_url):
         result['plateNumber'] = veh['regist']
     if veh.get('vin'):
         result['vin'] = veh['vin']
-    if veh.get('date_manuf') and re.match(r'\d{4}-\d{2}', str(veh['date_manuf'])):
-        result['factoryDate'] = veh['date_manuf'] + '-01'
-    if veh.get('date_serve') and re.match(r'\d{4}-\d{2}', str(veh['date_serve'])):
-        result['launchDate'] = veh['date_serve'] + '-01'
+    # Dates: handle both "2014-06" and year-only "2016"
+    def pad_date(raw):
+        if not raw or not re.match(r'\d{4}', str(raw)):
+            return None
+        s = str(raw)
+        if len(s) >= 10:
+            return s[:10]
+        if len(s) == 7:
+            return s + '-01'
+        return s + '-01-01'
+
+    dm = pad_date(veh.get('date_manuf'))
+    if dm:
+        result['factoryDate'] = dm
+    ds = pad_date(veh.get('date_serve'))
+    if ds:
+        result['launchDate'] = ds
 
     # Company
     comp = veh.get('comp', {})

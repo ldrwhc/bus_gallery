@@ -1049,9 +1049,13 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
         if (veh.contains("regist") && !veh["regist"].toString().isEmpty())
             m_plateEdit->setText(veh["regist"].toString());
 
-        // Dates
+        // Dates: handle "2014-06" and year-only "2016"
         auto applyDateStr = [&](const QString &dateStr, QDateEdit *editor) {
-            if (dateStr.length() >= 7) {
+            if (dateStr.length() == 4) {
+                // Year-only: "2016" → "2016-01-01"
+                QDate d = QDate::fromString(dateStr + "-01-01", "yyyy-MM-dd");
+                if (d.isValid()) { editor->setDate(d); ++filled; }
+            } else if (dateStr.length() >= 7) {
                 QDate d = QDate::fromString(dateStr.left(7) + "-01", "yyyy-MM-dd");
                 if (d.isValid()) { editor->setDate(d); ++filled; }
             }
