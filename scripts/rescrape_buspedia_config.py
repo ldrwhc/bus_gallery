@@ -19,8 +19,8 @@ except ImportError:
     sys.exit(1)
 
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 13306,  # MySQL container port mapping (3306->13306)
+    "host": "127.0.0.1",
+    "port": 13306,
     "user": "root",
     "password": "123456",
     "database": "bus_gallery",

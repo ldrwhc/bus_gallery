@@ -257,10 +257,32 @@ public class UploadController {
             if (routeId == null && ra.getRouteNumber() != null && !ra.getRouteNumber().isBlank()) {
                 BusRoute newRoute = new BusRoute();
                 newRoute.setRouteNumber(ra.getRouteNumber().trim());
-                newRoute.setRouteType("REGULAR");
-                newRoute.setIsActive(true);
+                newRoute.setRouteType(ra.getRouteType() != null ? ra.getRouteType() : "REGULAR");
+                newRoute.setIsActive(ra.getIsActive() != null ? ra.getIsActive() : true);
                 newRoute.setStartStop(ra.getStartStop());
                 newRoute.setEndStop(ra.getEndStop());
+                newRoute.setDownStartStop(ra.getDownStartStop());
+                newRoute.setDownEndStop(ra.getDownEndStop());
+                newRoute.setSubType(ra.getSubType());
+                newRoute.setIsLoop(Boolean.TRUE.equals(ra.getIsLoop()));
+                newRoute.setLineLengthKm(ra.getLineLengthKm());
+                newRoute.setTicketType(ra.getTicketType());
+                newRoute.setTicketPrice(ra.getTicketPrice());
+                newRoute.setOperatingHours(ra.getOperatingHours());
+                newRoute.setRemark(ra.getRemark());
+                // Parse dates
+                if (ra.getFirstOperated() != null && !ra.getFirstOperated().isBlank()) {
+                    try { newRoute.setFirstOperated(java.time.LocalDate.parse(ra.getFirstOperated().trim())); } catch (Exception ignored) {}
+                }
+                if (ra.getLastOperated() != null && !ra.getLastOperated().isBlank()) {
+                    try { newRoute.setLastOperated(java.time.LocalDate.parse(ra.getLastOperated().trim())); } catch (Exception ignored) {}
+                }
+                // Parent route
+                if (ra.getParentRouteId() != null) {
+                    BusRoute parent = new BusRoute();
+                    parent.setId(ra.getParentRouteId());
+                    newRoute.setParentRoute(parent);
+                }
                 // Inherit region/company from the upload payload
                 if (regionId != null) {
                     Region r = new Region();

@@ -101,7 +101,25 @@ void CatalogApi::fetchRoutes()
                 ri.routeNumber = obj["routeNumber"].toString();
                 ri.startStop = startStop;
                 ri.endStop = endStop;
+                ri.downStartStop = obj["downStartStop"].toString();
+                ri.downEndStop = obj["downEndStop"].toString();
                 ri.routeType = obj["routeType"].toString();
+                ri.subType = obj["subType"].toString();
+                ri.isLoop = obj["isLoop"].toBool(false);
+                ri.isActive = obj["isActive"].toBool(true);
+                ri.lineLengthKm = obj["lineLengthKm"].toVariant().toDouble();
+                ri.ticketType = obj["ticketType"].toString();
+                ri.ticketPrice = obj["ticketPrice"].toString();
+                ri.operatingHours = obj["operatingHours"].toString();
+                ri.firstOperated = obj["firstOperated"].toString();
+                ri.lastOperated = obj["lastOperated"].toString();
+                ri.remark = obj["remark"].toString();
+                ri.parentRouteId = obj["parentRouteId"].toVariant().toLongLong();
+                // Resolve nested region/company objects
+                QJsonObject regionObj = obj["region"].toObject();
+                if (!regionObj.isEmpty()) ri.regionId = regionObj["id"].toVariant().toLongLong();
+                QJsonObject companyObj = obj["company"].toObject();
+                if (!companyObj.isEmpty()) ri.companyId = companyObj["id"].toVariant().toLongLong();
                 routeData.append(ri);
             }
             emit routesReady(items);

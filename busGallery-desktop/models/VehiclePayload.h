@@ -14,7 +14,22 @@ struct RouteInfo {
     QString routeNumber;
     QString startStop;
     QString endStop;
+    QString downStartStop;
+    QString downEndStop;
     QString routeType;
+    QString subType;
+    qint64 parentRouteId = 0;
+    bool isLoop = false;
+    bool isActive = true;
+    double lineLengthKm = 0;
+    QString ticketType;
+    QString ticketPrice;
+    QString operatingHours;
+    QString firstOperated;
+    QString lastOperated;
+    QString remark;
+    qint64 regionId = 0;
+    qint64 companyId = 0;
 };
 
 struct RouteAssignment {
@@ -22,7 +37,20 @@ struct RouteAssignment {
     QString routeNumber;
     QString startStop;
     QString endStop;
+    QString downStartStop;
+    QString downEndStop;
+    QString routeType = "REGULAR";
+    QString subType;
+    qint64 parentRouteId = 0;
+    bool isLoop = false;
     bool isCurrent = true;
+    bool isActive = true;
+    double lineLengthKm = 0;
+    QString ticketType;
+    QString ticketPrice;
+    QString operatingHours;
+    QString firstOperated;
+    QString lastOperated;
     QString remark;
 
     QJsonObject toJson() const {
@@ -31,7 +59,20 @@ struct RouteAssignment {
         if (!routeNumber.isEmpty()) obj["routeNumber"] = routeNumber;
         if (!startStop.isEmpty()) obj["startStop"] = startStop;
         if (!endStop.isEmpty()) obj["endStop"] = endStop;
+        if (!downStartStop.isEmpty()) obj["downStartStop"] = downStartStop;
+        if (!downEndStop.isEmpty()) obj["downEndStop"] = downEndStop;
+        if (!routeType.isEmpty() && routeType != "REGULAR") obj["routeType"] = routeType;
+        if (!subType.isEmpty()) obj["subType"] = subType;
+        if (parentRouteId > 0) obj["parentRouteId"] = parentRouteId;
+        obj["isLoop"] = isLoop;
         obj["isCurrent"] = isCurrent;
+        obj["isActive"] = isActive;
+        if (lineLengthKm > 0) obj["lineLengthKm"] = lineLengthKm;
+        if (!ticketType.isEmpty()) obj["ticketType"] = ticketType;
+        if (!ticketPrice.isEmpty()) obj["ticketPrice"] = ticketPrice;
+        if (!operatingHours.isEmpty()) obj["operatingHours"] = operatingHours;
+        if (!firstOperated.isEmpty()) obj["firstOperated"] = firstOperated;
+        if (!lastOperated.isEmpty()) obj["lastOperated"] = lastOperated;
         if (!remark.isEmpty()) obj["remark"] = remark;
         return obj;
     }

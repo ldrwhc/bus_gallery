@@ -111,6 +111,23 @@ private:
         QLineEdit *endStopEdit;
         QCheckBox *isCurrentCheck;
         QPushButton *removeBtn;
+        // Advanced settings widgets
+        QPushButton *advancedToggle;
+        QWidget *advancedPanel;
+        QComboBox *subTypeCombo;
+        QComboBox *routeTypeCombo;
+        QComboBox *parentRouteCombo;
+        QLineEdit *downStartStopEdit;
+        QLineEdit *downEndStopEdit;
+        QCheckBox *isLoopCheck;
+        QCheckBox *isActiveCheck;
+        QLineEdit *lineLengthKmEdit;
+        QLineEdit *ticketTypeEdit;
+        QLineEdit *ticketPriceEdit;
+        QLineEdit *operatingHoursEdit;
+        QLineEdit *remarkEdit;
+        QDateEdit *firstOperatedEdit;
+        QDateEdit *lastOperatedEdit;
     };
     QList<RouteRowWidgets> m_routeRows;
 

@@ -46,7 +46,20 @@ public class VehicleUpsertPayload {
         private String routeName;
         private String startStop;
         private String endStop;
+        private String downStartStop;
+        private String downEndStop;
+        private String routeType;
+        private String subType;
+        private Long parentRouteId;
+        private Boolean isLoop;
         private Boolean isCurrent;
+        private Boolean isActive;
+        private java.math.BigDecimal lineLengthKm;
+        private String ticketType;
+        private String ticketPrice;
+        private String operatingHours;
+        private String firstOperated;
+        private String lastOperated;
         private String remark;
     }
 

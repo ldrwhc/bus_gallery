@@ -191,6 +191,7 @@ MainWindow::MainWindow(ApiClient *client, QWidget *parent)
     // Set up buspedia network manager with cookie jar & SSL
     m_buspediaNam = new QNetworkAccessManager(this);
     m_buspediaNam->setCookieJar(new QNetworkCookieJar(m_buspediaNam));
+    m_buspediaNam->setCache(nullptr);  // Disable cache — always fetch fresh data
     // Allow self-signed certs for resilience
     QSslConfiguration sslConf = QSslConfiguration::defaultConfiguration();
     sslConf.setPeerVerifyMode(QSslSocket::VerifyNone);
@@ -652,6 +653,25 @@ void MainWindow::submitUpload()
         ra.startStop = row.startStopEdit->text().trimmed();
         ra.endStop = row.endStopEdit->text().trimmed();
         ra.isCurrent = row.isCurrentCheck->isChecked();
+        // Advanced fields
+        ra.subType = row.subTypeCombo->currentData().toString();
+        ra.routeType = row.routeTypeCombo->currentData().toString();
+        ra.parentRouteId = row.parentRouteCombo->currentData().toLongLong();
+        ra.downStartStop = row.downStartStopEdit->text().trimmed();
+        ra.downEndStop = row.downEndStopEdit->text().trimmed();
+        ra.isLoop = row.isLoopCheck->isChecked();
+        ra.isActive = row.isActiveCheck->isChecked();
+        bool ok;
+        double len = row.lineLengthKmEdit->text().trimmed().toDouble(&ok);
+        if (ok && len > 0) ra.lineLengthKm = len;
+        ra.ticketType = row.ticketTypeEdit->text().trimmed();
+        ra.ticketPrice = row.ticketPriceEdit->text().trimmed();
+        ra.operatingHours = row.operatingHoursEdit->text().trimmed();
+        ra.remark = row.remarkEdit->text().trimmed();
+        if (row.firstOperatedEdit->date().isValid() && row.firstOperatedEdit->date().year() > 2000)
+            ra.firstOperated = row.firstOperatedEdit->date().toString("yyyy-MM-dd");
+        if (row.lastOperatedEdit->date().isValid() && row.lastOperatedEdit->date().year() > 2000)
+            ra.lastOperated = row.lastOperatedEdit->date().toString("yyyy-MM-dd");
         payload.routes.append(ra);
     }
 
@@ -716,7 +736,6 @@ void MainWindow::addRouteRow(const RouteAssignment &ra)
 {
     auto *row = new QWidget(m_routesContainer);
     row->setProperty("routeRow", true);
-    // Slightly raised card look
     row->setStyleSheet(QString(
         "QWidget[routeRow=\"true\"] {"
         "  background: %1; border: 1px solid %2; border-radius: 8px; padding: 8px;"
@@ -738,7 +757,6 @@ void MainWindow::addRouteRow(const RouteAssignment &ra)
     if (!m_routesList.isEmpty()) {
         routeField->setItems(m_routesList);
     }
-    // Pre-fill text if restoring from draft
     if (!ra.routeNumber.isEmpty()) {
         auto *edit = routeField->findChild<QLineEdit*>();
         if (edit) edit->setText(ra.routeNumber);
@@ -769,6 +787,7 @@ void MainWindow::addRouteRow(const RouteAssignment &ra)
     row3->setSpacing(8);
     auto *startStopEdit = new QLineEdit(row);
     startStopEdit->setPlaceholderText(QString::fromUtf8("起点站"));
+    if (!ra.startStop.isEmpty()) startStopEdit->setText(ra.startStop);
     row3->addWidget(startStopEdit);
     auto *sepLabel = new QLabel(QString::fromUtf8("—"), row);
     sepLabel->setFixedWidth(20);
@@ -777,8 +796,158 @@ void MainWindow::addRouteRow(const RouteAssignment &ra)
     row3->addWidget(sepLabel);
     auto *endStopEdit = new QLineEdit(row);
     endStopEdit->setPlaceholderText(QString::fromUtf8("终点站"));
+    if (!ra.endStop.isEmpty()) endStopEdit->setText(ra.endStop);
     row3->addWidget(endStopEdit);
     outerLayout->addLayout(row3);
+
+    // ===== Advanced Settings Toggle =====
+    auto *advToggle = new QPushButton(QString::fromUtf8("▶ 高级设置"), row);
+    advToggle->setFlat(true);
+    advToggle->setCursor(Qt::PointingHandCursor);
+    advToggle->setStyleSheet(
+        "QPushButton { border: none; background: transparent; color: #6366f1; font-size: 12px; font-weight: 500; padding: 2px 0; text-align: left; }"
+        "QPushButton:hover { color: #4f46e5; }");
+    advToggle->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    outerLayout->addWidget(advToggle);
+
+    // ===== Advanced Settings Panel (hidden by default) =====
+    auto *advPanel = new QWidget(row);
+    advPanel->setVisible(false);
+    auto *advLayout = new QVBoxLayout(advPanel);
+    advLayout->setContentsMargins(0, 4, 0, 0);
+    advLayout->setSpacing(6);
+
+    // Row A1: subType | routeType | isLoop | isActive
+    auto *advRow1 = new QHBoxLayout();
+    advRow1->setSpacing(8);
+
+    auto *subTypeLabel = new QLabel(QString::fromUtf8("形式"), advPanel);
+    subTypeLabel->setStyleSheet("font-size:11px; color:#6b7280; border:none;background:transparent;");
+    advRow1->addWidget(subTypeLabel);
+    auto *subTypeCombo = new QComboBox(advPanel);
+    subTypeCombo->addItem(QString::fromUtf8("主线"), QString(""));
+    subTypeCombo->addItem(QString::fromUtf8("区间"), QString("INTERVAL"));
+    subTypeCombo->addItem(QString::fromUtf8("支线"), QString("BRANCH"));
+    subTypeCombo->addItem(QString::fromUtf8("快线"), QString("EXPRESS"));
+    subTypeCombo->addItem(QString::fromUtf8("夜班"), QString("NIGHT"));
+    subTypeCombo->addItem(QString::fromUtf8("直达"), QString("DIRECT"));
+    subTypeCombo->setCurrentIndex(0);
+    subTypeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    advRow1->addWidget(subTypeCombo);
+
+    auto *routeTypeLabel = new QLabel(QString::fromUtf8("类型"), advPanel);
+    routeTypeLabel->setStyleSheet("font-size:11px; color:#6b7280; border:none;background:transparent;");
+    advRow1->addWidget(routeTypeLabel);
+    auto *routeTypeCombo = new QComboBox(advPanel);
+    routeTypeCombo->addItem(QString::fromUtf8("常规"), QString("REGULAR"));
+    routeTypeCombo->addItem(QString::fromUtf8("BRT"), QString("BRT"));
+    routeTypeCombo->addItem(QString::fromUtf8("机场"), QString("AIRPORT"));
+    routeTypeCombo->addItem(QString::fromUtf8("旅游"), QString("TOURIST"));
+    routeTypeCombo->addItem(QString::fromUtf8("微循环"), QString("COMMUNITY"));
+    routeTypeCombo->addItem(QString::fromUtf8("地铁接驳"), QString("SUBWAY"));
+    routeTypeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    advRow1->addWidget(routeTypeCombo);
+
+    auto *isLoopCheck = new QCheckBox(QString::fromUtf8("环线"), advPanel);
+    isLoopCheck->setChecked(ra.isLoop);
+    advRow1->addWidget(isLoopCheck);
+
+    auto *isActiveCheck = new QCheckBox(QString::fromUtf8("运营中"), advPanel);
+    isActiveCheck->setChecked(ra.isActive);
+    advRow1->addWidget(isActiveCheck);
+
+    advLayout->addLayout(advRow1);
+
+    // Row A2: parentRoute | downStartStop | downEndStop
+    auto *advRow2 = new QHBoxLayout();
+    advRow2->setSpacing(8);
+
+    auto *parentLabel = new QLabel(QString::fromUtf8("父线路"), advPanel);
+    parentLabel->setStyleSheet("font-size:11px; color:#6b7280; border:none;background:transparent;");
+    advRow2->addWidget(parentLabel);
+    auto *parentRouteCombo = new QComboBox(advPanel);
+    parentRouteCombo->setEditable(true);
+    parentRouteCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    advRow2->addWidget(parentRouteCombo);
+
+    auto *downStartEdit = new QLineEdit(advPanel);
+    downStartEdit->setPlaceholderText(QString::fromUtf8("下行起点"));
+    if (!ra.downStartStop.isEmpty()) downStartEdit->setText(ra.downStartStop);
+    advRow2->addWidget(downStartEdit);
+
+    auto *downEndEdit = new QLineEdit(advPanel);
+    downEndEdit->setPlaceholderText(QString::fromUtf8("下行终点"));
+    if (!ra.downEndStop.isEmpty()) downEndEdit->setText(ra.downEndStop);
+    advRow2->addWidget(downEndEdit);
+
+    advLayout->addLayout(advRow2);
+
+    // Row A3: lineLengthKm | ticketType | ticketPrice
+    auto *advRow3 = new QHBoxLayout();
+    advRow3->setSpacing(8);
+
+    auto *lenEdit = new QLineEdit(advPanel);
+    lenEdit->setPlaceholderText(QString::fromUtf8("线路长度(km)"));
+    if (ra.lineLengthKm > 0) lenEdit->setText(QString::number(ra.lineLengthKm, 'f', 1));
+    advRow3->addWidget(lenEdit);
+
+    auto *ticketTypeEdit = new QLineEdit(advPanel);
+    ticketTypeEdit->setPlaceholderText(QString::fromUtf8("票制"));
+    if (!ra.ticketType.isEmpty()) ticketTypeEdit->setText(ra.ticketType);
+    advRow3->addWidget(ticketTypeEdit);
+
+    auto *ticketPriceEdit = new QLineEdit(advPanel);
+    ticketPriceEdit->setPlaceholderText(QString::fromUtf8("票价"));
+    if (!ra.ticketPrice.isEmpty()) ticketPriceEdit->setText(ra.ticketPrice);
+    advRow3->addWidget(ticketPriceEdit);
+
+    advLayout->addLayout(advRow3);
+
+    // Row A4: operatingHours | firstOperated | lastOperated
+    auto *advRow4 = new QHBoxLayout();
+    advRow4->setSpacing(8);
+
+    auto *hoursEdit = new QLineEdit(advPanel);
+    hoursEdit->setPlaceholderText(QString::fromUtf8("运营时间"));
+    if (!ra.operatingHours.isEmpty()) hoursEdit->setText(ra.operatingHours);
+    advRow4->addWidget(hoursEdit);
+
+    auto *firstOperEdit = new QDateEdit(advPanel);
+    firstOperEdit->setCalendarPopup(true);
+    firstOperEdit->setDisplayFormat("yyyy-MM-dd");
+    firstOperEdit->setSpecialValueText(QString::fromUtf8("开通日期"));
+    firstOperEdit->setDate(QDate(2000, 1, 1));
+    firstOperEdit->clear();
+    if (!ra.firstOperated.isEmpty()) firstOperEdit->setDate(QDate::fromString(ra.firstOperated, "yyyy-MM-dd"));
+    advRow4->addWidget(firstOperEdit);
+
+    auto *lastOperEdit = new QDateEdit(advPanel);
+    lastOperEdit->setCalendarPopup(true);
+    lastOperEdit->setDisplayFormat("yyyy-MM-dd");
+    lastOperEdit->setSpecialValueText(QString::fromUtf8("停运日期"));
+    lastOperEdit->setDate(QDate(2000, 1, 1));
+    lastOperEdit->clear();
+    if (!ra.lastOperated.isEmpty()) lastOperEdit->setDate(QDate::fromString(ra.lastOperated, "yyyy-MM-dd"));
+    advRow4->addWidget(lastOperEdit);
+
+    advLayout->addLayout(advRow4);
+
+    // Row A5: remark
+    auto *remarkEdit = new QLineEdit(advPanel);
+    remarkEdit->setPlaceholderText(QString::fromUtf8("备注"));
+    if (!ra.remark.isEmpty()) remarkEdit->setText(ra.remark);
+    advLayout->addWidget(remarkEdit);
+
+    outerLayout->addWidget(advPanel);
+
+    // Expand/collapse toggle
+    connect(advToggle, &QPushButton::clicked, this, [advPanel, advToggle]() {
+        bool visible = !advPanel->isVisible();
+        advPanel->setVisible(visible);
+        advToggle->setText(visible
+            ? QString::fromUtf8("▼ 高级设置")
+            : QString::fromUtf8("▶ 高级设置"));
+    });
 
     m_routesLayout->addWidget(row);
 
@@ -789,23 +958,100 @@ void MainWindow::addRouteRow(const RouteAssignment &ra)
     rw.endStopEdit = endStopEdit;
     rw.isCurrentCheck = isCurrentCheck;
     rw.removeBtn = removeBtn;
+    rw.advancedToggle = advToggle;
+    rw.advancedPanel = advPanel;
+    rw.subTypeCombo = subTypeCombo;
+    rw.routeTypeCombo = routeTypeCombo;
+    rw.parentRouteCombo = parentRouteCombo;
+    rw.downStartStopEdit = downStartEdit;
+    rw.downEndStopEdit = downEndEdit;
+    rw.isLoopCheck = isLoopCheck;
+    rw.isActiveCheck = isActiveCheck;
+    rw.lineLengthKmEdit = lenEdit;
+    rw.ticketTypeEdit = ticketTypeEdit;
+    rw.ticketPriceEdit = ticketPriceEdit;
+    rw.operatingHoursEdit = hoursEdit;
+    rw.remarkEdit = remarkEdit;
+    rw.firstOperatedEdit = firstOperEdit;
+    rw.lastOperatedEdit = lastOperEdit;
     m_routeRows.append(rw);
 
+    // Populate parent route combo from routes list
+    parentRouteCombo->addItem(QString::fromUtf8("(无)"), QVariant(0));
+    for (const auto &ri : m_routesData) {
+        parentRouteCombo->addItem(ri.routeNumber, QVariant(ri.id));
+    }
+
     // Auto-fill when a route is selected from the dropdown or matched exactly
-    connect(routeField, &AutocompleteField::valueChanged, this, [this, routeField, startStopEdit, endStopEdit]() {
+    connect(routeField, &AutocompleteField::valueChanged, this,
+        [this, routeField, startStopEdit, endStopEdit, subTypeCombo, routeTypeCombo,
+         downStartEdit, downEndEdit, isLoopCheck, isActiveCheck, lenEdit,
+         ticketTypeEdit, ticketPriceEdit, hoursEdit, remarkEdit,
+         firstOperEdit, lastOperEdit, parentRouteCombo]() {
         qint64 routeId = routeField->selectedId();
         if (routeId > 0 && m_routesData.contains(routeId)) {
             const RouteInfo &info = m_routesData[routeId];
             startStopEdit->setText(info.startStop);
             endStopEdit->setText(info.endStop);
+            // Advanced fields
+            downStartEdit->setText(info.downStartStop);
+            downEndEdit->setText(info.downEndStop);
+            isLoopCheck->setChecked(info.isLoop);
+            isActiveCheck->setChecked(info.isActive);
+            if (info.lineLengthKm > 0) lenEdit->setText(QString::number(info.lineLengthKm, 'f', 1));
+            ticketTypeEdit->setText(info.ticketType);
+            ticketPriceEdit->setText(info.ticketPrice);
+            hoursEdit->setText(info.operatingHours);
+            remarkEdit->setText(info.remark);
+            if (!info.firstOperated.isEmpty())
+                firstOperEdit->setDate(QDate::fromString(info.firstOperated, "yyyy-MM-dd"));
+            if (!info.lastOperated.isEmpty())
+                lastOperEdit->setDate(QDate::fromString(info.lastOperated, "yyyy-MM-dd"));
+            // Set subType
+            for (int i = 0; i < subTypeCombo->count(); ++i) {
+                if (subTypeCombo->itemData(i).toString() == info.subType) {
+                    subTypeCombo->setCurrentIndex(i);
+                    break;
+                }
+            }
+            // Set routeType
+            for (int i = 0; i < routeTypeCombo->count(); ++i) {
+                if (routeTypeCombo->itemData(i).toString() == info.routeType) {
+                    routeTypeCombo->setCurrentIndex(i);
+                    break;
+                }
+            }
+            // Set parentRoute in combo
+            if (info.parentRouteId > 0) {
+                for (int i = 0; i < parentRouteCombo->count(); ++i) {
+                    if (parentRouteCombo->itemData(i).toLongLong() == info.parentRouteId) {
+                        parentRouteCombo->setCurrentIndex(i);
+                        break;
+                    }
+                }
+            }
         }
     });
 
-    // Hook for draft auto-save
+    // Hook for draft auto-save (basic + advanced)
     connect(routeField, &AutocompleteField::valueChanged, this, [this]() { m_draftTimer->start(); });
     connect(startStopEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
     connect(endStopEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
     connect(isCurrentCheck, &QCheckBox::toggled, this, [this]() { m_draftTimer->start(); });
+    connect(subTypeCombo, &QComboBox::currentIndexChanged, this, [this]() { m_draftTimer->start(); });
+    connect(routeTypeCombo, &QComboBox::currentIndexChanged, this, [this]() { m_draftTimer->start(); });
+    connect(parentRouteCombo, &QComboBox::currentIndexChanged, this, [this]() { m_draftTimer->start(); });
+    connect(downStartEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(downEndEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(isLoopCheck, &QCheckBox::toggled, this, [this]() { m_draftTimer->start(); });
+    connect(isActiveCheck, &QCheckBox::toggled, this, [this]() { m_draftTimer->start(); });
+    connect(lenEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(ticketTypeEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(ticketPriceEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(hoursEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(remarkEdit, &QLineEdit::textChanged, this, [this]() { m_draftTimer->start(); });
+    connect(firstOperEdit, &QDateEdit::dateChanged, this, [this]() { m_draftTimer->start(); });
+    connect(lastOperEdit, &QDateEdit::dateChanged, this, [this]() { m_draftTimer->start(); });
 }
 
 void MainWindow::removeRouteRow(int index)
@@ -854,6 +1100,8 @@ void MainWindow::fetchFromBuspedia()
 
     QString searchUrl = QString("https://api.buspedia.top/search?name=%1").arg(QString::fromLatin1(encoded));
     QNetworkRequest req{QUrl(searchUrl)};
+    req.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
+                     QNetworkRequest::AlwaysNetwork);
     req.setRawHeader("User-Agent", "Mozilla/5.0 BusGalleryDesktop/1.0");
     req.setRawHeader("Accept", "application/json");
     req.setRawHeader("Origin", "https://buspedia.top");
@@ -936,6 +1184,8 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
 
     QString apiUrl = QString("https://api.buspedia.top/bus/%1").arg(slug);
     QNetworkRequest req{QUrl(apiUrl)};
+    req.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
+                     QNetworkRequest::AlwaysNetwork);
     req.setRawHeader("User-Agent", "Mozilla/5.0 BusGalleryDesktop/1.0");
     req.setRawHeader("Accept", "application/json");
     req.setRawHeader("Origin", "https://buspedia.top");
@@ -1246,6 +1496,23 @@ QJsonObject MainWindow::formToJson() const
         ro["startStop"] = row.startStopEdit->text().trimmed();
         ro["endStop"] = row.endStopEdit->text().trimmed();
         ro["isCurrent"] = row.isCurrentCheck->isChecked();
+        // Advanced fields
+        ro["subType"] = row.subTypeCombo->currentData().toString();
+        ro["routeType"] = row.routeTypeCombo->currentData().toString();
+        ro["parentRouteId"] = row.parentRouteCombo->currentData().toLongLong();
+        ro["downStartStop"] = row.downStartStopEdit->text().trimmed();
+        ro["downEndStop"] = row.downEndStopEdit->text().trimmed();
+        ro["isLoop"] = row.isLoopCheck->isChecked();
+        ro["isActive"] = row.isActiveCheck->isChecked();
+        ro["lineLengthKm"] = row.lineLengthKmEdit->text().trimmed();
+        ro["ticketType"] = row.ticketTypeEdit->text().trimmed();
+        ro["ticketPrice"] = row.ticketPriceEdit->text().trimmed();
+        ro["operatingHours"] = row.operatingHoursEdit->text().trimmed();
+        ro["remark"] = row.remarkEdit->text().trimmed();
+        if (row.firstOperatedEdit->date().isValid() && row.firstOperatedEdit->date().year() > 2000)
+            ro["firstOperated"] = row.firstOperatedEdit->date().toString("yyyy-MM-dd");
+        if (row.lastOperatedEdit->date().isValid() && row.lastOperatedEdit->date().year() > 2000)
+            ro["lastOperated"] = row.lastOperatedEdit->date().toString("yyyy-MM-dd");
         routesArr.append(ro);
     }
     o["routes"] = routesArr;
@@ -1306,6 +1573,21 @@ void MainWindow::formFromJson(const QJsonObject &o)
         ra.startStop = ro["startStop"].toString();
         ra.endStop = ro["endStop"].toString();
         ra.isCurrent = ro["isCurrent"].toBool(true);
+        // Advanced fields
+        ra.subType = ro["subType"].toString();
+        ra.routeType = ro["routeType"].toString("REGULAR");
+        ra.parentRouteId = static_cast<qint64>(ro["parentRouteId"].toDouble());
+        ra.downStartStop = ro["downStartStop"].toString();
+        ra.downEndStop = ro["downEndStop"].toString();
+        ra.isLoop = ro["isLoop"].toBool(false);
+        ra.isActive = ro["isActive"].toBool(true);
+        ra.lineLengthKm = ro["lineLengthKm"].toString().toDouble();
+        ra.ticketType = ro["ticketType"].toString();
+        ra.ticketPrice = ro["ticketPrice"].toString();
+        ra.operatingHours = ro["operatingHours"].toString();
+        ra.remark = ro["remark"].toString();
+        ra.firstOperated = ro["firstOperated"].toString();
+        ra.lastOperated = ro["lastOperated"].toString();
         addRouteRow(ra);
     }
 }
