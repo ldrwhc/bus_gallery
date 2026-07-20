@@ -3,6 +3,7 @@
 #include "utils/Config.h"
 #include "utils/ThemeManager.h"
 #include "utils/ChinaRegions.h"
+#include "utils/ImageProcessor.h"
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QVBoxLayout>
@@ -83,78 +84,18 @@ MainWindow::MainWindow(ApiClient *client, QWidget *parent)
         }
     });
 
-    // Auto-fill config when model is selected (suppressed during buspedia scraping
-    // to prevent async DB callback from overwriting fresh buspedia data)
-    connect(m_modelField, &AutocompleteField::valueChanged, this, [this]() {
-        if (m_suppressModelAutoFill) return;
-        qint64 modelId = m_modelField->selectedId();
-        if (modelId > 0) {
-            m_catalog->fetchModelVehicles(modelId);
-        }
-    });
-
-    connect(m_catalog, &CatalogApi::modelVehiclesReady, this,
-        [this](qint64 modelId, const QJsonArray &vehicles) {
-            if (vehicles.isEmpty()) return;
-
-            QJsonObject first = vehicles[0].toObject();
-            QJsonObject vehicle = first["vehicle"].toObject();
-            QJsonObject config = first["vehicleConfig"].toObject();
-
-            if (config.isEmpty()) return;
-
-            // Auto-fill config fields
-            QString engine = config["engine"].toString();
-            QString motor = config["motor"].toString();
-            QString fuelType = config["fuelType"].toString();
-            QString stepType = config["stepType"].toString();
-            QString trans = config["transmissionSystem"].toString();
-            QString susp = config["suspension"].toString();
-            QString axle = config["axle"].toString();
-
-            if (!engine.isEmpty()) m_engineEdit->setText(engine);
-            if (!motor.isEmpty()) m_motorEdit->setText(motor);
-            if (!stepType.isEmpty()) m_stepTypeEdit->setText(stepType);
-            if (!trans.isEmpty()) m_transmissionEdit->setText(trans);
-            if (!susp.isEmpty()) m_suspensionEdit->setText(susp);
-            if (!axle.isEmpty()) m_axleEdit->setText(axle);
-
-            // Match fuel type dropdown
-            if (!fuelType.isEmpty()) {
-                for (int i = 0; i < m_fuelType->count(); ++i) {
-                    if (m_fuelType->itemText(i) == fuelType) {
-                        m_fuelType->setCurrentIndex(i);
-                        break;
-                    }
-                }
-            }
-
-            // Auto-fill dates (format: yyyy-MM-dd or yyyy-MM)
-            QString fd = vehicle["factoryDate"].toString();
-            QString ld = vehicle["launchDate"].toString();
-            auto parseDate = [](const QString &s) -> QDate {
-                if (s.length() >= 10) return QDate::fromString(s.left(10), "yyyy-MM-dd");
-                if (s.length() >= 7)  return QDate::fromString(s.left(7) + "-01", "yyyy-MM-dd");
-                return QDate();
-            };
-            QDate fDate = parseDate(fd);
-            QDate lDate = parseDate(ld);
-            if (fDate.isValid()) m_factoryDate->setDate(fDate);
-            if (lDate.isValid()) m_launchDate->setDate(lDate);
-
-            m_progressLabel->setStyleSheet(
-                QString("color: %1;").arg(ThemeManager::color(Light::Success, Dark::Success)));
-            m_progressLabel->setText(
-                QString::fromUtf8("已从服务器获取 %1 的配置信息").arg(m_modelField->text()));
-            QTimer::singleShot(4000, this, [this]() {
-                if (m_progressLabel->text().contains(QString::fromUtf8("服务器获取")))
-                    m_progressLabel->clear();
-            });
-        });
+    // Model-to-config auto-fill removed: config varies by individual vehicle
+    // (different companies may order the same model with different specs).
+    // Use the "爬取参数" button to scrape per-vehicle data from buspedia.
 
     connect(m_upload, &UploadApi::uploadSuccess, this, [this](const UploadResult &result) {
         m_submitBtn->setEnabled(true);
         m_progress->setVisible(false);
+        // Clean up compressed temp file if any
+        if (!m_compressedFilePath.isEmpty()) {
+            QFile::remove(m_compressedFilePath);
+            m_compressedFilePath.clear();
+        }
         // Clear draft on success
         QFile::remove(draftPath());
         QString msg;
@@ -180,6 +121,11 @@ MainWindow::MainWindow(ApiClient *client, QWidget *parent)
     connect(m_upload, &UploadApi::uploadError, this, [this](const QString &code, const QString &msg) {
         m_submitBtn->setEnabled(true);
         m_progress->setVisible(false);
+        // Clean up compressed temp file if any
+        if (!m_compressedFilePath.isEmpty()) {
+            QFile::remove(m_compressedFilePath);
+            m_compressedFilePath.clear();
+        }
         m_progressLabel->setProperty("error", true);
         m_progressLabel->setStyleSheet({});
         bool d = ThemeManager::instance().isDark();
@@ -484,12 +430,11 @@ void MainWindow::setupUploadForm(QWidget *page)
     };
     hookLineEdit(m_plateEdit);
     // Auto-fill region from plate prefix when plate changes
+    // Always re-evaluate — plate prefix is more reliable than a stale draft selection
     connect(m_plateEdit, &QLineEdit::editingFinished, this, [this]() {
-        if (!m_regionPicker->hasSelection()) {
-            QString plate = m_plateEdit->text().trimmed().toUpper();
-            if (plate.length() >= 2)
-                m_regionPicker->selectByPlateNumber(plate);
-        }
+        QString plate = m_plateEdit->text().trimmed().toUpper();
+        if (plate.length() >= 2)
+            m_regionPicker->selectByPlateNumber(plate);
     });
     hookLineEdit(m_customNumEdit);
     hookLineEdit(m_engineEdit);
@@ -683,7 +628,11 @@ void MainWindow::submitUpload()
         .arg(ThemeManager::color(Light::Accent, Dark::Accent)));
     m_progressLabel->setText(QString::fromUtf8("正在上传图片和车辆信息..."));
 
-    m_upload->uploadVehicle(m_imageDrop->selectedFilePath(), payload);
+    // Compress oversized images to meet server limits (24 MP / 8192×8192)
+    QString uploadPath = ImageProcessor::compressForUpload(m_imageDrop->selectedFilePath());
+    m_compressedFilePath = (uploadPath != m_imageDrop->selectedFilePath()) ? uploadPath : QString();
+
+    m_upload->uploadVehicle(uploadPath, payload);
 }
 
 void MainWindow::resetForm()
@@ -1083,10 +1032,6 @@ void MainWindow::fetchFromBuspedia()
         return;
     }
 
-    // Suppress model auto-fill during buspedia scraping to prevent async
-    // DB callback from overwriting fresh buspedia data with stale DB values.
-    m_suppressModelAutoFill = true;
-
     // Remove middle dot, keep spaces for buspedia search
     QString searchPlate = plate;
     searchPlate.remove(QChar(0x00B7));
@@ -1111,7 +1056,6 @@ void MainWindow::fetchFromBuspedia()
     connect(reply, &QNetworkReply::finished, this, [this, reply, searchPlate]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            m_suppressModelAutoFill = false;
             m_buspediaBtn->setEnabled(true);
             m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
             m_progressLabel->setText(QString::fromUtf8("搜索失败: %1").arg(reply->errorString()));
@@ -1134,7 +1078,6 @@ void MainWindow::fetchFromBuspedia()
         QJsonParseError parseErr;
         QJsonDocument doc = QJsonDocument::fromJson(json, &parseErr);
         if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
-            m_suppressModelAutoFill = false;
             m_buspediaBtn->setEnabled(true);
             m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
             m_progressLabel->setText(QString::fromUtf8("搜索解析失败"));
@@ -1143,7 +1086,6 @@ void MainWindow::fetchFromBuspedia()
         // Search result: {"v": [{id, regist, comp, no, ...}]}
         QJsonArray vehicles = doc.object()["v"].toArray();
         if (vehicles.isEmpty()) {
-            m_suppressModelAutoFill = false;
             m_buspediaBtn->setEnabled(true);
             m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
             m_progressLabel->setText(QString::fromUtf8("未找到 %1，请手动搜索").arg(searchPlate));
@@ -1151,7 +1093,6 @@ void MainWindow::fetchFromBuspedia()
         }
         QString slug = vehicles[0].toObject()["id"].toString();
         if (slug.isEmpty()) {
-            m_suppressModelAutoFill = false;
             m_buspediaBtn->setEnabled(true);
             m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
             m_progressLabel->setText(QString::fromUtf8("搜索结果无ID"));
@@ -1173,7 +1114,6 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
     else if (slug.startsWith('/'))
         slug = slug.mid(1);
     if (slug.isEmpty()) {
-        m_suppressModelAutoFill = false;
         m_progressLabel->setText(QString::fromUtf8("无法解析 URL，请粘贴完整的 buspedia 车辆详情链接"));
         return;
     }
@@ -1196,7 +1136,6 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
         reply->deleteLater();
         m_buspediaBtn->setEnabled(true);
         m_buspediaBtn->setText(QString::fromUtf8("爬取参数"));
-        m_suppressModelAutoFill = false;  // re-enable model auto-fill
 
         if (reply->error() != QNetworkReply::NoError) {
             m_progressLabel->setText(QString::fromUtf8("获取失败: %1").arg(reply->errorString()));
@@ -1327,17 +1266,22 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
 
         // Company — also auto-fill region from database
         QString regionNote;
+        bool companySetRegion = false;
         QJsonObject comp = veh["comp"].toObject();
         if (comp.contains("name")) {
             QString companyName = comp["name"].toString();
             if (!companyName.isEmpty()) {
-                m_companyField->setTextFuzzy(companyName);
+                // Use exact match only — fuzzy match can false-positive
+                // on similar names from other cities (e.g. "公交五公司"
+                // matching Hangzhou's "公交五公司[8-]" instead of Xi'an's)
+                m_companyField->setText(companyName);
                 ++filled;
                 qint64 cid = m_companyField->selectedId();
                 if (cid > 0) {
                     QString regionName = m_companyField->selectedExtra();
                     if (!regionName.isEmpty()) {
                         bool ok = m_regionPicker->selectByCityName(regionName);
+                        companySetRegion = ok;
                         regionNote = ok
                             ? QString::fromUtf8("，地区已自动填充: %1").arg(m_regionPicker->provinceName() + " / " + m_regionPicker->cityName())
                             : QString::fromUtf8("，⚠ 地区 %1 未在列表中，请手动选择").arg(regionName);
@@ -1357,8 +1301,9 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
             }
         }
 
-        // Fallback: if region is still not set, try to extract from plate prefix
-        if (!m_regionPicker->hasSelection()) {
+        // Fallback: if company didn't set region, always try plate prefix.
+        // This overrides stale draft selections from previous uploads.
+        if (!companySetRegion) {
             QString plate = m_plateEdit->text().trimmed().toUpper();
             if (!plate.isEmpty()) {
                 bool ok = m_regionPicker->selectByPlateNumber(plate);

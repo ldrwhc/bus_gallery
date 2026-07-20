@@ -48,6 +48,12 @@ const router = createRouter({
             meta: { title: '车型' }
         },
         {
+            path: '/stats',
+            name: 'Stats',
+            component: () => import('@/views/Stats.vue'),
+            meta: { title: '统计' }
+        },
+        {
             path: '/about',
             name: 'About',
             component: () => import('@/views/About.vue'),

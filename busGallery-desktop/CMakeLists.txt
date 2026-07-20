@@ -16,6 +16,8 @@ set(SOURCES
     utils/ChinaRegions.h
     utils/ThemeManager.h
     utils/ThemeManager.cpp
+    utils/ImageProcessor.h
+    utils/ImageProcessor.cpp
     models/CatalogItem.h
     models/UserProfile.h
     models/VehiclePayload.h

@@ -7,6 +7,14 @@
         <AppFooter v-if="!hideFooter" class="app-shell__footer" />
         <SearchOverlay :visible="searchVisible" @close="closeSearch" @search="handleSearch" />
         <div v-if="showFabGroup" class="fab-group">
+            <button class="fab-btn fab-btn--stats" type="button" title="数据统计" @click="$router.push({ name: 'Stats' })">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                    <rect x="3" y="3" width="7" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <rect x="13" y="8" width="7" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <line x1="7" y1="10" x2="7" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="17" y1="13" x2="17" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
             <button class="fab-btn fab-btn--doc" type="button" title="查看文档" @click="$router.push({ name: 'About' })">
                 <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -38,7 +46,7 @@ const router = useRouter();
 const route = useRoute();
 const hideFooter = computed(() => route.name === 'Home');
 const showFabGroup = computed(() =>
-    route.name !== 'About' && route.name !== 'GroupBuyMarket'
+    route.name !== 'About' && route.name !== 'GroupBuyMarket' && route.name !== 'Stats'
 );
 
 const lockBody = (locked) => {
@@ -127,6 +135,13 @@ onBeforeUnmount(() => lockBody(false));
 
     &--doc {
         &:hover { box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22); }
+    }
+
+    &--stats {
+        border-color: rgba(16, 185, 129, 0.3);
+        color: #10b981;
+        box-shadow: 0 4px 16px rgba(16, 185, 129, 0.15);
+        &:hover { box-shadow: 0 8px 24px rgba(16, 185, 129, 0.22); }
     }
 
     &--groupbuy {

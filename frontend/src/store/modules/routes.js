@@ -35,6 +35,10 @@ export default {
     },
     getters: {
         routeOptions: (state) =>
-            state.list.map(r => ({ value: r.id, label: r.routeNumber, ...r }))
+            state.list.map(r => ({
+                value: r.id,
+                label: r.region?.name ? `${r.routeNumber} | ${r.region.name}` : r.routeNumber,
+                ...r
+            }))
     }
 };

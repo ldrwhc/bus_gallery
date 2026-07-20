@@ -502,10 +502,14 @@ const queryUploadRouteSuggestions = (keyword, cb) => {
     if (form.companyId) params.companyId = form.companyId;
     fetchRoutes(params, controller.signal)
         .then(resp => {
-            const items = (Array.isArray(resp?.records) ? resp.records : (Array.isArray(resp) ? resp : [])).map(r => ({
-                value: r.routeNumber, id: r.id, routeNumber: r.routeNumber,
-                startStop: r.startStop, endStop: r.endStop, companyName: r.companyName
-            }));
+            const items = (Array.isArray(resp?.records) ? resp.records : (Array.isArray(resp) ? resp : [])).map(r => {
+                const regionName = r.region?.name || '';
+                const display = regionName ? `${r.routeNumber} | ${regionName}` : r.routeNumber;
+                return {
+                    value: display, id: r.id, routeNumber: r.routeNumber,
+                    startStop: r.startStop, endStop: r.endStop, companyName: r.companyName
+                };
+            });
             if (!items.length && kw) {
                 items.push({ value: kw, id: '__new__', routeNumber: kw, __hint: true });
             }

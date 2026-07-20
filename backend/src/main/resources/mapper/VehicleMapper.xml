@@ -223,7 +223,8 @@
                                 OR EXISTS (
                                         SELECT 1 FROM model m
                                         WHERE m.id = v.model_id
-                                          AND MATCH(m.name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                                          AND (MATCH(m.name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                                               OR m.name LIKE CONCAT('%', #{keyword}, '%'))
                                 )
                                 OR EXISTS (
                                         SELECT 1 FROM model m2
@@ -309,7 +310,8 @@
                                 OR EXISTS (
                                         SELECT 1 FROM model m
                                         WHERE m.id = v.model_id
-                                          AND MATCH(m.name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                                          AND (MATCH(m.name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                                               OR m.name LIKE CONCAT('%', #{keyword}, '%'))
                                 )
                                 OR EXISTS (
                                         SELECT 1 FROM model m2

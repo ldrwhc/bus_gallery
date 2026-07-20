@@ -403,30 +403,38 @@ public class VehicleServiceImpl implements VehicleService {
     }
 
     private Long findOrCreateBrand(String brandName, String modelName) {
-        // 1. Exact match on name (abbreviation like "BJ")
+        // 1. Extract brand code from model name prefix (e.g., "CK6120LGEV" → "CK")
+        //    This is the primary brand resolution — model prefix IS the brand code.
+        String brandCode = extractBrandCodeFromModel(modelName);
+
+        if (brandCode != null) {
+            // 1a. Look up existing brand by the extracted code
+            Brand existing = brandMapper.selectByName(brandCode);
+            if (existing != null) {
+                return existing.getId();
+            }
+            // 1b. Create new brand: name=code, chnName=user's Chinese input
+            Brand brand = new Brand();
+            brand.setName(brandCode);
+            brand.setChnName(brandName);
+            brandMapper.insert(brand);
+            return brand.getId();
+        }
+
+        // 2. Fallback: no model name — try exact name match (abbreviation like "BJ")
         Brand existing = brandMapper.selectByName(brandName);
         if (existing != null) {
             return existing.getId();
         }
-        // 2. Try chnName (user might have entered Chinese name like "比亚迪")
+        // 3. Fallback: try chnName (user entered Chinese name like "比亚迪" with no model prefix)
         existing = brandMapper.selectByChnName(brandName);
         if (existing != null) {
             return existing.getId();
         }
-        // 3. Extract English brand code from model name prefix (e.g., "CK6120LGEV" → "CK")
-        String brandCode = extractBrandCodeFromModel(modelName);
 
-        // 4. If we have a code, try finding by that code too
-        if (brandCode != null) {
-            existing = brandMapper.selectByName(brandCode);
-            if (existing != null) return existing.getId();
-        }
-
-        // 5. Create new brand
-        //    - name = English code extracted from model (e.g., "CK")
-        //    - chnName = user's Chinese input (e.g., "比亚迪")
+        // 4. Last resort: create brand with whatever name we have
         Brand brand = new Brand();
-        brand.setName(brandCode != null ? brandCode : brandName);
+        brand.setName(brandName);
         brand.setChnName(brandName);
         brandMapper.insert(brand);
         return brand.getId();

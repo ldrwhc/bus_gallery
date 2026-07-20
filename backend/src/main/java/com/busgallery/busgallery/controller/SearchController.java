@@ -12,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -136,8 +137,13 @@ public class SearchController {
 
         // Route suggestions (most useful for bus gallery)
         List<BusRoute> routes = busRouteService.searchByKeyword(kw, 3);
-        routes.forEach(r -> suggestions.add(
-                new SearchSuggestion(r.getRouteNumber(), "route", r.getId())));
+        routes.forEach(r -> {
+            String label = r.getRouteNumber();
+            if (r.getRegion() != null && StringUtils.hasText(r.getRegion().getName())) {
+                label = r.getRouteNumber() + " | " + r.getRegion().getName();
+            }
+            suggestions.add(new SearchSuggestion(label, "route", r.getId()));
+        });
 
         // Vehicle plate suggestions
         List<Vehicle> vehicles = vehicleService.queryPage(3, null, null,
@@ -227,7 +233,9 @@ public class SearchController {
         public static SearchItem ofRoute(BusRoute r) {
             SearchItem item = new SearchItem();
             item.id = r.getId();
-            item.title = r.getRouteNumber();
+            String regionName = (r.getRegion() != null && StringUtils.hasText(r.getRegion().getName()))
+                    ? r.getRegion().getName() : null;
+            item.title = regionName != null ? r.getRouteNumber() + " | " + regionName : r.getRouteNumber();
             item.subtitle = (r.getStartStop() != null ? r.getStartStop() + " ↔ " + r.getEndStop() : null);
             item.type = "route";
             return item;

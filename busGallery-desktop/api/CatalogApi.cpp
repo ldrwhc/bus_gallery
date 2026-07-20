@@ -85,9 +85,13 @@ void CatalogApi::fetchRoutes()
                 qint64 id = obj["id"].toVariant().toLongLong();
 
                 // Autocomplete items
+                QJsonObject regionObj = obj["region"].toObject();
+                QString regionName = regionObj["name"].toString();
                 CatalogItem item;
                 item.id = id;
-                item.name = obj["routeNumber"].toString();
+                item.name = regionName.isEmpty()
+                    ? obj["routeNumber"].toString()
+                    : obj["routeNumber"].toString() + " | " + regionName;
                 QString startStop = obj["startStop"].toString();
                 QString endStop = obj["endStop"].toString();
                 if (!startStop.isEmpty() || !endStop.isEmpty()) {
@@ -115,8 +119,7 @@ void CatalogApi::fetchRoutes()
                 ri.lastOperated = obj["lastOperated"].toString();
                 ri.remark = obj["remark"].toString();
                 ri.parentRouteId = obj["parentRouteId"].toVariant().toLongLong();
-                // Resolve nested region/company objects
-                QJsonObject regionObj = obj["region"].toObject();
+                // Resolve nested region/company objects (regionObj already read above)
                 if (!regionObj.isEmpty()) ri.regionId = regionObj["id"].toVariant().toLongLong();
                 QJsonObject companyObj = obj["company"].toObject();
                 if (!companyObj.isEmpty()) ri.companyId = companyObj["id"].toVariant().toLongLong();
