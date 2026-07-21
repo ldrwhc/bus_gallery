@@ -1,6 +1,8 @@
 import paramiko, os
 
 local_assets = set(os.listdir(r'D:\code\bus-gallery\frontend\dist\assets'))
+local_assets.add('placeholder-bus-C_iD4V0H.png')
+local_assets.add('favicon.ico')
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

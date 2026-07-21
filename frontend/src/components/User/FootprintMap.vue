@@ -16,6 +16,9 @@ const props = defineProps({
 const mapRoot = ref(null);
 let map = null;
 let loaded = false;
+const polyMetaMap = new Map(); // polygon → { city, count, thumbnail, color }
+let infoWindow = null;
+let hoveredPolygon = null;
 
 const loadAMap = () => {
     return new Promise((resolve, reject) => {
@@ -42,6 +45,26 @@ const resolveColor = (count, maxCount) => {
         fill: `rgba(${r},${g},${b},${0.15 + ratio * 0.55})`,
         stroke: `rgba(${r - 40},${Math.max(0, g - 40)},${Math.max(0, b - 40)},0.85)`
     };
+};
+
+const showInfoWindow = (polygon, meta) => {
+    if (infoWindow) {
+        map.remove(infoWindow);
+    }
+    const thumbHtml = meta.thumbnail
+        ? `<img src="${meta.thumbnail}" style="width:200px;height:auto;max-height:130px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block;" />`
+        : '';
+    const content = `<div style="min-width:180px;padding:4px;">
+        <strong style="font-size:14px;">${meta.city}</strong>
+        <span style="color:#94a3b8;font-size:12px;margin-left:6px;">${meta.count} 张</span>
+        ${thumbHtml}
+    </div>`;
+    infoWindow = new window.AMap.InfoWindow({
+        content,
+        offset: new window.AMap.Pixel(0, -10),
+        closeWhenClickMap: true
+    });
+    infoWindow.open(map, polygon.getBounds().getCenter());
 };
 
 const buildMap = async () => {
@@ -72,13 +95,12 @@ const buildMap = async () => {
         const maxCount = Math.max(...items.map(d => d.count || 0), 1);
 
         const cityMap = new Map();
-        items.forEach(d => { if (d.city) cityMap.set(d.city, d.count || 0); });
+        items.forEach(d => {
+            if (d.city) cityMap.set(d.city, { count: d.count || 0, thumbnail: d.thumbnail || '' });
+        });
 
-        const allCities = new Set();
-        items.forEach(d => { if (d.city) allCities.add(d.city); });
-
+        const allCities = new Set(cityMap.keys());
         const paintedCities = new Set();
-        const unknownCities = [];
 
         for (const city of allCities) {
             const result = await new Promise((resolve) => {
@@ -89,35 +111,68 @@ const buildMap = async () => {
                     }
                     const d = res.districtList[0];
                     if (!d.boundaries) { resolve(null); return; }
-                    const cityName = d.name || city;
-                    resolve({ name: cityName, boundaries: d.boundaries });
+                    resolve({ name: d.name || city, boundaries: d.boundaries });
                 });
             });
             if (result) {
                 paintedCities.add(result.name);
-                const count = cityMap.get(city) || 0;
-                const color = resolveColor(count, maxCount);
+                const meta = cityMap.get(city);
+                const color = resolveColor(meta.count, maxCount);
                 const polygons = [];
                 result.boundaries.forEach(boundary => {
-                    polygons.push(new window.AMap.Polygon({
+                    const poly = new window.AMap.Polygon({
                         path: boundary,
                         fillColor: color.fill,
                         fillOpacity: 1,
                         strokeColor: color.stroke,
                         strokeWeight: 0.8,
                         strokeStyle: 'solid',
-                        strokeDasharray: null
-                    }));
+                        cursor: 'pointer'
+                    });
+                    polyMetaMap.set(poly, { city: result.name, ...meta, color });
+                    poly.on('mouseover', () => {
+                        if (hoveredPolygon && hoveredPolygon !== poly) {
+                            const prev = polyMetaMap.get(hoveredPolygon);
+                            hoveredPolygon.setOptions({
+                                fillColor: prev.color.fill,
+                                strokeColor: prev.color.stroke,
+                                strokeWeight: 0.8
+                            });
+                        }
+                        hoveredPolygon = poly;
+                        poly.setOptions({
+                            fillColor: 'rgba(255,82,119,0.75)',
+                            strokeColor: '#ff3860',
+                            strokeWeight: 2
+                        });
+                    });
+                    poly.on('mouseout', () => {
+                        if (hoveredPolygon === poly) hoveredPolygon = null;
+                        poly.setOptions({
+                            fillColor: color.fill,
+                            strokeColor: color.stroke,
+                            strokeWeight: 0.8
+                        });
+                    });
+                    poly.on('click', (e) => {
+                        showInfoWindow(poly, { city: result.name, ...meta });
+                    });
+                    polygons.push(poly);
                 });
                 map.add(polygons);
-            } else {
-                unknownCities.push(city);
             }
         }
 
         if (paintedCities.size > 0) {
             map.setFitView(null, false, [60, 60, 60, 60]);
         }
+
+        map.on('click', () => {
+            if (infoWindow) {
+                map.remove(infoWindow);
+                infoWindow = null;
+            }
+        });
     } catch (err) {
         console.error('Footprint map load failed:', err);
     }
@@ -128,6 +183,9 @@ const destroyMap = () => {
         map.destroy();
         map = null;
     }
+    polyMetaMap.clear();
+    infoWindow = null;
+    hoveredPolygon = null;
 };
 
 onMounted(() => {

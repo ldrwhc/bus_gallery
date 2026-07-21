@@ -12,4 +12,5 @@ import lombok.NoArgsConstructor;
 public class FootprintCityResponse {
     private String city;
     private long count;
+    private String thumbnail;
 }
