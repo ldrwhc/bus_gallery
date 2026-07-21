@@ -8,7 +8,7 @@
 
             <div class="app-footer__meta">
                 <span>© {{ year }} Bus Gallery</span>
-                <span>Made with whc by the community</span>
+                <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" class="app-footer__icp">浙ICP备2026055807号</a>
             </div>
         </div>
     </footer>
@@ -58,6 +58,12 @@ const year = new Date().getFullYear();
         justify-content: flex-end;
         margin-left: auto;
         text-align: right;
+    }
+
+    &__icp {
+        color: rgba(255, 255, 255, 0.5);
+        text-decoration: none;
+        &:hover { color: rgba(255, 255, 255, 0.8); }
     }
 }
 
