@@ -118,17 +118,16 @@
             </nav>
 
             <template v-if="activeTab === 'images'">
-                <header class="head">
-                    <h2>图片档案</h2>
+                <div class="pager-row">
                     <el-pagination
-                        layout="prev, pager, next"
+                        :layout="pagerLayout"
                         background
                         :page-size="pagination.size"
                         :current-page="pagination.page"
                         :total="pagination.total"
                         @current-change="handlePageChange"
                     />
-                </header>
+                </div>
                 <div v-if="imagesLoading || profileLoading" class="state">加载中...</div>
                 <div v-else-if="!images.length" class="state">暂未上传图片</div>
                 <div v-else class="grid">
@@ -157,18 +156,16 @@
             </template>
 
             <template v-if="activeTab === 'favorites'">
-                <header class="head">
-                    <h2>{{ isSelf ? '我的喜爱' : '收藏' }}</h2>
+                <div class="pager-row" v-if="favoritePagination.total > favoritePagination.size">
                     <el-pagination
-                        v-if="favoritePagination.total > favoritePagination.size"
-                        layout="prev, pager, next"
+                        :layout="pagerLayout"
                         background
                         :page-size="favoritePagination.size"
                         :current-page="favoritePagination.page"
                         :total="favoritePagination.total"
                         @current-change="handleFavoritePageChange"
                     />
-                </header>
+                </div>
                 <div v-if="favoritesLoading || profileLoading" class="state">收藏加载中...</div>
                 <div v-else-if="!favorites.length && isSelf" class="state">还没有收藏车辆</div>
                 <div v-else-if="!favorites.length && !isSelf" class="state">该用户暂无公开收藏</div>
@@ -415,6 +412,10 @@ const store = useStore();
 
 const targetUserId = computed(() => Number(route.params.userId) || null);
 const activeTab = ref('images');
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
+const pagerLayout = computed(() => windowWidth.value < 500 ? 'prev, next' : 'prev, pager, next');
+
+const onResize = () => { windowWidth.value = window.innerWidth; };
 const profile = ref(null);
 const profileLoading = ref(false);
 const images = ref([]);
@@ -1253,6 +1254,7 @@ watch(
 );
 
 onMounted(() => {
+    window.addEventListener('resize', onResize);
     if (!store.state.auth.profile) store.dispatch('auth/fetchProfile').catch(() => {});
     store.dispatch('regions/loadRegions').catch(() => {});
     store.dispatch('brands/loadBrands').catch(() => {});
@@ -1261,6 +1263,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+    window.removeEventListener('resize', onResize);
     if (bindTimer) clearInterval(bindTimer);
     if (passwordTimer) clearInterval(passwordTimer);
 });
@@ -1343,6 +1346,7 @@ onBeforeUnmount(() => {
 .name-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .avatar { width: 56px; height: 56px; border-radius: 50%; background: #1d4ed8; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pager-row { display: flex; justify-content: center; margin-bottom: 4px; }
 .muted { color: #64748b; margin: 4px 0; }
 .inline-code { display: grid; grid-template-columns: 1fr auto; gap: 10px; width: 100%; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
