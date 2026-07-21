@@ -2,25 +2,6 @@
     <div class="footprint-wrapper">
         <div ref="mapRoot" class="footprint-map"></div>
         <div v-if="hoveredCity" class="map-tooltip" :style="tooltipStyle">{{ hoveredCity }}</div>
-        <Teleport to="body">
-            <div v-if="previewVisible" class="footprint-preview-backdrop" @click.self="closePreview">
-                <div class="footprint-preview-card">
-                    <button class="footprint-preview-close" @click="closePreview">&times;</button>
-                    <h3>{{ previewCity }} <span class="preview-count">{{ previewCount }} 张</span></h3>
-                    <div class="preview-images">
-                        <img
-                            v-for="(img, i) in previewImages"
-                            :key="i"
-                            :src="img.url"
-                            :alt="previewCity"
-                            class="preview-thumb"
-                            @error="onImgError($event)"
-                        />
-                    </div>
-                    <p v-if="!previewImages.length" class="muted">暂无预览图片</p>
-                </div>
-            </div>
-        </Teleport>
     </div>
 </template>
 
@@ -40,13 +21,10 @@ let map = null;
 let loaded = false;
 const polyMetaMap = new Map();
 let hoveredPolygon = null;
+let infoWindow = null;
 
 const hoveredCity = ref('');
 const tooltipStyle = reactive({ left: '0px', top: '0px' });
-const previewVisible = ref(false);
-const previewCity = ref('');
-const previewCount = ref(0);
-const previewImages = ref([]);
 
 const loadAMap = () => {
     return new Promise((resolve, reject) => {
@@ -75,16 +53,7 @@ const resolveColor = (count, maxCount) => {
     };
 };
 
-const closePreview = () => {
-    previewVisible.value = false;
-    previewImages.value = [];
-};
-
-const onImgError = (e) => {
-    e.target.style.display = 'none';
-};
-
-const resolveImageUrl = (path) => {
+const resolveThumbUrl = (path) => {
     if (!path) return '';
     if (/^https?:\/\//i.test(path)) return path;
     return window.location.origin + '/' + path.replace(/^\//, '');
@@ -183,12 +152,21 @@ const buildMap = async () => {
                     });
 
                     poly.on('click', () => {
-                        previewCity.value = result.name;
-                        previewCount.value = meta.count;
-                        previewVisible.value = true;
-                        previewImages.value = meta.thumbnail
-                            ? [{ url: resolveImageUrl(meta.thumbnail) }]
-                            : [];
+                        if (infoWindow) { map.remove(infoWindow); }
+                        const thumbUrl = resolveThumbUrl(meta.thumbnail);
+                        const imgTag = thumbUrl
+                            ? `<img src="${thumbUrl}" style="width:180px;height:auto;max-height:120px;object-fit:cover;border-radius:8px;margin-top:4px;display:block;" />`
+                            : '';
+                        infoWindow = new window.AMap.InfoWindow({
+                            content: `<div style="min-width:140px;padding:4px;">
+                                <strong>${result.name}</strong>
+                                <span style="color:#94a3b8;font-size:12px;margin-left:4px;">${meta.count} 张</span>
+                                ${imgTag}
+                            </div>`,
+                            offset: new window.AMap.Pixel(0, -10),
+                            closeWhenClickMap: true
+                        });
+                        infoWindow.open(map, poly.getBounds().getCenter());
                     });
 
                     map.add(poly);
@@ -212,7 +190,7 @@ const destroyMap = () => {
     polyMetaMap.clear();
     hoveredPolygon = null;
     hoveredCity.value = '';
-    previewVisible.value = false;
+    if (infoWindow) { infoWindow = null; }
 };
 
 onMounted(() => {
@@ -244,31 +222,4 @@ onBeforeUnmount(() => {
     padding: 4px 10px; border-radius: 6px; white-space: nowrap;
     transform: translateY(-100%);
 }
-</style>
-
-<style>
-.footprint-preview-backdrop {
-    position: fixed; inset: 0; z-index: 9999;
-    background: rgba(0,0,0,0.45);
-    display: flex; align-items: center; justify-content: center;
-}
-.footprint-preview-card {
-    background: #fff; border-radius: 16px; padding: 24px;
-    max-width: 520px; width: 92vw; max-height: 80vh; overflow-y: auto;
-    position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-}
-.footprint-preview-close {
-    position: absolute; top: 12px; right: 16px;
-    border: none; background: none; font-size: 22px;
-    color: #94a3b8; cursor: pointer; line-height: 1;
-}
-.footprint-preview-close:hover { color: #0f172a; }
-.footprint-preview-card h3 { margin: 0 0 12px; font-size: 18px; }
-.preview-count { color: #94a3b8; font-size: 13px; font-weight: 400; margin-left: 6px; }
-.preview-images { display: flex; justify-content: center; }
-.preview-thumb {
-    width: 100%; aspect-ratio: 4/3; object-fit: cover;
-    border-radius: 10px; background: #f1f5f9;
-}
-.muted { color: #94a3b8; text-align: center; padding: 24px 0; }
 </style>
