@@ -1354,13 +1354,8 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
         QMessageBox::information(this, QString::fromUtf8("提示"), QString::fromUtf8("请先输入线路号"));
         return;
     }
-    // Remove trailing "路" if present
+    // Use user input as-is — don't force-add "路" suffix
     QString searchName = routeNumber;
-    if (searchName.endsWith(QString::fromUtf8("路")))
-        searchName.chop(1);
-    // Add "路" to help buspedia match bus routes
-    if (!searchName.endsWith(QString::fromUtf8("路")))
-        searchName += QString::fromUtf8("路");
 
     btn->setEnabled(false);
     btn->setText(QString::fromUtf8("⏳"));
