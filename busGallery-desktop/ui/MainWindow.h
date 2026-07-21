@@ -84,6 +84,8 @@ private:
     RegionPicker *m_regionPicker;
     ClearableDateEdit *m_factoryDate;
     ClearableDateEdit *m_launchDate;
+    bool m_factoryDateExplicit = false;
+    bool m_launchDateExplicit = false;
     QCheckBox *m_airConditioned;
     QComboBox *m_fuelType;
     QLineEdit *m_engineEdit;

@@ -568,9 +568,9 @@ void MainWindow::submitUpload()
     payload.regionProvince = m_regionPicker->provinceName();
     payload.regionCity = m_regionPicker->cityName();
 
-    if (m_factoryDate->date().isValid())
+    if (m_factoryDateExplicit && m_factoryDate->date().isValid())
         payload.factoryDate = m_factoryDate->date().toString("yyyy-MM") + "-01";
-    if (m_launchDate->date().isValid())
+    if (m_launchDateExplicit && m_launchDate->date().isValid())
         payload.launchDate = m_launchDate->date().toString("yyyy-MM") + "-01";
 
     payload.airConditioned = m_airConditioned->isChecked();
@@ -645,6 +645,8 @@ void MainWindow::resetForm()
     m_regionPicker->clear();
     m_factoryDate->clear();
     m_launchDate->clear();
+    m_factoryDateExplicit = false;
+    m_launchDateExplicit = false;
     m_airConditioned->setChecked(true);
     m_fuelType->setCurrentIndex(0);
     m_engineEdit->clear();
@@ -1248,20 +1250,19 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
             m_plateEdit->setText(veh["regist"].toString());
 
         // Dates: handle "2014-06" and year-only "2016"
-        auto applyDateStr = [&](const QString &dateStr, QDateEdit *editor) {
+        auto applyDateStr = [&](const QString &dateStr, QDateEdit *editor, bool &flag) {
             if (dateStr.length() == 4) {
-                // Year-only: "2016" → "2016-01-01"
                 QDate d = QDate::fromString(dateStr + "-01-01", "yyyy-MM-dd");
-                if (d.isValid()) { editor->setDate(d); ++filled; }
+                if (d.isValid()) { editor->setDate(d); ++filled; flag = true; }
             } else if (dateStr.length() >= 7) {
                 QDate d = QDate::fromString(dateStr.left(7) + "-01", "yyyy-MM-dd");
-                if (d.isValid()) { editor->setDate(d); ++filled; }
+                if (d.isValid()) { editor->setDate(d); ++filled; flag = true; }
             }
         };
         if (veh.contains("date_manuf"))
-            applyDateStr(veh["date_manuf"].toString(), m_factoryDate);
+            applyDateStr(veh["date_manuf"].toString(), m_factoryDate, m_factoryDateExplicit);
         if (veh.contains("date_serve"))
-            applyDateStr(veh["date_serve"].toString(), m_launchDate);
+            applyDateStr(veh["date_serve"].toString(), m_launchDate, m_launchDateExplicit);
 
         // Company — also auto-fill region from database
         QString regionNote;
@@ -1414,9 +1415,9 @@ QJsonObject MainWindow::formToJson() const
     o["companyId"] = m_companyField->selectedId();
     o["regionProvince"] = m_regionPicker->provinceName();
     o["regionCity"] = m_regionPicker->cityName();
-    if (m_factoryDate->date().isValid())
+    if (m_factoryDateExplicit && m_factoryDate->date().isValid())
         o["factoryDate"] = m_factoryDate->date().toString("yyyy-MM");
-    if (m_launchDate->date().isValid())
+    if (m_launchDateExplicit && m_launchDate->date().isValid())
         o["launchDate"] = m_launchDate->date().toString("yyyy-MM");
     o["airConditioned"] = m_airConditioned->isChecked();
     o["fuelType"] = m_fuelType->currentIndex();
