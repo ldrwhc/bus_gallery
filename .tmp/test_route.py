@@ -16,8 +16,5 @@ else:
 j = json.loads(data)
 lines = j.get('l', [])
 print(f'Found {len(lines)} lines:')
-if lines:
-    print('First line full keys:', list(lines[0].keys()))
-    print('First line:', json.dumps(lines[0], ensure_ascii=False, indent=2)[:500])
-    for l in lines[:5]:
-        print(f'  name={l.get("name")}, start={l.get("start")}, end={l.get("end")}, comp={l.get("comp")}, no={l.get("no")}, city={l.get("city")}')
+for l in lines:
+    print(json.dumps(l, ensure_ascii=False))

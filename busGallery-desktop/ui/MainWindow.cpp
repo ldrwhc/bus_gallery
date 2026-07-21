@@ -1372,7 +1372,7 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
     req.setRawHeader("Referer", "https://buspedia.top/");
 
     QNetworkReply *reply = m_buspediaNam->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, routeField, startEdit, endEdit, btn, routeNumber]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, routeField, startEdit, endEdit, btn, routeNumber, searchName]() {
         reply->deleteLater();
         btn->setEnabled(true);
         btn->setText(QString::fromUtf8("🔍"));
@@ -1405,33 +1405,55 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
             return;
         }
 
-        // Pick first result that matches the route number
-        QString companyName = m_companyField->text().trimmed();
-        QJsonObject best;
+        // Collect matching routes (filter by name match)
+        QString city = m_regionPicker->cityName().trimmed();
+        QJsonArray matches;
         for (const auto &lv : lines) {
             QJsonObject l = lv.toObject();
             QString name = l["name"].toString();
-            if (name.contains(routeNumber) || routeNumber.contains(name)) {
-                // Prefer match with same company
-                QString lcomp = l["comp"].toString();
-                if (!companyName.isEmpty() && lcomp.contains(companyName)) {
-                    best = l;
-                    break;
+            if (name.contains(searchName) || searchName.contains(name) || name == searchName) {
+                // Prefer routes from same city
+                QString rgn = l["region"].toString();
+                if (!city.isEmpty() && rgn.contains(city)) {
+                    matches.prepend(l);  // city match goes first
+                } else {
+                    matches.append(l);
                 }
-                if (best.isEmpty()) best = l;
             }
         }
-        if (best.isEmpty()) best = lines[0].toObject();
+        if (matches.isEmpty() && !lines.isEmpty()) matches = lines;
 
-        QJsonArray terms = best["term"].toArray();
-        QString start, end;
-        if (!terms.isEmpty()) {
-            QStringList parts = terms[0].toString().split(QString::fromUtf8("<>"));
-            if (parts.size() == 2) { start = parts[0]; end = parts[1]; }
+        QJsonObject best;
+        if (matches.size() == 1) {
+            best = matches[0].toObject();
+        } else if (matches.size() > 1) {
+            // Let user pick from a list
+            QStringList choices;
+            for (const auto &mv : matches) {
+                QJsonObject m = mv.toObject();
+                QString term = m["term"].toArray().isEmpty() ? QString("") : m["term"].toArray()[0].toString();
+                choices << QString("%1 [%2] %3").arg(m["name"].toString(), m["region"].toString(), term);
+            }
+            bool ok;
+            QString pick = QInputDialog::getItem(nullptr, QString::fromUtf8("选择线路"),
+                QString::fromUtf8("找到多个匹配线路，请选择:"), choices, 0, false, &ok);
+            if (ok && !pick.isEmpty()) {
+                int idx = choices.indexOf(pick);
+                if (idx >= 0) best = matches[idx].toObject();
+            }
         }
-        if (!start.isEmpty()) startEdit->setText(start);
-        if (!end.isEmpty()) endEdit->setText(end);
-        if (start.isEmpty() && end.isEmpty()) {
+
+        if (!best.isEmpty()) {
+            QJsonArray terms = best["term"].toArray();
+            QString start, end;
+            if (!terms.isEmpty()) {
+                QStringList parts = terms[0].toString().split(QString::fromUtf8("<>"));
+                if (parts.size() == 2) { start = parts[0].trimmed(); end = parts[1].trimmed(); }
+            }
+            if (!start.isEmpty()) startEdit->setText(start);
+            if (!end.isEmpty()) endEdit->setText(end);
+        }
+        if (best.isEmpty()) {
             QMessageBox::information(nullptr, QString::fromUtf8("未找到"),
                 QString::fromUtf8("线路 \"%1\" 未找到起讫点，请手动输入。").arg(routeNumber));
         }
