@@ -152,7 +152,7 @@ const buildMap = async () => {
                     });
                     polyMetaMap.set(poly, { city: result.name, ...meta, color });
 
-                    poly.on('mouseover', (e) => {
+                    poly.on('mouseover', () => {
                         if (hoveredPolygon && hoveredPolygon !== poly) {
                             const prev = polyMetaMap.get(hoveredPolygon);
                             hoveredPolygon.setOptions({
@@ -168,6 +168,9 @@ const buildMap = async () => {
                             strokeWeight: 2
                         });
                         hoveredCity.value = result.name;
+                    });
+
+                    poly.on('mousemove', (e) => {
                         tooltipStyle.left = (e.pixel.x + 14) + 'px';
                         tooltipStyle.top = (e.pixel.y - 30) + 'px';
                     });
