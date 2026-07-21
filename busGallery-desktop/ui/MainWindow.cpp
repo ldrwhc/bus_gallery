@@ -730,6 +730,8 @@ void MainWindow::addRouteRow(const RouteAssignment &ra)
         }
     });
     row1->addWidget(removeBtn);
+
+    row1->addWidget(removeBtn);
     outerLayout->addLayout(row1);
 
     // Row 2: start stop — end stop
@@ -923,6 +925,17 @@ void MainWindow::addRouteRow(const RouteAssignment &ra)
     rw.operatingHoursEdit = hoursEdit;
     rw.remarkEdit = remarkEdit;
     rw.firstOperatedEdit = firstOperEdit;
+
+    // Fetch route stops button
+    auto *fetchBtn = new QPushButton(QString::fromUtf8("🔍"), row);
+    fetchBtn->setFixedWidth(32);
+    fetchBtn->setToolTip(QString::fromUtf8("抓取线路起讫点"));
+    fetchBtn->setStyleSheet("QPushButton { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; font-size: 13px; } QPushButton:hover { background: #e2e8f0; }");
+    connect(fetchBtn, &QPushButton::clicked, this, [this, routeField, startStopEdit, endStopEdit, fetchBtn]() {
+        fetchRouteStops(routeField, startStopEdit, endStopEdit, fetchBtn);
+    });
+    row1->insertWidget(2, fetchBtn);
+    rw.fetchRouteBtn = fetchBtn;
     rw.lastOperatedEdit = lastOperEdit;
     m_routeRows.append(rw);
 
@@ -1330,6 +1343,95 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
         statusBar()->showMessage(regionNote.isEmpty()
             ? QString::fromUtf8("爬取完成，请核对后提交")
             : QString::fromUtf8("爬取完成%1，请核对后提交").arg(regionNote), 10000);
+    });
+}
+
+// ---- Fetch Route Stops ----
+void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *startEdit, QLineEdit *endEdit, QPushButton *btn)
+{
+    QString routeNumber = routeField->text().trimmed();
+    if (routeNumber.isEmpty()) {
+        QMessageBox::information(this, QString::fromUtf8("提示"), QString::fromUtf8("请先输入线路号"));
+        return;
+    }
+    // Remove trailing "路" if present
+    QString searchName = routeNumber;
+    if (searchName.endsWith(QString::fromUtf8("路")))
+        searchName.chop(1);
+    // Add "路" to help buspedia match bus routes
+    if (!searchName.endsWith(QString::fromUtf8("路")))
+        searchName += QString::fromUtf8("路");
+
+    btn->setEnabled(false);
+    btn->setText(QString::fromUtf8("⏳"));
+
+    QNetworkRequest req{QUrl(QString("https://api.buspedia.top/search?name=%1").arg(searchName))};
+    req.setRawHeader("User-Agent", "Mozilla/5.0");
+    req.setRawHeader("Accept", "application/json");
+    req.setRawHeader("Origin", "https://buspedia.top");
+    req.setRawHeader("Referer", "https://buspedia.top/");
+
+    QNetworkReply *reply = m_buspediaNam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, routeField, startEdit, endEdit, btn, routeNumber]() {
+        reply->deleteLater();
+        btn->setEnabled(true);
+        btn->setText(QString::fromUtf8("🔍"));
+
+        if (reply->error() != QNetworkReply::NoError) {
+            QMessageBox::warning(nullptr, QString::fromUtf8("错误"),
+                QString::fromUtf8("线路查询失败: %1").arg(reply->errorString()));
+            return;
+        }
+        QByteArray raw = reply->readAll();
+        QByteArray json;
+        if (raw.size() >= 2 && (unsigned char)raw[0] == 0x78) {
+            quint32 estSize = quint32(raw.size()) * 10;
+            QByteArray header(4, '\0');
+            header[0] = (estSize >> 24) & 0xFF;
+            header[1] = (estSize >> 16) & 0xFF;
+            header[2] = (estSize >> 8) & 0xFF;
+            header[3] = estSize & 0xFF;
+            json = qUncompress(header + raw);
+        } else {
+            json = raw;
+        }
+
+        QJsonDocument doc = QJsonDocument::fromJson(json);
+        QJsonObject obj = doc.object();
+        QJsonArray lines = obj["l"].toArray();
+        if (lines.isEmpty()) {
+            QMessageBox::information(nullptr, QString::fromUtf8("未找到"),
+                QString::fromUtf8("未搜索到线路 \"%1\"，请手动输入。").arg(routeNumber));
+            return;
+        }
+
+        // Pick first result that matches the route number
+        QString companyName = m_companyField->text().trimmed();
+        QJsonObject best;
+        for (const auto &lv : lines) {
+            QJsonObject l = lv.toObject();
+            QString name = l["name"].toString();
+            if (name.contains(routeNumber) || routeNumber.contains(name)) {
+                // Prefer match with same company
+                QString lcomp = l["comp"].toString();
+                if (!companyName.isEmpty() && lcomp.contains(companyName)) {
+                    best = l;
+                    break;
+                }
+                if (best.isEmpty()) best = l;
+            }
+        }
+        if (best.isEmpty()) best = lines[0].toObject();
+
+        QString start = best["start"].toString();
+        QString end = best["end"].toString();
+        if (!start.isEmpty()) startEdit->setText(start);
+        if (!end.isEmpty()) endEdit->setText(end);
+        if (start.isEmpty() && end.isEmpty()) {
+            QMessageBox::information(nullptr, QString::fromUtf8("未找到"),
+                QString::fromUtf8("线路 \"%1\" 未找到起讫点，请手动输入。").arg(routeNumber));
+        }
+        m_draftTimer->start();
     });
 }
 

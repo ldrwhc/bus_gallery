@@ -62,6 +62,14 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
         "fetchFromBuspedia",
         "fetchBuspediaDetail",
         "detailUrl",
+        "fetchRouteStops",
+        "AutocompleteField*",
+        "routeField",
+        "QLineEdit*",
+        "startEdit",
+        "endEdit",
+        "QPushButton*",
+        "btn",
         "onAIRecognize"
     };
 
@@ -106,8 +114,12 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
         QtMocHelpers::SlotData<void(const QString &)>(20, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QString, 21 },
         }}),
+        // Slot 'fetchRouteStops'
+        QtMocHelpers::SlotData<void(AutocompleteField *, QLineEdit *, QLineEdit *, QPushButton *)>(22, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { 0x80000000 | 23, 24 }, { 0x80000000 | 25, 26 }, { 0x80000000 | 25, 27 }, { 0x80000000 | 28, 29 },
+        }}),
         // Slot 'onAIRecognize'
-        QtMocHelpers::SlotData<void()>(22, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(30, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -146,8 +158,26 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 12: _t->refreshRouteFields(); break;
         case 13: _t->fetchFromBuspedia(); break;
         case 14: _t->fetchBuspediaDetail((*reinterpret_cast<std::add_pointer_t<QString>>(_a[1]))); break;
-        case 15: _t->onAIRecognize(); break;
+        case 15: _t->fetchRouteStops((*reinterpret_cast<std::add_pointer_t<AutocompleteField*>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<QLineEdit*>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<QLineEdit*>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<QPushButton*>>(_a[4]))); break;
+        case 16: _t->onAIRecognize(); break;
         default: ;
+        }
+    }
+    if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
+        switch (_id) {
+        default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
+        case 15:
+            switch (*reinterpret_cast<int*>(_a[1])) {
+            default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
+            case 0:
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< AutocompleteField* >(); break;
+            case 2:
+            case 1:
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QLineEdit* >(); break;
+            case 3:
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QPushButton* >(); break;
+            }
+            break;
         }
     }
 }
@@ -171,14 +201,14 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 16)
+        if (_id < 17)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 16;
+        _id -= 17;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 16)
-            *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 16;
+        if (_id < 17)
+            qt_static_metacall(this, _c, _id, _a);
+        _id -= 17;
     }
     return _id;
 }

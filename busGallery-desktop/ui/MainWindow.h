@@ -47,6 +47,7 @@ private slots:
     void refreshRouteFields();
     void fetchFromBuspedia();
     void fetchBuspediaDetail(const QString &detailUrl);
+    void fetchRouteStops(AutocompleteField *routeField, QLineEdit *startEdit, QLineEdit *endEdit, QPushButton *btn);
     void onAIRecognize();
 
 private:
@@ -117,6 +118,7 @@ private:
         QLineEdit *endStopEdit;
         QCheckBox *isCurrentCheck;
         QPushButton *removeBtn;
+        QPushButton *fetchRouteBtn;
         // Advanced settings widgets
         QPushButton *advancedToggle;
         QWidget *advancedPanel;
