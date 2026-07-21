@@ -8,6 +8,7 @@ D:/code/bus-gallery/busGallery-desktop/build/BusGalleryDesktop_autogen/UYX5XTB5R
   D:/code/bus-gallery/busGallery-desktop/models/UserProfile.h \
   D:/code/bus-gallery/busGallery-desktop/models/VehiclePayload.h \
   D:/code/bus-gallery/busGallery-desktop/ui/AutocompleteField.h \
+  D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.h \
   D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.h \
   D:/code/bus-gallery/busGallery-desktop/ui/RegionPicker.h \
   D:/env/QT/6.10.1/mingw_64/include/QtCore/QByteArray \

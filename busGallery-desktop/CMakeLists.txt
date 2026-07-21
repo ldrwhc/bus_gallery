@@ -31,6 +31,8 @@ set(SOURCES
     api/CatalogApi.cpp
     ui/LoginDialog.h
     ui/LoginDialog.cpp
+    ui/ClearableDateEdit.h
+    ui/ClearableDateEdit.cpp
     ui/MainWindow.h
     ui/MainWindow.cpp
     ui/RegionPicker.h

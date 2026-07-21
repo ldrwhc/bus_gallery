@@ -10,6 +10,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QDateEdit>
+#include "ui/ClearableDateEdit.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include "api/ApiClient.h"
@@ -81,8 +82,8 @@ private:
     AutocompleteField *m_modelField;
     AutocompleteField *m_companyField;
     RegionPicker *m_regionPicker;
-    QDateEdit *m_factoryDate;
-    QDateEdit *m_launchDate;
+    ClearableDateEdit *m_factoryDate;
+    ClearableDateEdit *m_launchDate;
     QCheckBox *m_airConditioned;
     QComboBox *m_fuelType;
     QLineEdit *m_engineEdit;

@@ -351,6 +351,12 @@
 			null
 		],
 		[
+			"D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.h",
+			"MU",
+			"UYX5XTB5RZ/moc_ClearableDateEdit.cpp",
+			null
+		],
+		[
 			"D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.h",
 			"MU",
 			"UYX5XTB5RZ/moc_ImageDropZone.cpp",
@@ -500,6 +506,11 @@
 		[ "D:/code/bus-gallery/busGallery-desktop/main.cpp", "MU", null ],
 		[
 			"D:/code/bus-gallery/busGallery-desktop/ui/AutocompleteField.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.cpp",
 			"MU",
 			null
 		],

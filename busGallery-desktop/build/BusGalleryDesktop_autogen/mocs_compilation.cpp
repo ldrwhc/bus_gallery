@@ -4,6 +4,7 @@
 #include "JH45IGJHDZ/moc_CatalogApi.cpp"
 #include "JH45IGJHDZ/moc_UploadApi.cpp"
 #include "UYX5XTB5RZ/moc_AutocompleteField.cpp"
+#include "UYX5XTB5RZ/moc_ClearableDateEdit.cpp"
 #include "UYX5XTB5RZ/moc_ImageDropZone.cpp"
 #include "UYX5XTB5RZ/moc_LoginDialog.cpp"
 #include "UYX5XTB5RZ/moc_MainWindow.cpp"

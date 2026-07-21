@@ -346,6 +346,30 @@ ui/AutocompleteField.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.s
 .PHONY : ui/AutocompleteField.cpp.s
 
+ui/ClearableDateEdit.obj: ui/ClearableDateEdit.cpp.obj
+.PHONY : ui/ClearableDateEdit.obj
+
+# target to build an object file
+ui/ClearableDateEdit.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj
+.PHONY : ui/ClearableDateEdit.cpp.obj
+
+ui/ClearableDateEdit.i: ui/ClearableDateEdit.cpp.i
+.PHONY : ui/ClearableDateEdit.i
+
+# target to preprocess a source file
+ui/ClearableDateEdit.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.i
+.PHONY : ui/ClearableDateEdit.cpp.i
+
+ui/ClearableDateEdit.s: ui/ClearableDateEdit.cpp.s
+.PHONY : ui/ClearableDateEdit.s
+
+# target to generate assembly for a file
+ui/ClearableDateEdit.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.s
+.PHONY : ui/ClearableDateEdit.cpp.s
+
 ui/ImageDropZone.obj: ui/ImageDropZone.cpp.obj
 .PHONY : ui/ImageDropZone.obj
 
@@ -525,6 +549,9 @@ help:
 	@echo ... ui/AutocompleteField.obj
 	@echo ... ui/AutocompleteField.i
 	@echo ... ui/AutocompleteField.s
+	@echo ... ui/ClearableDateEdit.obj
+	@echo ... ui/ClearableDateEdit.i
+	@echo ... ui/ClearableDateEdit.s
 	@echo ... ui/ImageDropZone.obj
 	@echo ... ui/ImageDropZone.i
 	@echo ... ui/ImageDropZone.s

@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "ui/ClearableDateEdit.h"
 #include "ui/LoginDialog.h"
 #include "utils/Config.h"
 #include "utils/ThemeManager.h"
@@ -298,16 +299,14 @@ void MainWindow::setupUploadForm(QWidget *page)
     auto *detailGrid = new QFormLayout();
     detailGrid->setSpacing(8);
 
-    m_factoryDate = new QDateEdit(formWidget);
-    m_factoryDate->setCalendarPopup(true);
+    m_factoryDate = new ClearableDateEdit(formWidget);
     m_factoryDate->setDisplayFormat("yyyy-MM");
     m_factoryDate->setSpecialValueText(QString::fromUtf8("未知"));
     m_factoryDate->clear();
     m_factoryDate->setMinimumDate(QDate(1950, 1, 1));
     detailGrid->addRow(QString::fromUtf8("出厂日期"), m_factoryDate);
 
-    m_launchDate = new QDateEdit(formWidget);
-    m_launchDate->setCalendarPopup(true);
+    m_launchDate = new ClearableDateEdit(formWidget);
     m_launchDate->setDisplayFormat("yyyy-MM");
     m_launchDate->setSpecialValueText(QString::fromUtf8("未知"));
     m_launchDate->clear();

@@ -17,6 +17,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "D:/code/bus-gallery/busGallery-desktop/api/UploadApi.cpp" "CMakeFiles/BusGalleryDesktop.dir/api/UploadApi.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/api/UploadApi.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/main.cpp" "CMakeFiles/BusGalleryDesktop.dir/main.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/main.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/ui/AutocompleteField.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj.d"
+  "D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/ui/LoginDialog.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/ui/MainWindow.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj.d"

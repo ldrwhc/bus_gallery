@@ -524,6 +524,7 @@ CMakeFiles/BusGalleryDesktop.dir/main.cpp.obj: \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QDateEdit \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qdatetimeedit.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qtimezone.h \
+ D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QVBoxLayout \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayout.h \

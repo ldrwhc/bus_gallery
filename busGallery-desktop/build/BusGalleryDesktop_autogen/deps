@@ -20,6 +20,8 @@ BusGalleryDesktop_autogen/timestamp: \
 	D:/code/bus-gallery/busGallery-desktop/models/VehiclePayload.h \
 	D:/code/bus-gallery/busGallery-desktop/ui/AutocompleteField.cpp \
 	D:/code/bus-gallery/busGallery-desktop/ui/AutocompleteField.h \
+	D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.cpp \
+	D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.h \
 	D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.cpp \
 	D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.h \
 	D:/code/bus-gallery/busGallery-desktop/ui/LoginDialog.cpp \

@@ -210,11 +210,26 @@ CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.s"
 	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\code\bus-gallery\busGallery-desktop\ui\LoginDialog.cpp -o CMakeFiles\BusGalleryDesktop.dir\ui\LoginDialog.cpp.s
 
+CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/flags.make
+CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/includes_CXX.rsp
+CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj: D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.cpp
+CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj"
+	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj -MF CMakeFiles\BusGalleryDesktop.dir\ui\ClearableDateEdit.cpp.obj.d -o CMakeFiles\BusGalleryDesktop.dir\ui\ClearableDateEdit.cpp.obj -c D:\code\bus-gallery\busGallery-desktop\ui\ClearableDateEdit.cpp
+
+CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.i"
+	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E D:\code\bus-gallery\busGallery-desktop\ui\ClearableDateEdit.cpp > CMakeFiles\BusGalleryDesktop.dir\ui\ClearableDateEdit.cpp.i
+
+CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.s"
+	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\code\bus-gallery\busGallery-desktop\ui\ClearableDateEdit.cpp -o CMakeFiles\BusGalleryDesktop.dir\ui\ClearableDateEdit.cpp.s
+
 CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/flags.make
 CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/includes_CXX.rsp
 CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj: D:/code/bus-gallery/busGallery-desktop/ui/MainWindow.cpp
 CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj"
 	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj -MF CMakeFiles\BusGalleryDesktop.dir\ui\MainWindow.cpp.obj.d -o CMakeFiles\BusGalleryDesktop.dir\ui\MainWindow.cpp.obj -c D:\code\bus-gallery\busGallery-desktop\ui\MainWindow.cpp
 
 CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.i: cmake_force
@@ -229,7 +244,7 @@ CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj: CMakeFiles/BusGalleryD
 CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/includes_CXX.rsp
 CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj: D:/code/bus-gallery/busGallery-desktop/ui/RegionPicker.cpp
 CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj"
 	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj -MF CMakeFiles\BusGalleryDesktop.dir\ui\RegionPicker.cpp.obj.d -o CMakeFiles\BusGalleryDesktop.dir\ui\RegionPicker.cpp.obj -c D:\code\bus-gallery\busGallery-desktop\ui\RegionPicker.cpp
 
 CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.i: cmake_force
@@ -244,7 +259,7 @@ CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj: CMakeFiles/BusGallery
 CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/includes_CXX.rsp
 CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj: D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.cpp
 CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj"
 	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj -MF CMakeFiles\BusGalleryDesktop.dir\ui\ImageDropZone.cpp.obj.d -o CMakeFiles\BusGalleryDesktop.dir\ui\ImageDropZone.cpp.obj -c D:\code\bus-gallery\busGallery-desktop\ui\ImageDropZone.cpp
 
 CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.i: cmake_force
@@ -259,7 +274,7 @@ CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj: CMakeFiles/BusGal
 CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/includes_CXX.rsp
 CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj: D:/code/bus-gallery/busGallery-desktop/ui/AutocompleteField.cpp
 CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj"
 	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj -MF CMakeFiles\BusGalleryDesktop.dir\ui\AutocompleteField.cpp.obj.d -o CMakeFiles\BusGalleryDesktop.dir\ui\AutocompleteField.cpp.obj -c D:\code\bus-gallery\busGallery-desktop\ui\AutocompleteField.cpp
 
 CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.i: cmake_force
@@ -274,7 +289,7 @@ CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj: CMakeFiles/Bu
 CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/includes_CXX.rsp
 CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj: D:/code/bus-gallery/busGallery-desktop/api/PlateAssistantBridge.cpp
 CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj: CMakeFiles/BusGalleryDesktop.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj"
 	D:\env\QT\Tools\mingw1310_64\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj -MF CMakeFiles\BusGalleryDesktop.dir\api\PlateAssistantBridge.cpp.obj.d -o CMakeFiles\BusGalleryDesktop.dir\api\PlateAssistantBridge.cpp.obj -c D:\code\bus-gallery\busGallery-desktop\api\PlateAssistantBridge.cpp
 
 CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.i: cmake_force
@@ -296,6 +311,7 @@ BusGalleryDesktop_OBJECTS = \
 "CMakeFiles/BusGalleryDesktop.dir/api/UploadApi.cpp.obj" \
 "CMakeFiles/BusGalleryDesktop.dir/api/CatalogApi.cpp.obj" \
 "CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj" \
+"CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj" \
 "CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj" \
 "CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj" \
 "CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj" \
@@ -314,6 +330,7 @@ BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/api/AuthApi.cpp.obj
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/api/UploadApi.cpp.obj
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/api/CatalogApi.cpp.obj
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj
+BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj
@@ -329,7 +346,7 @@ BusGalleryDesktop.exe: D:/env/QT/6.10.1/mingw_64/lib/libQt6EntryPoint.a
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/linkLibs.rsp
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/objects1.rsp
 BusGalleryDesktop.exe: CMakeFiles/BusGalleryDesktop.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Linking CXX executable BusGalleryDesktop.exe"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Linking CXX executable BusGalleryDesktop.exe"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles\BusGalleryDesktop.dir\link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

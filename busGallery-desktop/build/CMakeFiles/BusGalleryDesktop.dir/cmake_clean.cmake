@@ -20,6 +20,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/BusGalleryDesktop.dir/main.cpp.obj.d"
   "CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj"
   "CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj.d"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj"
+  "CMakeFiles/BusGalleryDesktop.dir/ui/ClearableDateEdit.cpp.obj.d"
   "CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj"
   "CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj.d"
   "CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj"

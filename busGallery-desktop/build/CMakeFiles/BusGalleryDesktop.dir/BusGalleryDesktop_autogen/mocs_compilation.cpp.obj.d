@@ -496,6 +496,13 @@ CMakeFiles/BusGalleryDesktop.dir/BusGalleryDesktop_autogen/mocs_compilation.cpp.
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QLabel \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlabel.h \
  D:/env/QT/6.10.1/mingw_64/include/QtGui/qpicture.h \
+ D:\code\bus-gallery\busGallery-desktop\build\BusGalleryDesktop_autogen\UYX5XTB5RZ/moc_ClearableDateEdit.cpp \
+ D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QDateEdit \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qdatetimeedit.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/qtimezone.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractspinbox.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtGui/qvalidator.h \
  D:\code\bus-gallery\busGallery-desktop\build\BusGalleryDesktop_autogen\UYX5XTB5RZ/moc_ImageDropZone.cpp \
  D:/code/bus-gallery/busGallery-desktop/ui/ImageDropZone.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QPushButton \
@@ -552,16 +559,12 @@ CMakeFiles/BusGalleryDesktop.dir/BusGalleryDesktop_autogen/mocs_compilation.cpp.
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qcombobox.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractitemdelegate.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qstyleoption.h \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractspinbox.h \
- D:/env/QT/6.10.1/mingw_64/include/QtGui/qvalidator.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qslider.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qabstractslider.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qstyle.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qtabbar.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qrubberband.h \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QDateEdit \
- D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qdatetimeedit.h \
- D:/env/QT/6.10.1/mingw_64/include/QtCore/qtimezone.h \
+ D:/code/bus-gallery/busGallery-desktop/ui/ClearableDateEdit.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/QVBoxLayout \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
  D:/env/QT/6.10.1/mingw_64/include/QtWidgets/qlayout.h \
