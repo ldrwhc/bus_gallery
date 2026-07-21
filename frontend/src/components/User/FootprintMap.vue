@@ -153,20 +153,22 @@ const buildMap = async () => {
 
                     poly.on('click', () => {
                         if (infoWindow) { map.remove(infoWindow); }
+                        const center = poly.getBounds().getCenter();
                         const thumbUrl = resolveThumbUrl(meta.thumbnail);
                         const imgTag = thumbUrl
-                            ? `<img src="${thumbUrl}" style="width:180px;height:auto;max-height:120px;object-fit:cover;border-radius:8px;margin-top:4px;display:block;" />`
+                            ? `<div class="info-thumb-wrap"><img src="${thumbUrl}" /></div>`
                             : '';
                         infoWindow = new window.AMap.InfoWindow({
-                            content: `<div style="min-width:140px;padding:4px;">
-                                <strong>${result.name}</strong>
-                                <span style="color:#94a3b8;font-size:12px;margin-left:4px;">${meta.count} 张</span>
+                            content: `<div class="info-popup">
+                                <div class="info-title">${result.name}<span class="info-count">${meta.count} 张</span></div>
                                 ${imgTag}
                             </div>`,
-                            offset: new window.AMap.Pixel(0, -10),
+                            offset: new window.AMap.Pixel(0, -6),
                             closeWhenClickMap: true
                         });
-                        infoWindow.open(map, poly.getBounds().getCenter());
+                        infoWindow.open(map, center);
+                        const px = map.lngLatToContainer(center);
+                        map.panBy(0, -(px.y - map.getSize().getHeight() / 2 + 70));
                     });
 
                     map.add(poly);
@@ -222,4 +224,14 @@ onBeforeUnmount(() => {
     padding: 4px 10px; border-radius: 6px; white-space: nowrap;
     transform: translateY(-100%);
 }
+</style>
+
+<style>
+.info-popup { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2px 4px 6px; }
+.info-title { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+.info-count { font-weight: 400; font-size: 12px; color: #94a3b8; margin-left: 6px; }
+.info-thumb-wrap { border-radius: 10px; overflow: hidden; }
+.info-thumb-wrap img { width: 200px; height: 130px; object-fit: cover; display: block; }
+.amap-info-content { padding: 8px 10px !important; background: #fff !important; border-radius: 14px !important; box-shadow: 0 8px 30px rgba(0,0,0,0.18) !important; }
+.amap-info-sharp { border-top-color: #fff !important; }
 </style>
