@@ -47,12 +47,19 @@ const resolveColor = (count, maxCount) => {
     };
 };
 
+const resolveThumbUrl = (path) => {
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) return path;
+    return window.location.origin + '/' + path.replace(/^\//, '');
+};
+
 const showInfoWindow = (polygon, meta) => {
     if (infoWindow) {
         map.remove(infoWindow);
     }
-    const thumbHtml = meta.thumbnail
-        ? `<img src="${meta.thumbnail}" style="width:200px;height:auto;max-height:130px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block;" />`
+    const thumbUrl = resolveThumbUrl(meta.thumbnail);
+    const thumbHtml = thumbUrl
+        ? `<img src="${thumbUrl}" style="width:200px;height:auto;max-height:130px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block;" />`
         : '';
     const content = `<div style="min-width:180px;padding:4px;">
         <strong style="font-size:14px;">${meta.city}</strong>
