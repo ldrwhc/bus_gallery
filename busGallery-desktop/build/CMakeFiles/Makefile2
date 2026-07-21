@@ -83,12 +83,12 @@ CMakeFiles/BusGalleryDesktop.dir/all: CMakeFiles/BusGalleryDesktop_autogen_times
 CMakeFiles/BusGalleryDesktop.dir/all: CMakeFiles/BusGalleryDesktop_autogen.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14 "Built target BusGalleryDesktop"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16 "Built target BusGalleryDesktop"
 .PHONY : CMakeFiles/BusGalleryDesktop.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/BusGalleryDesktop.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles 15
+	$(CMAKE_COMMAND) -E cmake_progress_start D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles 17
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Makefile2 CMakeFiles/BusGalleryDesktop.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles 0
 .PHONY : CMakeFiles/BusGalleryDesktop.dir/rule
@@ -135,7 +135,7 @@ CMakeFiles/BusGalleryDesktop_autogen_timestamp_deps.dir/clean:
 CMakeFiles/BusGalleryDesktop_autogen.dir/all: CMakeFiles/BusGalleryDesktop_autogen_timestamp_deps.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop_autogen.dir\build.make CMakeFiles/BusGalleryDesktop_autogen.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop_autogen.dir\build.make CMakeFiles/BusGalleryDesktop_autogen.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=15 "Built target BusGalleryDesktop_autogen"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\code\bus-gallery\busGallery-desktop\build\CMakeFiles --progress-num=17 "Built target BusGalleryDesktop_autogen"
 .PHONY : CMakeFiles/BusGalleryDesktop_autogen.dir/all
 
 # Build rule for subdir invocation for target.

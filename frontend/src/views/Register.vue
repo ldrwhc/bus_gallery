@@ -166,7 +166,7 @@ const handleSubmit = async () => {
     }
     try {
         await store.dispatch('auth/register', { ...form });
-        const redirect = route.query.redirect || '/account';
+        const redirect = route.query.redirect || '/';
         router.replace(redirect);
     } catch (e) {
         // handled in store

@@ -301,16 +301,16 @@ void MainWindow::setupUploadForm(QWidget *page)
     m_factoryDate = new QDateEdit(formWidget);
     m_factoryDate->setCalendarPopup(true);
     m_factoryDate->setDisplayFormat("yyyy-MM");
-    m_factoryDate->setDate(QDate::currentDate());
-    m_factoryDate->setSpecialValueText(" ");
+    m_factoryDate->setSpecialValueText(QString::fromUtf8("未知"));
+    m_factoryDate->clear();
     m_factoryDate->setMinimumDate(QDate(1950, 1, 1));
     detailGrid->addRow(QString::fromUtf8("出厂日期"), m_factoryDate);
 
     m_launchDate = new QDateEdit(formWidget);
     m_launchDate->setCalendarPopup(true);
     m_launchDate->setDisplayFormat("yyyy-MM");
-    m_launchDate->setDate(QDate::currentDate());
-    m_launchDate->setSpecialValueText(" ");
+    m_launchDate->setSpecialValueText(QString::fromUtf8("未知"));
+    m_launchDate->clear();
     m_launchDate->setMinimumDate(QDate(1950, 1, 1));
     detailGrid->addRow(QString::fromUtf8("上线日期"), m_launchDate);
 
@@ -644,8 +644,8 @@ void MainWindow::resetForm()
     m_modelField->clear();
     m_companyField->clear();
     m_regionPicker->clear();
-    m_factoryDate->setDate(QDate::currentDate());
-    m_launchDate->setDate(QDate::currentDate());
+    m_factoryDate->clear();
+    m_launchDate->clear();
     m_airConditioned->setChecked(true);
     m_fuelType->setCurrentIndex(0);
     m_engineEdit->clear();

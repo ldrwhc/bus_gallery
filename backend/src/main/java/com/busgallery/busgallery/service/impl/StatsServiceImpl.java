@@ -104,6 +104,8 @@ public class StatsServiceImpl implements StatsService {
                 .plateNumber(toString(row.get("plateNumber")))
                 .modelName(toString(row.get("modelName")))
                 .dateVal(toString(row.get("dateVal")))
+                .factoryDate(toString(row.get("factoryDate")))
+                .launchDate(toString(row.get("launchDate")))
                 .build()).collect(Collectors.toList());
     }
 
@@ -134,6 +136,8 @@ public class StatsServiceImpl implements StatsService {
                 .thumbnailUrl(toString(row.get("thumbnailUrl")))
                 .uploaderName(toString(row.get("uploaderName")))
                 .createdAt(toString(row.get("createdAt")))
+                .plateNumber(toString(row.get("plateNumber")))
+                .modelName(toString(row.get("modelName")))
                 .build()).collect(Collectors.toList());
     }
 

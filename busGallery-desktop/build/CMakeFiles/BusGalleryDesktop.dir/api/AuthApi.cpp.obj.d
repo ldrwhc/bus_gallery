@@ -443,6 +443,8 @@ CMakeFiles/BusGalleryDesktop.dir/api/AuthApi.cpp.obj: \
  D:/code/bus-gallery/busGallery-desktop/models/UserProfile.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QString \
  D:/code/bus-gallery/busGallery-desktop/utils/Config.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/QStringList \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/qstringlist.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QByteArray \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QBuffer \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qbuffer.h

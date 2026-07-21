@@ -419,6 +419,8 @@ CMakeFiles/BusGalleryDesktop.dir/api/ApiClient.cpp.obj: \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/quuid.h \
  D:/code/bus-gallery/busGallery-desktop/utils/Config.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QString \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/QStringList \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/qstringlist.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QFile \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qfile.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qfiledevice.h \

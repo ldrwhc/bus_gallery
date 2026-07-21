@@ -85,7 +85,7 @@ const handleSubmit = async () => {
         captcha.imageBase64 = '';
         form.captchaId = '';
         form.captchaCode = '';
-        const redirect = route.query.redirect || '/account';
+        const redirect = route.query.redirect || '/';
         router.replace(redirect);
     } catch (e) {
         const message = e?.message || '';

@@ -69,7 +69,12 @@ const downloadNow = async () => {
 };
 
 const goAccount = () => {
-    router.push({ name: 'Account' });
+    const userId = store.state.auth.profile?.id;
+    if (userId) {
+        router.push({ name: 'UserProfile', params: { userId } });
+    } else {
+        router.push({ name: 'Login', query: { redirect: '/account' } });
+    }
 };
 
 onMounted(() => {

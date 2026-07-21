@@ -142,7 +142,7 @@ const isRegisterMode = computed(() => route.name === 'Register');
 const loading = computed(() => store.state.auth.loading);
 const storeError = computed(() => store.state.auth.error || '');
 const redirectPath = computed(() =>
-    typeof route.query.redirect === 'string' && route.query.redirect ? route.query.redirect : '/account'
+    typeof route.query.redirect === 'string' && route.query.redirect ? route.query.redirect : '/'
 );
 
 const loginForm = reactive({

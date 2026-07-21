@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <QString>
+#include <QStringList>
 
 namespace Config {
 
@@ -34,6 +35,12 @@ inline QString modelVehicles(qint64 modelId) {
 // Limits
 inline const qint64 MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
 inline const QStringList SUPPORTED_EXTENSIONS = {"jpg", "jpeg", "png"};
+
+// Image compression (matches server UploadSecurityProperties)
+inline const qint64 MAX_UPLOAD_PIXELS = 24'000'000;  // max width * height
+inline const int MAX_UPLOAD_WIDTH = 8192;
+inline const int MAX_UPLOAD_HEIGHT = 8192;
+inline const int UPLOAD_JPEG_QUALITY = 88;            // JPEG save quality (0-100)
 
 // QSettings keys
 inline const QString SETTING_TOKEN = "auth/token";

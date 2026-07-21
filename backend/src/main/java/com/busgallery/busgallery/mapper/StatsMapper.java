@@ -167,19 +167,29 @@ public interface StatsMapper {
     // ===== 时间之最 =====
 
     @Select("SELECT v.id AS id, v.plate_number AS plateNumber, " +
-            "m.name AS modelName, DATE_FORMAT(v.factory_date, '%Y-%m') AS dateVal " +
+            "m.name AS modelName, " +
+            "DATE_FORMAT(LEAST(COALESCE(v.factory_date, v.launch_date), " +
+            "  COALESCE(v.launch_date, v.factory_date)), '%Y-%m') AS dateVal, " +
+            "DATE_FORMAT(v.factory_date, '%Y-%m') AS factoryDate, " +
+            "DATE_FORMAT(v.launch_date, '%Y-%m') AS launchDate " +
             "FROM vehicle v " +
             "JOIN model m ON v.model_id = m.id " +
-            "WHERE v.factory_date IS NOT NULL " +
-            "ORDER BY v.factory_date ASC LIMIT 10")
+            "WHERE v.factory_date IS NOT NULL OR v.launch_date IS NOT NULL " +
+            "ORDER BY LEAST(COALESCE(v.factory_date, v.launch_date), " +
+            "  COALESCE(v.launch_date, v.factory_date)) ASC LIMIT 10")
     List<Map<String, Object>> oldestVehicles();
 
     @Select("SELECT v.id AS id, v.plate_number AS plateNumber, " +
-            "m.name AS modelName, DATE_FORMAT(v.launch_date, '%Y-%m') AS dateVal " +
+            "m.name AS modelName, " +
+            "DATE_FORMAT(LEAST(COALESCE(v.factory_date, v.launch_date), " +
+            "  COALESCE(v.launch_date, v.factory_date)), '%Y-%m') AS dateVal, " +
+            "DATE_FORMAT(v.factory_date, '%Y-%m') AS factoryDate, " +
+            "DATE_FORMAT(v.launch_date, '%Y-%m') AS launchDate " +
             "FROM vehicle v " +
             "JOIN model m ON v.model_id = m.id " +
-            "WHERE v.launch_date IS NOT NULL " +
-            "ORDER BY v.launch_date DESC LIMIT 10")
+            "WHERE v.factory_date IS NOT NULL OR v.launch_date IS NOT NULL " +
+            "ORDER BY LEAST(COALESCE(v.factory_date, v.launch_date), " +
+            "  COALESCE(v.launch_date, v.factory_date)) DESC LIMIT 10")
     List<Map<String, Object>> newestVehicles();
 
     @Select("SELECT YEAR(v.factory_date) AS year, COUNT(*) AS cnt " +
@@ -200,8 +210,13 @@ public interface StatsMapper {
 
     @Select("SELECT i.id AS id, i.url AS url, i.thumbnail_url AS thumbnailUrl, " +
             "COALESCE(i.uploader_display_name, i.uploader_username) AS uploaderName, " +
-            "i.created_at AS createdAt " +
+            "i.created_at AS createdAt, " +
+            "COALESCE(v.plate_number, '无车牌') AS plateNumber, " +
+            "COALESCE(m.name, '') AS modelName " +
             "FROM image i " +
+            "LEFT JOIN vehicle_image vi ON vi.image_id = i.id " +
+            "LEFT JOIN vehicle v ON vi.vehicle_id = v.id " +
+            "LEFT JOIN model m ON v.model_id = m.id " +
             "ORDER BY i.created_at DESC, i.id DESC LIMIT 10")
     List<Map<String, Object>> latestImages();
 }

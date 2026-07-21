@@ -432,6 +432,8 @@ CMakeFiles/BusGalleryDesktop.dir/ui/ImageDropZone.cpp.obj: \
  D:/code/bus-gallery/busGallery-desktop/utils/Config.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QString \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/qstring.h \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/QStringList \
+ D:/env/QT/6.10.1/mingw_64/include/QtCore/qstringlist.h \
  D:/code/bus-gallery/busGallery-desktop/utils/ThemeManager.h \
  D:/env/QT/6.10.1/mingw_64/include/QtCore/QObject \
  D:/env/QT/6.10.1/mingw_64/include/QtGui/QColor \

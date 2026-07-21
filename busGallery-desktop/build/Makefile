@@ -250,6 +250,30 @@ api/CatalogApi.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/api/CatalogApi.cpp.s
 .PHONY : api/CatalogApi.cpp.s
 
+api/PlateAssistantBridge.obj: api/PlateAssistantBridge.cpp.obj
+.PHONY : api/PlateAssistantBridge.obj
+
+# target to build an object file
+api/PlateAssistantBridge.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj
+.PHONY : api/PlateAssistantBridge.cpp.obj
+
+api/PlateAssistantBridge.i: api/PlateAssistantBridge.cpp.i
+.PHONY : api/PlateAssistantBridge.i
+
+# target to preprocess a source file
+api/PlateAssistantBridge.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.i
+.PHONY : api/PlateAssistantBridge.cpp.i
+
+api/PlateAssistantBridge.s: api/PlateAssistantBridge.cpp.s
+.PHONY : api/PlateAssistantBridge.s
+
+# target to generate assembly for a file
+api/PlateAssistantBridge.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.s
+.PHONY : api/PlateAssistantBridge.cpp.s
+
 api/UploadApi.obj: api/UploadApi.cpp.obj
 .PHONY : api/UploadApi.obj
 
@@ -418,6 +442,30 @@ ui/RegionPicker.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.s
 .PHONY : ui/RegionPicker.cpp.s
 
+utils/ImageProcessor.obj: utils/ImageProcessor.cpp.obj
+.PHONY : utils/ImageProcessor.obj
+
+# target to build an object file
+utils/ImageProcessor.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/utils/ImageProcessor.cpp.obj
+.PHONY : utils/ImageProcessor.cpp.obj
+
+utils/ImageProcessor.i: utils/ImageProcessor.cpp.i
+.PHONY : utils/ImageProcessor.i
+
+# target to preprocess a source file
+utils/ImageProcessor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/utils/ImageProcessor.cpp.i
+.PHONY : utils/ImageProcessor.cpp.i
+
+utils/ImageProcessor.s: utils/ImageProcessor.cpp.s
+.PHONY : utils/ImageProcessor.s
+
+# target to generate assembly for a file
+utils/ImageProcessor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\BusGalleryDesktop.dir\build.make CMakeFiles/BusGalleryDesktop.dir/utils/ImageProcessor.cpp.s
+.PHONY : utils/ImageProcessor.cpp.s
+
 utils/ThemeManager.obj: utils/ThemeManager.cpp.obj
 .PHONY : utils/ThemeManager.obj
 
@@ -465,6 +513,9 @@ help:
 	@echo ... api/CatalogApi.obj
 	@echo ... api/CatalogApi.i
 	@echo ... api/CatalogApi.s
+	@echo ... api/PlateAssistantBridge.obj
+	@echo ... api/PlateAssistantBridge.i
+	@echo ... api/PlateAssistantBridge.s
 	@echo ... api/UploadApi.obj
 	@echo ... api/UploadApi.i
 	@echo ... api/UploadApi.s
@@ -486,6 +537,9 @@ help:
 	@echo ... ui/RegionPicker.obj
 	@echo ... ui/RegionPicker.i
 	@echo ... ui/RegionPicker.s
+	@echo ... utils/ImageProcessor.obj
+	@echo ... utils/ImageProcessor.i
+	@echo ... utils/ImageProcessor.s
 	@echo ... utils/ThemeManager.obj
 	@echo ... utils/ThemeManager.i
 	@echo ... utils/ThemeManager.s

@@ -94,7 +94,9 @@ public class StatsResponse {
         private Long id;
         private String plateNumber;
         private String modelName;
-        private String dateVal;
+        private String dateVal;       // display date (优先出厂，否则上线)
+        private String factoryDate;   // 出厂日期
+        private String launchDate;    // 上线日期
     }
 
     @Data
@@ -127,5 +129,7 @@ public class StatsResponse {
         private String thumbnailUrl;
         private String uploaderName;
         private String createdAt;
+        private String plateNumber;
+        private String modelName;
     }
 }

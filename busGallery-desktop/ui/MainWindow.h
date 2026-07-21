@@ -98,6 +98,9 @@ private:
     QPushButton *m_submitBtn;
     QPushButton *m_resetBtn;
 
+    // Compressed temp file (cleaned after upload)
+    QString m_compressedFilePath;
+
     // Route rows
     QWidget *m_routesContainer;
     QVBoxLayout *m_routesLayout;
@@ -134,7 +137,6 @@ private:
     QNetworkAccessManager *m_buspediaNam;  // for buspedia.top scraping
     QTimer *m_draftTimer;
     bool m_suppressDraft = true; // don't save while loading draft
-    bool m_suppressModelAutoFill = false; // block model auto-fill during buspedia scraping
 
     // AI plate recognition
     QFutureWatcherBase *m_aiRecognizeWatcher = nullptr;

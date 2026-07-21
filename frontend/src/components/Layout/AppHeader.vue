@@ -102,7 +102,7 @@
                         <router-link v-if="role === 'STATION'" class="ghost-btn ghost-btn--sm" to="/dashboard">
                             后台
                         </router-link>
-                        <router-link class="user-pill" to="/account">
+                        <router-link class="user-pill" :to="'/users/' + profile?.id">
                             {{ displayName }}
                         </router-link>
                         <button

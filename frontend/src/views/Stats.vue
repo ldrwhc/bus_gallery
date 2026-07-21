@@ -77,6 +77,36 @@
               <div v-if="card._total === 0" class="empty">暂无数据</div>
             </div>
 
+            <!-- Image card -->
+            <div class="card" v-else-if="card._isImageCard">
+              <h3 class="card__title">{{ card.title }}</h3>
+              <div class="img-list">
+                <div
+                  class="img-row"
+                  v-for="item in card._imageItems"
+                  :key="item.id"
+                  @mouseenter="item._hover = true"
+                  @mouseleave="item._hover = false"
+                >
+                  <img v-if="item._thumb" :src="item._thumb" class="img-thumb" loading="lazy" />
+                  <div v-else class="img-thumb img-thumb--empty"></div>
+                  <div class="img-info">
+                    <span class="img-info__plate">{{ item._label }}</span>
+                    <span class="img-info__model" v-if="item._sublabel">{{ item._sublabel }}</span>
+                    <span class="img-info__meta">{{ item._uploader }} · {{ item._time }}</span>
+                  </div>
+                  <Transition name="tip">
+                    <div class="rank-tip" v-if="item._hover">
+                      车牌：{{ item._label }}<br v-if="item._sublabel" />
+                      车型：{{ item._sublabel || '未知' }}<br />
+                      上传者：{{ item._uploader }}<br />
+                      时间：{{ item._time }}
+                    </div>
+                  </Transition>
+                </div>
+              </div>
+            </div>
+
             <!-- Rank card -->
             <div class="card" v-else>
               <h3 class="card__title">{{ card.title }}</h3>
@@ -381,21 +411,9 @@ const buildSections = (d) => {
         buildYearCard('出厂年份分布', d.factoryYearDistribution)
       ]},
     {
-      id:'hot', title:'热度之最', desc:'Top 10 · 点击名称可跳转', color:'#ef4444',
+      id:'latest', title:'最新上传', desc:'最近 10 张图片', color:'#ef4444',
       cards:[
-        { title:'浏览量最高车辆', _linkType:'vehicle', _items: makeRankItems(d.mostViewedVehicles, {
-            labelKey:'plateNumber', subKey:'modelName', valFn:r=>r.viewCount||0, unit:'次',
-            tipBuilder:(r,v)=>[
-              `车牌：${r.plateNumber}｜车型：${r.modelName}`,
-              `被浏览 ${fmt(v)} 次`
-            ]}) },
-        { title:'最新上传图片', _items: (d.latestImages || []).map((r, i) => reactive({
-            ...r, _label:'#'+r.id, _sublabel:r.uploaderName||'未知',
-            _val: formatTime(r.createdAt),
-            _barPct: (d.latestImages?.length ? ((d.latestImages.length-i)/d.latestImages.length*100).toFixed(1)+'%' : null),
-            _hover:false,
-            _tipLines:[`图片 #${r.id}`,`上传者：${r.uploaderName||'未知'}｜${formatTime(r.createdAt)}`]
-          })) }
+        buildLatestImagesCard(d.latestImages)
       ]}
   );
 };
@@ -420,11 +438,27 @@ const buildTimeCard = (title, items, dateLabel) => ({
   title,
   _items: makeRankItems(items, {
     labelKey:'plateNumber', subKey:'modelName', valFn:()=>1, unit:'',
-    tipBuilder:(r)=>[
-      `车牌：${r.plateNumber}｜车型：${r.modelName}`,
-      `${dateLabel}日期：${r.dateVal}`
-    ]}).map((it,i)=>({...it, _val:it.dateVal, _barPct:null})),
+    tipBuilder:(r)=>{
+      const lines = [`车牌：${r.plateNumber}｜车型：${r.modelName}`];
+      if (r.factoryDate) lines.push(`出厂：${r.factoryDate}`);
+      if (r.launchDate) lines.push(`上线：${r.launchDate}`);
+      return lines;
+    }}).map((it,i)=>({...it, _val:it.dateVal, _barPct:null})),
   _unitLabel: dateLabel+'日期'
+});
+
+const buildLatestImagesCard = (items) => ({
+  title: '最新上传图片',
+  _isImageCard: true,
+  _imageItems: (items || []).map(r => ({
+    ...r,
+    _label: r.plateNumber || '无车牌',
+    _sublabel: r.modelName || '',
+    _time: formatTime(r.createdAt),
+    _uploader: r.uploaderName || '未知',
+    _thumb: r.thumbnailUrl || r.url || '',
+    _hover: false
+  }))
 });
 
 const buildYearCard = (title, items) => {
@@ -544,6 +578,28 @@ onMounted(loadStats);
   box-shadow: 0 6px 24px rgba(0,0,0,.18);
   pointer-events: none;
 }
+
+/* ===== image list ===== */
+.img-list { display: flex; flex-direction: column; gap: 6px; }
+.img-row {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px; border-radius: 8px; cursor: default;
+  transition: background .12s;
+}
+.img-row:hover { background: #f8fafc; }
+.img-thumb {
+  width: 48px; height: 36px; border-radius: 6px; object-fit: cover;
+  flex-shrink: 0; background: #f1f5f9;
+}
+.img-thumb--empty { background: #f1f5f9; }
+.img-info {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.img-info__plate { font-size: 13px; color: #334155; font-weight: 600; }
+.img-info__model { font-size: 11px; color: #64748b; }
+.img-info__meta { font-size: 11px; color: #94a3b8; }
 
 /* ===== donut ===== */
 .donut-wrap { display:flex; justify-content:center; align-items:center; margin-bottom:16px; position:relative; }

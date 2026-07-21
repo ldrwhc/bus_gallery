@@ -13,6 +13,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "D:/code/bus-gallery/busGallery-desktop/api/ApiClient.cpp" "CMakeFiles/BusGalleryDesktop.dir/api/ApiClient.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/api/ApiClient.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/api/AuthApi.cpp" "CMakeFiles/BusGalleryDesktop.dir/api/AuthApi.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/api/AuthApi.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/api/CatalogApi.cpp" "CMakeFiles/BusGalleryDesktop.dir/api/CatalogApi.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/api/CatalogApi.cpp.obj.d"
+  "D:/code/bus-gallery/busGallery-desktop/api/PlateAssistantBridge.cpp" "CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/api/PlateAssistantBridge.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/api/UploadApi.cpp" "CMakeFiles/BusGalleryDesktop.dir/api/UploadApi.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/api/UploadApi.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/main.cpp" "CMakeFiles/BusGalleryDesktop.dir/main.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/main.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/ui/AutocompleteField.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/AutocompleteField.cpp.obj.d"
@@ -20,6 +21,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "D:/code/bus-gallery/busGallery-desktop/ui/LoginDialog.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/LoginDialog.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/ui/MainWindow.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/MainWindow.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/ui/RegionPicker.cpp" "CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/ui/RegionPicker.cpp.obj.d"
+  "D:/code/bus-gallery/busGallery-desktop/utils/ImageProcessor.cpp" "CMakeFiles/BusGalleryDesktop.dir/utils/ImageProcessor.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/utils/ImageProcessor.cpp.obj.d"
   "D:/code/bus-gallery/busGallery-desktop/utils/ThemeManager.cpp" "CMakeFiles/BusGalleryDesktop.dir/utils/ThemeManager.cpp.obj" "gcc" "CMakeFiles/BusGalleryDesktop.dir/utils/ThemeManager.cpp.obj.d"
   )
 
