@@ -53,6 +53,7 @@
                     </div>
                     <p class="muted">@{{ profile.username || 'unknown' }}</p>
                 </div>
+                <el-button v-if="isSelf" class="profile-cta" type="primary" @click="openPurchaseIncentives">查看购买记录</el-button>
             </div>
             <template v-if="isSelf">
                 <hr class="profile-divider" />
@@ -92,9 +93,6 @@
                         <strong class="stat-value">{{ walletBalanceText }}</strong>
                         <span class="stat-sublabel">可用于下单和拼团</span>
                     </div>
-                </div>
-                <div class="profile-actions">
-                    <el-button type="primary" @click="openPurchaseIncentives">查看购买记录</el-button>
                 </div>
             </template>
             <template v-else>
@@ -1248,7 +1246,8 @@ onBeforeUnmount(() => {
 .user-profile-page { width: min(1100px, 100%); margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 20px; }
 .card { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08); }
 .profile-top { display: flex; align-items: center; gap: 14px; }
-.profile-info { min-width: 0; }
+.profile-info { min-width: 0; flex: 1; }
+.profile-cta { flex-shrink: 0; }
 .profile-divider { border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0; }
 .profile-guest-stat { margin-top: 8px; }
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
@@ -1262,7 +1261,6 @@ onBeforeUnmount(() => {
 .stat-label { font-size: 12px; color: #94a3b8; }
 .stat-value { color: #0f172a; font-size: 14px; }
 .stat-sublabel { font-size: 11px; color: #94a3b8; }
-.profile-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
 .display-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .display-name-row h1 { margin: 0; line-height: 1.2; }
 .display-name-input { width: min(280px, 60vw); }
@@ -1331,8 +1329,6 @@ onBeforeUnmount(() => {
     }
     .stat-col:nth-child(2) { border-right: none; }
     .stat-col:nth-child(3) { padding-left: 0; }
-    .profile-actions { justify-content: stretch; }
-    .profile-actions .el-button { width: 100%; }
 }
 
 @media (max-width: 560px) {
@@ -1344,7 +1340,7 @@ onBeforeUnmount(() => {
     .stat-col:last-child { border-bottom: none; padding-bottom: 0; }
     .stat-col:nth-child(2) { padding-left: 0; }
     .stat-col:nth-child(3) { padding-left: 0; }
-    .profile-actions .el-button { width: 100%; }
+    .profile-cta { width: 100%; }
 }
 </style>
 
