@@ -1400,41 +1400,65 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
             return;
         }
 
-        // Collect matching routes (filter by name match)
+        // Collect matching routes, sort by city match
         QString city = m_regionPicker->cityName().trimmed();
-        QJsonArray matches;
+        QString cityShort = city;
+        if (cityShort.endsWith(QString::fromUtf8("市"))) cityShort.chop(1);
+        QJsonArray cityMatches, otherMatches;
         for (const auto &lv : lines) {
             QJsonObject l = lv.toObject();
             QString name = l["name"].toString();
             if (name.contains(searchName) || searchName.contains(name) || name == searchName) {
-                // Prefer routes from same city
                 QString rgn = l["region"].toString();
-                if (!city.isEmpty() && rgn.contains(city)) {
-                    matches.prepend(l);  // city match goes first
+                if (!city.isEmpty() && (rgn == city || rgn == cityShort || rgn.contains(city) || city.contains(rgn))) {
+                    cityMatches.append(l);
                 } else {
-                    matches.append(l);
+                    otherMatches.append(l);
                 }
             }
         }
-        if (matches.isEmpty() && !lines.isEmpty()) matches = lines;
 
         QJsonObject best;
-        if (matches.size() == 1) {
-            best = matches[0].toObject();
-        } else if (matches.size() > 1) {
-            // Let user pick from a list
+        if (cityMatches.size() == 1) {
+            // Exactly one city match — use it directly
+            best = cityMatches[0].toObject();
+        } else if (cityMatches.size() > 1 || otherMatches.size() > 0) {
+            // Multiple results — show picker with city matches first
             QStringList choices;
-            for (const auto &mv : matches) {
-                QJsonObject m = mv.toObject();
-                QString term = m["term"].toArray().isEmpty() ? QString("") : m["term"].toArray()[0].toString();
-                choices << QString("%1 [%2] %3").arg(m["name"].toString(), m["region"].toString(), term);
+            auto addChoice = [&](const QJsonArray &arr, bool isCity) {
+                for (const auto &mv : arr) {
+                    QJsonObject m = mv.toObject();
+                    QString term = m["term"].toArray().isEmpty() ? QString("") : m["term"].toArray()[0].toString();
+                    QString label = QString("%1 [%2] %3").arg(m["name"].toString(), m["region"].toString(), term);
+                    if (isCity) label = QString::fromUtf8("★ ") + label;
+                    choices << label;
+                }
+            };
+            addChoice(cityMatches, true);
+            addChoice(otherMatches, false);
+            if (choices.isEmpty() && !lines.isEmpty()) {
+                for (const auto &lv : lines) {
+                    QJsonObject m = lv.toObject();
+                    choices << QString("%1 [%2]").arg(m["name"].toString(), m["region"].toString());
+                }
             }
             bool ok;
             QString pick = QInputDialog::getItem(nullptr, QString::fromUtf8("选择线路"),
-                QString::fromUtf8("找到多个匹配线路，请选择:"), choices, 0, false, &ok);
+                QString::fromUtf8("找到多个匹配线路（★同城），请选择:"), choices, 0, false, &ok);
             if (ok && !pick.isEmpty()) {
-                int idx = choices.indexOf(pick);
-                if (idx >= 0) best = matches[idx].toObject();
+                // Remove ★ prefix if present
+                bool isCityPick = pick.startsWith(QString::fromUtf8("★ "));
+                if (isCityPick) pick = pick.mid(2);
+                // Search in combined list
+                QJsonArray combined = cityMatches;
+                for (const auto &o : otherMatches) combined.append(o);
+                for (const auto &mv : combined) {
+                    QJsonObject m = mv.toObject();
+                    QString term = m["term"].toArray().isEmpty() ? QString("") : m["term"].toArray()[0].toString();
+                    if (QString("%1 [%2] %3").arg(m["name"].toString(), m["region"].toString(), term) == pick) {
+                        best = m; break;
+                    }
+                }
             }
         }
 
