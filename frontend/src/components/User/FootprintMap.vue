@@ -171,8 +171,8 @@ const buildMap = async () => {
                     });
 
                     poly.on('mousemove', (e) => {
-                        tooltipStyle.left = (e.pixel.x + 14) + 'px';
-                        tooltipStyle.top = (e.pixel.y - 30) + 'px';
+                        tooltipStyle.left = (e.pixel.x + 8) + 'px';
+                        tooltipStyle.top = (e.pixel.y - 20) + 'px';
                     });
 
                     poly.on('mouseout', () => {
