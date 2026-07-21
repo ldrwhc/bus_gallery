@@ -18,8 +18,9 @@
                 <span class="stat-text">全站排名 / {{ stats.totalUsers }} 人</span>
             </div>
         </div>
-        <div ref="mapRoot" class="footprint-map"></div>
-        <div v-if="hoveredCity" class="map-tooltip" :style="tooltipStyle">{{ hoveredCity }}</div>
+        <div ref="mapRoot" class="footprint-map">
+            <div v-if="hoveredCity" class="map-tooltip" :style="tooltipStyle">{{ hoveredCity }}</div>
+        </div>
     </div>
 </template>
 
@@ -160,10 +161,8 @@ const buildMap = async () => {
                             strokeWeight: 2
                         });
                         hoveredCity.value = result.name;
-                        const rect = mapRoot.value.getBoundingClientRect();
-                        const px = e.pixel;
-                        tooltipStyle.left = (rect.left + px.x + 12) + 'px';
-                        tooltipStyle.top = (rect.top + px.y - 28) + 'px';
+                        tooltipStyle.left = (e.pixel.x + 14) + 'px';
+                        tooltipStyle.top = (e.pixel.y - 30) + 'px';
                     });
 
                     poly.on('mouseout', () => {
@@ -242,12 +241,13 @@ onBeforeUnmount(() => {
 .footprint-wrapper { position: relative; }
 .footprint-map {
     width: 100%; height: 360px; border-radius: 14px;
-    overflow: hidden; background: #f1f5f9;
+    background: #f1f5f9;
 }
 .map-tooltip {
-    position: fixed; z-index: 999; pointer-events: none;
+    position: absolute; z-index: 999; pointer-events: none;
     background: rgba(0,0,0,0.78); color: #fff; font-size: 12px;
     padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+    transform: translate(-50%, -100%);
 }
 .footprint-stats {
     display: flex; align-items: center; gap: 0;
