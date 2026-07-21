@@ -160,9 +160,10 @@ const buildMap = async () => {
                             strokeWeight: 2
                         });
                         hoveredCity.value = result.name;
+                        const rect = mapRoot.value.getBoundingClientRect();
                         const px = e.pixel;
-                        tooltipStyle.left = (px.x + 12) + 'px';
-                        tooltipStyle.top = (px.y - 10) + 'px';
+                        tooltipStyle.left = (rect.left + px.x + 12) + 'px';
+                        tooltipStyle.top = (rect.top + px.y - 28) + 'px';
                     });
 
                     poly.on('mouseout', () => {
@@ -244,10 +245,9 @@ onBeforeUnmount(() => {
     overflow: hidden; background: #f1f5f9;
 }
 .map-tooltip {
-    position: absolute; z-index: 999; pointer-events: none;
+    position: fixed; z-index: 999; pointer-events: none;
     background: rgba(0,0,0,0.78); color: #fff; font-size: 12px;
     padding: 4px 10px; border-radius: 6px; white-space: nowrap;
-    transform: translateY(-100%);
 }
 .footprint-stats {
     display: flex; align-items: center; gap: 0;

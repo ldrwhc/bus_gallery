@@ -184,7 +184,7 @@
     </select>
 
     <select id="countFootprintTotalCities" resultType="int">
-        SELECT COUNT(*) FROM region WHERE level = 2
+        SELECT 333
     </select>
 
     <select id="countFootprintTotalUsers" resultType="int">
