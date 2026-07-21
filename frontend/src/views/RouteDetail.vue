@@ -7,7 +7,7 @@
                 <!-- Hero header: route number + stops -->
                 <section class="hero">
                     <div class="hero__head">
-                        <h1>{{ routeInfo.routeNumber }}<span v-if="routeInfo.region?.name" class="route-region">{{ routeInfo.region.name }}</span></h1>
+                        <h1>{{ routeInfo.routeNumber }}</h1>
                         <div class="hero__tags">
                             <el-tag v-if="routeInfo.subType" size="small" type="warning">{{ subTypeLabel(routeInfo.subType) }}</el-tag>
                             <el-tag size="small" :type="routeInfo.isActive ? 'success' : 'info'">{{ routeInfo.isActive ? '运营中' : '已停运' }}</el-tag>
