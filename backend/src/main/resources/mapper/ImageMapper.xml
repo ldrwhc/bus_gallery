@@ -184,10 +184,7 @@
     </select>
 
     <select id="countFootprintTotalCities" resultType="int">
-        SELECT COUNT(DISTINCT r.name)
-        FROM region r
-        INNER JOIN vehicle v ON v.region_id = r.id
-        INNER JOIN vehicle_image vi ON vi.vehicle_id = v.id
+        SELECT COUNT(*) FROM region WHERE level = 2
     </select>
 
     <select id="countFootprintTotalUsers" resultType="int">
