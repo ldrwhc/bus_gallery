@@ -118,18 +118,25 @@ const buildMap = async () => {
 
         const allCities = new Set(cityMap.keys());
 
-        for (const city of allCities) {
-            const result = await new Promise((resolve) => {
-                district.search(city, (status, res) => {
-                    if (status !== 'complete' || !res.districtList?.length) {
-                        resolve(null);
+        const searchCity = (name) => new Promise((resolve) => {
+            district.search(name, (status, res) => {
+                if (status === 'complete' && res.districtList?.length) {
+                    const d = res.districtList[0];
+                    if (d.boundaries && d.boundaries.length) {
+                        resolve({ name: d.name || name, boundaries: d.boundaries });
                         return;
                     }
-                    const d = res.districtList[0];
-                    if (!d.boundaries) { resolve(null); return; }
-                    resolve({ name: d.name || city, boundaries: d.boundaries });
-                });
+                }
+                resolve(null);
             });
+        });
+
+        for (const city of allCities) {
+            let result = await searchCity(city);
+            if (!result) {
+                const short = city.replace(/[市州地区盟]$/, '');
+                if (short !== city) result = await searchCity(short);
+            }
             if (result) {
                 const meta = cityMap.get(city);
                 const color = resolveColor(meta.count, maxCount);
