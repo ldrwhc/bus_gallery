@@ -1,10 +1,33 @@
 <template>
-    <div ref="mapRoot" class="footprint-map"></div>
+    <div class="footprint-wrapper">
+        <div ref="mapRoot" class="footprint-map"></div>
+        <div v-if="hoveredCity" class="map-tooltip" :style="tooltipStyle">{{ hoveredCity }}</div>
+        <Teleport to="body">
+            <div v-if="previewVisible" class="footprint-preview-backdrop" @click.self="closePreview">
+                <div class="footprint-preview-card">
+                    <button class="footprint-preview-close" @click="closePreview">&times;</button>
+                    <h3>{{ previewCity }} <span class="preview-count">{{ previewCount }} 张</span></h3>
+                    <div class="preview-images">
+                        <img
+                            v-for="(img, i) in previewImages"
+                            :key="i"
+                            :src="img.url"
+                            :alt="previewCity"
+                            class="preview-thumb"
+                            @error="onImgError($event)"
+                        />
+                    </div>
+                    <p v-if="!previewImages.length" class="muted">暂无预览图片</p>
+                </div>
+            </div>
+        </Teleport>
+    </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue';
 import { fetchUserFootprint } from '@/api/footprint';
+import { fetchUserImages } from '@/api/users';
 
 const AMAP_KEY = 'aaf4d758c8a4864e319ba239c71e8e0c';
 const AMAP_JSCODE = '95b3b7300974a8f43938eb662203eea1';
@@ -16,9 +39,15 @@ const props = defineProps({
 const mapRoot = ref(null);
 let map = null;
 let loaded = false;
-const polyMetaMap = new Map(); // polygon → { city, count, thumbnail, color }
-let infoWindow = null;
+const polyMetaMap = new Map();
 let hoveredPolygon = null;
+
+const hoveredCity = ref('');
+const tooltipStyle = reactive({ left: '0px', top: '0px' });
+const previewVisible = ref(false);
+const previewCity = ref('');
+const previewCount = ref(0);
+const previewImages = ref([]);
 
 const loadAMap = () => {
     return new Promise((resolve, reject) => {
@@ -47,31 +76,19 @@ const resolveColor = (count, maxCount) => {
     };
 };
 
-const resolveThumbUrl = (path) => {
+const closePreview = () => {
+    previewVisible.value = false;
+    previewImages.value = [];
+};
+
+const onImgError = (e) => {
+    e.target.style.display = 'none';
+};
+
+const resolveImageUrl = (path) => {
     if (!path) return '';
     if (/^https?:\/\//i.test(path)) return path;
     return window.location.origin + '/' + path.replace(/^\//, '');
-};
-
-const showInfoWindow = (polygon, meta) => {
-    if (infoWindow) {
-        map.remove(infoWindow);
-    }
-    const thumbUrl = resolveThumbUrl(meta.thumbnail);
-    const thumbHtml = thumbUrl
-        ? `<img src="${thumbUrl}" style="width:200px;height:auto;max-height:130px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block;" />`
-        : '';
-    const content = `<div style="min-width:180px;padding:4px;">
-        <strong style="font-size:14px;">${meta.city}</strong>
-        <span style="color:#94a3b8;font-size:12px;margin-left:6px;">${meta.count} 张</span>
-        ${thumbHtml}
-    </div>`;
-    infoWindow = new window.AMap.InfoWindow({
-        content,
-        offset: new window.AMap.Pixel(0, -10),
-        closeWhenClickMap: true
-    });
-    infoWindow.open(map, polygon.getBounds().getCenter());
 };
 
 const buildMap = async () => {
@@ -107,7 +124,6 @@ const buildMap = async () => {
         });
 
         const allCities = new Set(cityMap.keys());
-        const paintedCities = new Set();
 
         for (const city of allCities) {
             const result = await new Promise((resolve) => {
@@ -122,10 +138,8 @@ const buildMap = async () => {
                 });
             });
             if (result) {
-                paintedCities.add(result.name);
                 const meta = cityMap.get(city);
                 const color = resolveColor(meta.count, maxCount);
-                const polygons = [];
                 result.boundaries.forEach(boundary => {
                     const poly = new window.AMap.Polygon({
                         path: boundary,
@@ -137,7 +151,8 @@ const buildMap = async () => {
                         cursor: 'pointer'
                     });
                     polyMetaMap.set(poly, { city: result.name, ...meta, color });
-                    poly.on('mouseover', () => {
+
+                    poly.on('mouseover', (e) => {
                         if (hoveredPolygon && hoveredPolygon !== poly) {
                             const prev = polyMetaMap.get(hoveredPolygon);
                             hoveredPolygon.setOptions({
@@ -152,7 +167,12 @@ const buildMap = async () => {
                             strokeColor: '#ff3860',
                             strokeWeight: 2
                         });
+                        hoveredCity.value = result.name;
+                        const px = e.pixel;
+                        tooltipStyle.left = (px.x + 12) + 'px';
+                        tooltipStyle.top = (px.y - 10) + 'px';
                     });
+
                     poly.on('mouseout', () => {
                         if (hoveredPolygon === poly) hoveredPolygon = null;
                         poly.setOptions({
@@ -160,26 +180,35 @@ const buildMap = async () => {
                             strokeColor: color.stroke,
                             strokeWeight: 0.8
                         });
+                        hoveredCity.value = '';
                     });
-                    poly.on('click', (e) => {
-                        showInfoWindow(poly, { city: result.name, ...meta });
+
+                    poly.on('click', async () => {
+                        previewCity.value = result.name;
+                        previewCount.value = meta.count;
+                        previewVisible.value = true;
+                        previewImages.value = [];
+                        try {
+                            const imgData = await fetchUserImages(props.userId, { page: 1 });
+                            if (imgData?.records) {
+                                previewImages.value = imgData.records
+                                    .filter(r => r.thumbnailUrl)
+                                    .map(r => ({ url: resolveImageUrl(r.thumbnailUrl) }))
+                                    .slice(0, 6);
+                            }
+                        } catch (e) {
+                            // ignore
+                        }
                     });
-                    polygons.push(poly);
+
+                    map.add(poly);
                 });
-                map.add(polygons);
             }
         }
 
-        if (paintedCities.size > 0) {
+        if (allCities.size > 0) {
             map.setFitView(null, false, [60, 60, 60, 60]);
         }
-
-        map.on('click', () => {
-            if (infoWindow) {
-                map.remove(infoWindow);
-                infoWindow = null;
-            }
-        });
     } catch (err) {
         console.error('Footprint map load failed:', err);
     }
@@ -191,8 +220,9 @@ const destroyMap = () => {
         map = null;
     }
     polyMetaMap.clear();
-    infoWindow = null;
     hoveredPolygon = null;
+    hoveredCity.value = '';
+    previewVisible.value = false;
 };
 
 onMounted(() => {
@@ -213,11 +243,42 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.footprint-wrapper { position: relative; }
 .footprint-map {
-    width: 100%;
-    height: 360px;
-    border-radius: 14px;
-    overflow: hidden;
-    background: #f1f5f9;
+    width: 100%; height: 360px; border-radius: 14px;
+    overflow: hidden; background: #f1f5f9;
 }
+.map-tooltip {
+    position: absolute; z-index: 999; pointer-events: none;
+    background: rgba(0,0,0,0.78); color: #fff; font-size: 12px;
+    padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+    transform: translateY(-100%);
+}
+</style>
+
+<style>
+.footprint-preview-backdrop {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+}
+.footprint-preview-card {
+    background: #fff; border-radius: 16px; padding: 24px;
+    max-width: 520px; width: 92vw; max-height: 80vh; overflow-y: auto;
+    position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.footprint-preview-close {
+    position: absolute; top: 12px; right: 16px;
+    border: none; background: none; font-size: 22px;
+    color: #94a3b8; cursor: pointer; line-height: 1;
+}
+.footprint-preview-close:hover { color: #0f172a; }
+.footprint-preview-card h3 { margin: 0 0 12px; font-size: 18px; }
+.preview-count { color: #94a3b8; font-size: 13px; font-weight: 400; margin-left: 6px; }
+.preview-images { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.preview-thumb {
+    width: 100%; aspect-ratio: 4/3; object-fit: cover;
+    border-radius: 10px; background: #f1f5f9;
+}
+.muted { color: #94a3b8; text-align: center; padding: 24px 0; }
 </style>
