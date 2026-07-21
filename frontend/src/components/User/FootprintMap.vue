@@ -131,12 +131,15 @@ const buildMap = async () => {
             });
         });
 
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         for (const city of allCities) {
             let result = await searchCity(city);
             if (!result) {
-                const short = city.replace(/[市州地区盟]$/, '');
+                const short = city.replace(/[市省州地区盟]$/, '');
                 if (short !== city) result = await searchCity(short);
             }
+            if (!result) console.warn('Footprint: no boundary for', city);
+            await sleep(150);
             if (result) {
                 const meta = cityMap.get(city);
                 const color = resolveColor(meta.count, maxCount);
