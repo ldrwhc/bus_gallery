@@ -118,66 +118,70 @@
             </nav>
 
             <template v-if="activeTab === 'images'">
-                <div class="pager-row">
-                    <el-pagination
-                        :layout="pagerLayout"
-                        background
-                        :page-size="pagination.size"
-                        :current-page="pagination.page"
-                        :total="pagination.total"
-                        @current-change="handlePageChange"
-                    />
-                </div>
                 <div v-if="imagesLoading || profileLoading" class="state">加载中...</div>
                 <div v-else-if="!images.length" class="state">暂未上传图片</div>
-                <div v-else class="grid">
-                    <article v-for="image in images" :key="image.id" class="item" @click="openImage(image)">
-                        <img :src="image.thumbnailUrl" :alt="image.objectName || 'upload'" />
-                        <p class="muted">{{ formatDate(image.createTime) }}</p>
-                        <div v-if="isSelf" class="item-actions">
-                            <button
-                                class="edit-btn"
-                                type="button"
-                                :disabled="!image.vehicleId"
-                                @click.stop="openEditDialog(image)"
-                            >
-                                {{ resolveEditButtonText(image) }}
-                            </button>
-                            <button
-                                class="delete-img-btn"
-                                type="button"
-                                @click.stop="confirmDeleteImage(image)"
-                            >
-                                删除
-                            </button>
-                        </div>
-                    </article>
-                </div>
+                <template v-else>
+                    <div class="grid">
+                        <article v-for="image in images" :key="image.id" class="item" @click="openImage(image)">
+                            <img :src="image.thumbnailUrl" :alt="image.objectName || 'upload'" />
+                            <p class="muted">{{ formatDate(image.createTime) }}</p>
+                            <div v-if="isSelf" class="item-actions">
+                                <button
+                                    class="edit-btn"
+                                    type="button"
+                                    :disabled="!image.vehicleId"
+                                    @click.stop="openEditDialog(image)"
+                                >
+                                    {{ resolveEditButtonText(image) }}
+                                </button>
+                                <button
+                                    class="delete-img-btn"
+                                    type="button"
+                                    @click.stop="confirmDeleteImage(image)"
+                                >
+                                    删除
+                                </button>
+                            </div>
+                        </article>
+                    </div>
+                    <div class="pager-row">
+                        <el-pagination
+                            :layout="pagerLayout"
+                            background
+                            :page-size="pagination.size"
+                            :current-page="pagination.page"
+                            :total="pagination.total"
+                            @current-change="handlePageChange"
+                        />
+                    </div>
+                </template>
             </template>
 
             <template v-if="activeTab === 'favorites'">
-                <div class="pager-row" v-if="favoritePagination.total > favoritePagination.size">
-                    <el-pagination
-                        :layout="pagerLayout"
-                        background
-                        :page-size="favoritePagination.size"
-                        :current-page="favoritePagination.page"
-                        :total="favoritePagination.total"
-                        @current-change="handleFavoritePageChange"
-                    />
-                </div>
                 <div v-if="favoritesLoading || profileLoading" class="state">收藏加载中...</div>
                 <div v-else-if="!favorites.length && isSelf" class="state">还没有收藏车辆</div>
                 <div v-else-if="!favorites.length && !isSelf" class="state">该用户暂无公开收藏</div>
-                <div v-else class="grid">
-                    <article v-for="fav in favorites" :key="fav.vehicle?.id" class="item" @click="openFavorite(fav)">
-                        <img
-                            :src="fav.images?.[0]?.thumbnailUrl || ''"
-                            :alt="fav.vehicle?.plateNumber || fav.vehicle?.modelName || 'favorite vehicle'"
+                <template v-else>
+                    <div class="grid">
+                        <article v-for="fav in favorites" :key="fav.vehicle?.id" class="item" @click="openFavorite(fav)">
+                            <img
+                                :src="fav.images?.[0]?.thumbnailUrl || ''"
+                                :alt="fav.vehicle?.plateNumber || fav.vehicle?.modelName || 'favorite vehicle'"
+                            />
+                            <p class="muted">{{ fav.vehicle?.plateNumber || '未命名车辆' }}</p>
+                        </article>
+                    </div>
+                    <div class="pager-row" v-if="favoritePagination.total > favoritePagination.size">
+                        <el-pagination
+                            :layout="pagerLayout"
+                            background
+                            :page-size="favoritePagination.size"
+                            :current-page="favoritePagination.page"
+                            :total="favoritePagination.total"
+                            @current-change="handleFavoritePageChange"
                         />
-                        <p class="muted">{{ fav.vehicle?.plateNumber || '未命名车辆' }}</p>
-                    </article>
-                </div>
+                    </div>
+                </template>
             </template>
 
             <template v-if="activeTab === 'footprint'">
@@ -1346,7 +1350,7 @@ onBeforeUnmount(() => {
 .name-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .avatar { width: 56px; height: 56px; border-radius: 50%; background: #1d4ed8; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.pager-row { display: flex; justify-content: center; margin-bottom: 4px; }
+.pager-row { display: flex; justify-content: center; margin-top: 12px; }
 .muted { color: #64748b; margin: 4px 0; }
 .inline-code { display: grid; grid-template-columns: 1fr auto; gap: 10px; width: 100%; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
