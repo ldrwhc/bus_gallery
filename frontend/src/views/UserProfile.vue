@@ -122,7 +122,6 @@
                     <h2>图片档案</h2>
                     <el-pagination
                         layout="prev, pager, next"
-                        size="small"
                         background
                         :page-size="pagination.size"
                         :current-page="pagination.page"
@@ -1388,10 +1387,6 @@ onBeforeUnmount(() => {
     .item img { border-radius: 8px; }
     .tab { font-size: 13px; padding: 8px 0; }
     .profile-divider { margin: 12px 0; }
-}
-
-@media (max-width: 400px) {
-    .head .el-pagination { transform: scale(0.88); transform-origin: right center; }
 }
 </style>
 
