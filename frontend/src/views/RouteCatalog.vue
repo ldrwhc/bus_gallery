@@ -72,7 +72,7 @@
                              :key="r.id" class="route-card"
                              @click="onCardClick(r, $event)">
                             <div class="route-card__head">
-                                <span class="route-number">{{ r.routeNumber }}</span><span v-if="r.region?.name" class="route-region">{{ r.region.name }}</span>
+                                <span class="route-number">{{ r.routeNumber }}</span>
                                 <el-tag v-if="r.subType" size="small">{{ subTypeLabel(r.subType) }}</el-tag>
                                 <el-tag size="small" :type="r.isActive ? 'success' : 'info'">
                                     {{ r.isActive ? '运营' : '停运' }}
