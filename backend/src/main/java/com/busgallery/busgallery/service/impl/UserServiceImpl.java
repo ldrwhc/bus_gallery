@@ -10,6 +10,7 @@ import com.busgallery.busgallery.exception.BizException;
 import com.busgallery.busgallery.exception.ErrorCode;
 import com.busgallery.busgallery.repository.UserRepository;
 import com.busgallery.busgallery.repository.VehicleSubmissionRepository;
+import com.busgallery.busgallery.service.ImageAccessService;
 import com.busgallery.busgallery.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class UserServiceImpl implements UserService {
     private final ImageMapper imageMapper;
     private final VehicleCommentMapper vehicleCommentMapper;
     private final VehicleSubmissionRepository vehicleSubmissionRepository;
+    private final ImageAccessService imageAccessService;
 
     /**
      * save方法用于处理save相关的业务逻辑。
@@ -234,6 +236,13 @@ public class UserServiceImpl implements UserService {
             return Collections.emptyList();
         }
         List<com.busgallery.busgallery.dto.response.FootprintCityResponse> list = imageMapper.selectFootprintByUploader(userId);
+        if (!CollectionUtils.isEmpty(list)) {
+            list.forEach(item -> {
+                if (StringUtils.hasText(item.getThumbnail())) {
+                    item.setThumbnail(imageAccessService.signThumbnailObject(item.getThumbnail()));
+                }
+            });
+        }
         return CollectionUtils.isEmpty(list) ? Collections.emptyList() : list;
     }
 

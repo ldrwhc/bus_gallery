@@ -27,7 +27,6 @@
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue';
 import { fetchUserFootprint } from '@/api/footprint';
-import { fetchUserImages } from '@/api/users';
 
 const AMAP_KEY = 'aaf4d758c8a4864e319ba239c71e8e0c';
 const AMAP_JSCODE = '95b3b7300974a8f43938eb662203eea1';
@@ -183,22 +182,13 @@ const buildMap = async () => {
                         hoveredCity.value = '';
                     });
 
-                    poly.on('click', async () => {
+                    poly.on('click', () => {
                         previewCity.value = result.name;
                         previewCount.value = meta.count;
                         previewVisible.value = true;
-                        previewImages.value = [];
-                        try {
-                            const imgData = await fetchUserImages(props.userId, { page: 1 });
-                            if (imgData?.records) {
-                                previewImages.value = imgData.records
-                                    .filter(r => r.thumbnailUrl)
-                                    .map(r => ({ url: resolveImageUrl(r.thumbnailUrl) }))
-                                    .slice(0, 6);
-                            }
-                        } catch (e) {
-                            // ignore
-                        }
+                        previewImages.value = meta.thumbnail
+                            ? [{ url: resolveImageUrl(meta.thumbnail) }]
+                            : [];
                     });
 
                     map.add(poly);
@@ -275,7 +265,7 @@ onBeforeUnmount(() => {
 .footprint-preview-close:hover { color: #0f172a; }
 .footprint-preview-card h3 { margin: 0 0 12px; font-size: 18px; }
 .preview-count { color: #94a3b8; font-size: 13px; font-weight: 400; margin-left: 6px; }
-.preview-images { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.preview-images { display: flex; justify-content: center; }
 .preview-thumb {
     width: 100%; aspect-ratio: 4/3; object-fit: cover;
     border-radius: 10px; background: #f1f5f9;
