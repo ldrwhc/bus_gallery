@@ -1440,13 +1440,40 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
 
         if (!best.isEmpty()) {
             QJsonArray terms = best["term"].toArray();
-            QString start, end;
-            if (!terms.isEmpty()) {
-                QStringList parts = terms[0].toString().split(QString::fromUtf8("<>"));
-                if (parts.size() == 2) { start = parts[0].trimmed(); end = parts[1].trimmed(); }
+            // Parse all term entries for up/down directions and intervals
+            QString upStart, upEnd, downStart, downEnd;
+            for (const auto &tv : terms) {
+                QString t = tv.toString().trimmed();
+                if (t.isEmpty()) continue;
+                // Check for sub-type markers: [区间], [支线], [快线], [夜班], etc.
+                if (t.startsWith(QString::fromUtf8("[区间]"))) {
+                    // Will set sub-type in advanced panel via caller
+                }
+                // Try >> first (directional: up or down)
+                QStringList parts = t.split(QString::fromUtf8(">>"));
+                if (parts.size() == 2) {
+                    if (upStart.isEmpty()) { upStart = parts[0].trimmed(); upEnd = parts[1].trimmed(); }
+                    else if (downStart.isEmpty()) { downStart = parts[0].trimmed(); downEnd = parts[1].trimmed(); }
+                    continue;
+                }
+                // Try <> (bidirectional)
+                parts = t.split(QString::fromUtf8("<>"));
+                if (parts.size() == 2) {
+                    if (upStart.isEmpty()) { upStart = parts[0].trimmed(); upEnd = parts[1].trimmed(); }
+                    if (downStart.isEmpty()) { downStart = parts[1].trimmed(); downEnd = parts[0].trimmed(); }
+                }
             }
-            if (!start.isEmpty()) startEdit->setText(start);
-            if (!end.isEmpty()) endEdit->setText(end);
+            if (!upStart.isEmpty()) { startEdit->setText(upStart); endEdit->setText(upEnd); }
+            // Try to find the row's advanced panel to fill down direction
+            for (auto &rw : m_routeRows) {
+                if (rw.routeField == routeField) {
+                    if (!downStart.isEmpty() && rw.downStartStopEdit) {
+                        rw.downStartStopEdit->setText(downStart);
+                        rw.downEndStopEdit->setText(downEnd);
+                    }
+                    break;
+                }
+            }
         }
         if (best.isEmpty()) {
             QMessageBox::information(nullptr, QString::fromUtf8("未找到"),
