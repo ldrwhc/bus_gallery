@@ -83,5 +83,5 @@ public interface UserService {
      */
     UserProfileResponse buildProfile(User user, long uploadsCount);
 
-    List<com.busgallery.busgallery.dto.response.FootprintCityResponse> getUserFootprint(Long userId);
+    com.busgallery.busgallery.dto.response.FootprintResponse getUserFootprint(Long userId);
 }

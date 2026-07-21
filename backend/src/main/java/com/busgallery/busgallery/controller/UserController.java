@@ -143,7 +143,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/footprint")
-    public List<com.busgallery.busgallery.dto.response.FootprintCityResponse> getUserFootprint(@PathVariable Long userId) {
+    public com.busgallery.busgallery.dto.response.FootprintResponse getUserFootprint(@PathVariable Long userId) {
         User user = userService.findById(userId);
         if (user == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");

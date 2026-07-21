@@ -231,9 +231,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<com.busgallery.busgallery.dto.response.FootprintCityResponse> getUserFootprint(Long userId) {
+    public com.busgallery.busgallery.dto.response.FootprintResponse getUserFootprint(Long userId) {
         if (userId == null) {
-            return Collections.emptyList();
+            return com.busgallery.busgallery.dto.response.FootprintResponse.builder()
+                    .cities(Collections.emptyList())
+                    .reachedCities(0).totalCities(0).rank(0).totalUsers(0)
+                    .build();
         }
         List<com.busgallery.busgallery.dto.response.FootprintCityResponse> list = imageMapper.selectFootprintByUploader(userId);
         if (!CollectionUtils.isEmpty(list)) {
@@ -243,7 +246,17 @@ public class UserServiceImpl implements UserService {
                 }
             });
         }
-        return CollectionUtils.isEmpty(list) ? Collections.emptyList() : list;
+        int reached = CollectionUtils.isEmpty(list) ? 0 : list.size();
+        int totalCities = imageMapper.countFootprintTotalCities();
+        int totalUsers = imageMapper.countFootprintTotalUsers();
+        int rank = imageMapper.rankFootprintByCityCount(reached);
+        return com.busgallery.busgallery.dto.response.FootprintResponse.builder()
+                .cities(CollectionUtils.isEmpty(list) ? Collections.emptyList() : list)
+                .reachedCities(reached)
+                .totalCities(totalCities)
+                .totalUsers(totalUsers)
+                .rank(rank)
+                .build();
     }
 
     private String maskEmail(String email) {

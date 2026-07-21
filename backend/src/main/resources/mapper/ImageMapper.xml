@@ -183,4 +183,29 @@
         ORDER BY count DESC
     </select>
 
+    <select id="countFootprintTotalCities" resultType="int">
+        SELECT COUNT(DISTINCT r.name)
+        FROM region r
+        INNER JOIN vehicle v ON v.region_id = r.id
+        INNER JOIN vehicle_image vi ON vi.vehicle_id = v.id
+    </select>
+
+    <select id="countFootprintTotalUsers" resultType="int">
+        SELECT COUNT(DISTINCT i.uploader_id)
+        FROM image i
+        INNER JOIN vehicle_image vi ON vi.image_id = i.id
+    </select>
+
+    <select id="rankFootprintByCityCount" resultType="int">
+        SELECT COUNT(*) + 1 FROM (
+            SELECT i2.uploader_id, COUNT(DISTINCT r2.id) AS cnt
+            FROM image i2
+            INNER JOIN vehicle_image vi2 ON vi2.image_id = i2.id
+            INNER JOIN vehicle v2 ON v2.id = vi2.vehicle_id
+            INNER JOIN region r2 ON r2.id = v2.region_id
+            GROUP BY i2.uploader_id
+            HAVING cnt > #{cityCount}
+        ) t
+    </select>
+
 </mapper>

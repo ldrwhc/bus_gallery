@@ -88,4 +88,10 @@ public interface ImageMapper {
     int delete(@Param("id") Long id);
 
     List<com.busgallery.busgallery.dto.response.FootprintCityResponse> selectFootprintByUploader(@Param("uploaderId") Long uploaderId);
+
+    int countFootprintTotalCities();
+
+    int countFootprintTotalUsers();
+
+    int rankFootprintByCityCount(@Param("cityCount") int cityCount);
 }

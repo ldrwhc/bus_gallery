@@ -1,12 +1,30 @@
 <template>
     <div class="footprint-wrapper">
+        <div v-if="stats" class="footprint-stats">
+            <div class="stat-item">
+                <span class="stat-num">{{ stats.reachedCities }}</span>
+                <span class="stat-text">到达城市</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item stat-progress-item">
+                <div class="progress-bar">
+                    <div class="progress-fill" :style="{ width: progressPct + '%' }"></div>
+                </div>
+                <span class="stat-text">{{ stats.reachedCities }} / {{ stats.totalCities }} 城</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-num">#{{ stats.rank }}</span>
+                <span class="stat-text">全站排名 / {{ stats.totalUsers }} 人</span>
+            </div>
+        </div>
         <div ref="mapRoot" class="footprint-map"></div>
         <div v-if="hoveredCity" class="map-tooltip" :style="tooltipStyle">{{ hoveredCity }}</div>
     </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { fetchUserFootprint } from '@/api/footprint';
 
 const AMAP_KEY = 'aaf4d758c8a4864e319ba239c71e8e0c';
@@ -25,6 +43,11 @@ let infoWindow = null;
 
 const hoveredCity = ref('');
 const tooltipStyle = reactive({ left: '0px', top: '0px' });
+const stats = ref(null);
+const progressPct = computed(() => {
+    if (!stats.value || !stats.value.totalCities) return 0;
+    return Math.round((stats.value.reachedCities / stats.value.totalCities) * 100);
+});
 
 const loadAMap = () => {
     return new Promise((resolve, reject) => {
@@ -83,7 +106,8 @@ const buildMap = async () => {
 
     try {
         const data = await fetchUserFootprint(props.userId);
-        const items = Array.isArray(data) ? data : [];
+        stats.value = { reachedCities: data.reachedCities || 0, totalCities: data.totalCities || 0, rank: data.rank || 0, totalUsers: data.totalUsers || 0 };
+        const items = Array.isArray(data.cities) ? data.cities : [];
         const maxCount = Math.max(...items.map(d => d.count || 0), 1);
 
         const cityMap = new Map();
@@ -168,7 +192,8 @@ const buildMap = async () => {
                         });
                         infoWindow.open(map, center);
                         const px = map.lngLatToContainer(center);
-                        map.panBy(0, -(px.y - map.getSize().getHeight() / 2 + 70));
+                        const targetY = map.getSize().getHeight() * 0.55;
+                        map.panBy(0, targetY - px.y);
                     });
 
                     map.add(poly);
@@ -224,6 +249,18 @@ onBeforeUnmount(() => {
     padding: 4px 10px; border-radius: 6px; white-space: nowrap;
     transform: translateY(-100%);
 }
+.footprint-stats {
+    display: flex; align-items: center; gap: 0;
+    background: #fff; border-radius: 14px 14px 0 0;
+    padding: 12px 18px; border-bottom: 1px solid #e2e8f0;
+}
+.stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
+.stat-num { font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1.1; }
+.stat-text { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.stat-divider { width: 1px; height: 36px; background: #e2e8f0; flex-shrink: 0; }
+.stat-progress-item { flex: 2; padding: 0 8px; }
+.progress-bar { width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, #f97316, #ef4444); border-radius: 3px; transition: width .4s ease; }
 </style>
 
 <style>
