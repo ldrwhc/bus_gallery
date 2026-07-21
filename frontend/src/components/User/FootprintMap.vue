@@ -261,6 +261,19 @@ onBeforeUnmount(() => {
 .stat-progress-item { flex: 2; padding: 0 8px; }
 .progress-bar { width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
 .progress-fill { height: 100%; background: linear-gradient(90deg, #f97316, #ef4444); border-radius: 3px; transition: width .4s ease; }
+
+@media (max-width: 560px) {
+    .footprint-stats { padding: 10px 12px; }
+    .stat-num { font-size: 17px; }
+    .stat-text { font-size: 10px; }
+    .footprint-map { height: 260px; }
+}
+
+@media (max-width: 400px) {
+    .footprint-stats { flex-wrap: wrap; gap: 8px; }
+    .stat-divider:first-of-type { display: none; }
+    .stat-progress-item { flex: 1 1 100%; order: 1; }
+}
 </style>
 
 <style>

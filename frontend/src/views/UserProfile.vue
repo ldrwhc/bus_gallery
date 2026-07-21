@@ -1362,18 +1362,31 @@ onBeforeUnmount(() => {
     }
     .stat-col:nth-child(2) { border-right: none; }
     .stat-col:nth-child(3) { padding-left: 0; }
+    .tab-bar { gap: 0; }
+    .tab { font-size: 13px; padding: 8px 0; }
 }
 
 @media (max-width: 560px) {
-    .profile-top { gap: 10px; }
-    .avatar { display: none; }
+    .user-profile-page { padding: 10px; gap: 14px; }
+    .card { padding: 14px; border-radius: 16px; }
+    .profile-top { flex-wrap: wrap; gap: 10px; }
+    .avatar { width: 44px; height: 44px; font-size: 18px; }
+    .display-name-row h1 { font-size: 18px; }
     .display-name-input { width: 100%; }
-    .stats-row { grid-template-columns: 1fr; gap: 10px; }
-    .stat-col { border-right: none; padding: 0 0 10px 0; border-bottom: 1px solid #e2e8f0; }
+    .stats-row { grid-template-columns: 1fr; gap: 8px; }
+    .stat-col { border-right: none; padding: 0 0 8px 0; border-bottom: 1px solid #e2e8f0; }
     .stat-col:last-child { border-bottom: none; padding-bottom: 0; }
     .stat-col:nth-child(2) { padding-left: 0; }
     .stat-col:nth-child(3) { padding-left: 0; }
     .profile-cta { width: 100%; }
+    .head { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .head h2 { font-size: 16px; }
+    .head .el-pagination { align-self: flex-end; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+    .item { padding: 8px; border-radius: 10px; }
+    .item img { border-radius: 8px; }
+    .tab { font-size: 13px; padding: 8px 0; }
+    .profile-divider { margin: 12px 0; }
 }
 </style>
 
