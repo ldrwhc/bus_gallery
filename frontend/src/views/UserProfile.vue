@@ -101,69 +101,89 @@
         </section>
 
         <section class="card">
-            <header class="head">
-                <h2>图片档案</h2>
-                <el-pagination
-                    layout="prev, pager, next"
-                    background
-                    :page-size="pagination.size"
-                    :current-page="pagination.page"
-                    :total="pagination.total"
-                    @current-change="handlePageChange"
-                />
-            </header>
-            <div v-if="imagesLoading || profileLoading" class="state">加载中...</div>
-            <div v-else-if="!images.length" class="state">暂未上传图片</div>
-            <div v-else class="grid">
-                <article v-for="image in images" :key="image.id" class="item" @click="openImage(image)">
-                    <img :src="image.thumbnailUrl" :alt="image.objectName || 'upload'" />
-                    <p class="muted">{{ formatDate(image.createTime) }}</p>
-                    <div v-if="isSelf" class="item-actions">
-                        <button
-                            class="edit-btn"
-                            type="button"
-                            :disabled="!image.vehicleId"
-                            @click.stop="openEditDialog(image)"
-                        >
-                            {{ resolveEditButtonText(image) }}
-                        </button>
-                        <button
-                            class="delete-img-btn"
-                            type="button"
-                            @click.stop="confirmDeleteImage(image)"
-                        >
-                            删除
-                        </button>
-                    </div>
-                </article>
-            </div>
-        </section>
+            <nav class="tab-bar">
+                <button :class="['tab', { active: activeTab === 'images' }]" @click="activeTab = 'images'">图片档案</button>
+                <button :class="['tab', { active: activeTab === 'favorites' }]" @click="activeTab = 'favorites'">
+                    {{ isSelf ? '我的喜爱' : '收藏' }}
+                </button>
+                <button :class="['tab', { active: activeTab === 'footprint' }]" @click="activeTab = 'footprint'">足迹地图</button>
+            </nav>
 
-        <section class="card">
-            <header class="head">
-                <h2>{{ isSelf ? '我的喜爱' : '收藏' }}</h2>
-                <el-pagination
-                    v-if="favoritePagination.total > favoritePagination.size"
-                    layout="prev, pager, next"
-                    background
-                    :page-size="favoritePagination.size"
-                    :current-page="favoritePagination.page"
-                    :total="favoritePagination.total"
-                    @current-change="handleFavoritePageChange"
-                />
-            </header>
-            <div v-if="favoritesLoading || profileLoading" class="state">收藏加载中...</div>
-            <div v-else-if="!favorites.length && isSelf" class="state">还没有收藏车辆</div>
-            <div v-else-if="!favorites.length && !isSelf" class="state">该用户暂无公开收藏</div>
-            <div v-else class="grid">
-                <article v-for="fav in favorites" :key="fav.vehicle?.id" class="item" @click="openFavorite(fav)">
-                    <img
-                        :src="fav.images?.[0]?.thumbnailUrl || ''"
-                        :alt="fav.vehicle?.plateNumber || fav.vehicle?.modelName || 'favorite vehicle'"
+            <template v-if="activeTab === 'images'">
+                <header class="head">
+                    <h2>图片档案</h2>
+                    <el-pagination
+                        layout="prev, pager, next"
+                        background
+                        :page-size="pagination.size"
+                        :current-page="pagination.page"
+                        :total="pagination.total"
+                        @current-change="handlePageChange"
                     />
-                    <p class="muted">{{ fav.vehicle?.plateNumber || '未命名车辆' }}</p>
-                </article>
-            </div>
+                </header>
+                <div v-if="imagesLoading || profileLoading" class="state">加载中...</div>
+                <div v-else-if="!images.length" class="state">暂未上传图片</div>
+                <div v-else class="grid">
+                    <article v-for="image in images" :key="image.id" class="item" @click="openImage(image)">
+                        <img :src="image.thumbnailUrl" :alt="image.objectName || 'upload'" />
+                        <p class="muted">{{ formatDate(image.createTime) }}</p>
+                        <div v-if="isSelf" class="item-actions">
+                            <button
+                                class="edit-btn"
+                                type="button"
+                                :disabled="!image.vehicleId"
+                                @click.stop="openEditDialog(image)"
+                            >
+                                {{ resolveEditButtonText(image) }}
+                            </button>
+                            <button
+                                class="delete-img-btn"
+                                type="button"
+                                @click.stop="confirmDeleteImage(image)"
+                            >
+                                删除
+                            </button>
+                        </div>
+                    </article>
+                </div>
+            </template>
+
+            <template v-if="activeTab === 'favorites'">
+                <header class="head">
+                    <h2>{{ isSelf ? '我的喜爱' : '收藏' }}</h2>
+                    <el-pagination
+                        v-if="favoritePagination.total > favoritePagination.size"
+                        layout="prev, pager, next"
+                        background
+                        :page-size="favoritePagination.size"
+                        :current-page="favoritePagination.page"
+                        :total="favoritePagination.total"
+                        @current-change="handleFavoritePageChange"
+                    />
+                </header>
+                <div v-if="favoritesLoading || profileLoading" class="state">收藏加载中...</div>
+                <div v-else-if="!favorites.length && isSelf" class="state">还没有收藏车辆</div>
+                <div v-else-if="!favorites.length && !isSelf" class="state">该用户暂无公开收藏</div>
+                <div v-else class="grid">
+                    <article v-for="fav in favorites" :key="fav.vehicle?.id" class="item" @click="openFavorite(fav)">
+                        <img
+                            :src="fav.images?.[0]?.thumbnailUrl || ''"
+                            :alt="fav.vehicle?.plateNumber || fav.vehicle?.modelName || 'favorite vehicle'"
+                        />
+                        <p class="muted">{{ fav.vehicle?.plateNumber || '未命名车辆' }}</p>
+                    </article>
+                </div>
+            </template>
+
+            <template v-if="activeTab === 'footprint'">
+                <div class="footprint-placeholder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" class="footprint-icon">
+                        <circle cx="12" cy="10" r="3" /><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z" />
+                    </svg>
+                    <p class="muted">足迹地图即将上线</p>
+                    <p class="muted footnote">记录你拍过的每一座城市</p>
+                </div>
+            </template>
         </section>
 
         <VehicleDetailModal
@@ -391,6 +411,7 @@ const router = useRouter();
 const store = useStore();
 
 const targetUserId = computed(() => Number(route.params.userId) || null);
+const activeTab = ref('images');
 const profile = ref(null);
 const profileLoading = ref(false);
 const images = ref([]);
@@ -1245,6 +1266,13 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .user-profile-page { width: min(1100px, 100%); margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 20px; }
 .card { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08); }
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
+.tab { flex: 1; padding: 10px 0; border: none; background: none; font-size: 14px; font-weight: 600; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s, border-color .15s; }
+.tab:hover { color: #475569; }
+.tab.active { color: #1d4ed8; border-bottom-color: #1d4ed8; }
+.footprint-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 16px; gap: 10px; }
+.footprint-icon { width: 48px; height: 48px; color: #cbd5e1; }
+.footprint-placeholder .footnote { font-size: 12px; color: #cbd5e1; }
 .profile-top { display: flex; align-items: center; gap: 14px; }
 .profile-info { min-width: 0; flex: 1; }
 .profile-cta { flex-shrink: 0; }
