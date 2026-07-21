@@ -176,13 +176,7 @@
             </template>
 
             <template v-if="activeTab === 'footprint'">
-                <div class="footprint-placeholder">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" class="footprint-icon">
-                        <circle cx="12" cy="10" r="3" /><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z" />
-                    </svg>
-                    <p class="muted">足迹地图即将上线</p>
-                    <p class="muted footnote">记录你拍过的每一座城市</p>
-                </div>
+                <FootprintMap :userId="Number(profile?.id || 0)" />
             </template>
         </section>
 
@@ -387,6 +381,7 @@ import { fetchFavorites } from '@/api/vehicles';
 import { fetchReviewInbox, submitVehicleUpdateReview } from '@/api/reviews';
 import { fetchRoutes } from '@/api/routes';
 import RouteCreateDialog from '@/components/Route/RouteCreateDialog.vue';
+import FootprintMap from '@/components/User/FootprintMap.vue';
 import { updateVehicle } from '@/api/vehicles';
 import { fetchPortalRecords, refundTradeBridgeOrder } from '@/api/tradeBridge';
 import {

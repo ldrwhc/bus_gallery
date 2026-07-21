@@ -228,6 +228,15 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
+    @Override
+    public List<com.busgallery.busgallery.dto.response.FootprintCityResponse> getUserFootprint(Long userId) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+        List<com.busgallery.busgallery.dto.response.FootprintCityResponse> list = imageMapper.selectFootprintByUploader(userId);
+        return CollectionUtils.isEmpty(list) ? Collections.emptyList() : list;
+    }
+
     private String maskEmail(String email) {
         if (!StringUtils.hasText(email)) {
             return "";

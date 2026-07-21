@@ -166,4 +166,15 @@
         DELETE FROM image WHERE id = #{id}
     </delete>
 
+    <select id="selectFootprintByUploader" resultType="com.busgallery.busgallery.dto.response.FootprintCityResponse">
+        SELECT r.name AS city, COUNT(DISTINCT i.id) AS count
+        FROM image i
+        INNER JOIN vehicle_image vi ON vi.image_id = i.id
+        INNER JOIN vehicle v ON v.id = vi.vehicle_id
+        INNER JOIN region r ON r.id = v.region_id
+        WHERE i.uploader_id = #{uploaderId}
+        GROUP BY r.name
+        ORDER BY count DESC
+    </select>
+
 </mapper>

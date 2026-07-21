@@ -86,4 +86,6 @@ public interface ImageMapper {
      * @return 返回int类型结果。
      */
     int delete(@Param("id") Long id);
+
+    List<com.busgallery.busgallery.dto.response.FootprintCityResponse> selectFootprintByUploader(@Param("uploaderId") Long uploaderId);
 }

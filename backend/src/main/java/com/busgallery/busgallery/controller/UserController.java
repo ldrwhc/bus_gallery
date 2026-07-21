@@ -141,4 +141,13 @@ public class UserController {
         int pageSize = FIXED_IMAGE_PAGE_SIZE;
         return PageResponse.of(records, total, pageNo, pageSize);
     }
+
+    @GetMapping("/{userId}/footprint")
+    public List<com.busgallery.busgallery.dto.response.FootprintCityResponse> getUserFootprint(@PathVariable Long userId) {
+        User user = userService.findById(userId);
+        if (user == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
+        }
+        return userService.getUserFootprint(userId);
+    }
 }

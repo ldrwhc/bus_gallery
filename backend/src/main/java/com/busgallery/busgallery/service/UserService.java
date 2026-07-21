@@ -82,4 +82,6 @@ public interface UserService {
      * @return 返回UserProfileResponse类型结果。
      */
     UserProfileResponse buildProfile(User user, long uploadsCount);
+
+    List<com.busgallery.busgallery.dto.response.FootprintCityResponse> getUserFootprint(Long userId);
 }
