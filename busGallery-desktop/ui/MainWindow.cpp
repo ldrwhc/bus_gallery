@@ -1423,8 +1423,12 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
         }
         if (best.isEmpty()) best = lines[0].toObject();
 
-        QString start = best["start"].toString();
-        QString end = best["end"].toString();
+        QJsonArray terms = best["term"].toArray();
+        QString start, end;
+        if (!terms.isEmpty()) {
+            QStringList parts = terms[0].toString().split(QString::fromUtf8("<>"));
+            if (parts.size() == 2) { start = parts[0]; end = parts[1]; }
+        }
         if (!start.isEmpty()) startEdit->setText(start);
         if (!end.isEmpty()) endEdit->setText(end);
         if (start.isEmpty() && end.isEmpty()) {
