@@ -59,37 +59,45 @@
                 <hr class="profile-divider" />
                 <div class="stats-row">
                     <div class="stat-col">
-                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                        </svg>
-                        <span class="stat-label">累计上传</span>
+                        <div class="stat-head">
+                            <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                            <span class="stat-label">累计上传</span>
+                        </div>
                         <strong class="stat-value">{{ profile.uploadsCount || 0 }} 张</strong>
                     </div>
                     <div class="stat-col">
-                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                        </svg>
-                        <span class="stat-label">绑定邮箱</span>
+                        <div class="stat-head">
+                            <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                            </svg>
+                            <span class="stat-label">绑定邮箱</span>
+                            <el-button size="small" @click="openBindDialog">
+                                {{ profile.emailVerified ? '更换' : '绑定' }}
+                            </el-button>
+                        </div>
                         <strong class="stat-value">{{ profile.emailVerified ? (profile.emailMasked || '已绑定') : '未绑定' }}</strong>
-                        <el-button size="small" @click="openBindDialog">
-                            {{ profile.emailVerified ? '更换' : '绑定' }}
-                        </el-button>
                     </div>
                     <div class="stat-col">
-                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                        </svg>
-                        <span class="stat-label">密码安全</span>
+                        <div class="stat-head">
+                            <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                            <span class="stat-label">密码安全</span>
+                            <el-button size="small" type="primary" :disabled="!profile.emailVerified" @click="openPasswordDialog">
+                                修改
+                            </el-button>
+                        </div>
                         <strong class="stat-value">{{ profile.emailVerified ? '已启用' : '需绑定邮箱' }}</strong>
-                        <el-button size="small" type="primary" :disabled="!profile.emailVerified" @click="openPasswordDialog">
-                            修改
-                        </el-button>
                     </div>
                     <div class="stat-col">
-                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-                        </svg>
-                        <span class="stat-label">钱包</span>
+                        <div class="stat-head">
+                            <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                            </svg>
+                            <span class="stat-label">钱包</span>
+                        </div>
                         <strong class="stat-value">{{ walletBalanceText }}</strong>
                         <span class="stat-sublabel">可用于下单和拼团</span>
                     </div>
@@ -1275,9 +1283,11 @@ onBeforeUnmount(() => {
 .profile-guest-stat { margin-top: 8px; }
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
 .stat-col {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    display: flex; flex-direction: column; gap: 4px;
     padding: 0 16px; border-right: 1px solid #e2e8f0;
 }
+.stat-head { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; }
+.stat-head .el-button { margin-left: auto; flex-shrink: 0; }
 .stat-col:first-child { padding-left: 0; }
 .stat-col:last-child { border-right: none; padding-right: 0; }
 .stat-icon { width: 18px; height: 18px; color: #94a3b8; flex-shrink: 0; }
