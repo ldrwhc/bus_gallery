@@ -1,92 +1,105 @@
 <template>
     <div class="user-profile-page">
-        <section v-if="profile" class="card">
-            <div class="profile-row">
-                <div class="profile-main">
-                    <div class="avatar">{{ avatarInitial }}</div>
-                    <div>
-                        <div class="display-name-row">
-                            <template v-if="isSelf && editingDisplayName">
-                                <el-input
-                                    v-model.trim="displayNameDraft"
-                                    class="display-name-input"
-                                    maxlength="128"
-                                    @keydown.enter.prevent="submitDisplayNameEdit"
-                                    @keydown.esc.prevent="cancelDisplayNameEdit"
-                                />
-                                <el-tooltip :content="roleMeta.tip" placement="top">
-                                    <span class="role-badge" :class="roleMeta.className">{{ roleMeta.label }}</span>
-                                </el-tooltip>
-                                <button
-                                    class="name-action-btn is-confirm"
-                                    type="button"
-                                    :disabled="!canSubmitDisplayName"
-                                    aria-label="提交昵称修改"
-                                    @click="submitDisplayNameEdit"
-                                >
-                                    <el-icon><Check /></el-icon>
-                                </button>
-                                <button
-                                    class="name-action-btn is-cancel"
-                                    type="button"
-                                    :disabled="displayNameSaving"
-                                    aria-label="取消昵称修改"
-                                    @click="cancelDisplayNameEdit"
-                                >
-                                    <el-icon><Close /></el-icon>
-                                </button>
-                            </template>
-                            <template v-else>
-                                <h1>{{ profile.displayName || '未命名用户' }}</h1>
-                                <el-tooltip :content="roleMeta.tip" placement="top">
-                                    <span class="role-badge" :class="roleMeta.className">{{ roleMeta.label }}</span>
-                                </el-tooltip>
-                                <button
-                                    v-if="isSelf"
-                                    class="name-action-btn"
-                                    type="button"
-                                    aria-label="修改昵称"
-                                    @click="startDisplayNameEdit"
-                                >
-                                    <el-icon><EditPen /></el-icon>
-                                </button>
-                            </template>
-                        </div>
-                        <p class="muted">@{{ profile.username || 'unknown' }}</p>
-                        <p class="muted">累计上传：{{ profile.uploadsCount || 0 }} 张</p>
+        <section v-if="profile" class="card profile-card">
+            <div class="profile-top">
+                <div class="avatar">{{ avatarInitial }}</div>
+                <div class="profile-info">
+                    <div class="display-name-row">
+                        <template v-if="isSelf && editingDisplayName">
+                            <el-input
+                                v-model.trim="displayNameDraft"
+                                class="display-name-input"
+                                maxlength="128"
+                                @keydown.enter.prevent="submitDisplayNameEdit"
+                                @keydown.esc.prevent="cancelDisplayNameEdit"
+                            />
+                            <el-tooltip :content="roleMeta.tip" placement="top">
+                                <span class="role-badge" :class="roleMeta.className">{{ roleMeta.label }}</span>
+                            </el-tooltip>
+                            <button
+                                class="name-action-btn is-confirm"
+                                type="button"
+                                :disabled="!canSubmitDisplayName"
+                                aria-label="提交昵称修改"
+                                @click="submitDisplayNameEdit"
+                            >
+                                <el-icon><Check /></el-icon>
+                            </button>
+                            <button
+                                class="name-action-btn is-cancel"
+                                type="button"
+                                :disabled="displayNameSaving"
+                                aria-label="取消昵称修改"
+                                @click="cancelDisplayNameEdit"
+                            >
+                                <el-icon><Close /></el-icon>
+                            </button>
+                        </template>
+                        <template v-else>
+                            <h1>{{ profile.displayName || '未命名用户' }}</h1>
+                            <el-tooltip :content="roleMeta.tip" placement="top">
+                                <span class="role-badge" :class="roleMeta.className">{{ roleMeta.label }}</span>
+                            </el-tooltip>
+                            <button
+                                v-if="isSelf"
+                                class="name-action-btn"
+                                type="button"
+                                aria-label="修改昵称"
+                                @click="startDisplayNameEdit"
+                            >
+                                <el-icon><EditPen /></el-icon>
+                            </button>
+                        </template>
+                    </div>
+                    <p class="muted">@{{ profile.username || 'unknown' }}</p>
+                </div>
+            </div>
+            <template v-if="isSelf">
+                <hr class="profile-divider" />
+                <div class="stats-row">
+                    <div class="stat-col">
+                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        <span class="stat-label">累计上传</span>
+                        <strong class="stat-value">{{ profile.uploadsCount || 0 }} 张</strong>
+                    </div>
+                    <div class="stat-col">
+                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                        </svg>
+                        <span class="stat-label">绑定邮箱</span>
+                        <strong class="stat-value">{{ profile.emailVerified ? (profile.emailMasked || '已绑定') : '未绑定' }}</strong>
+                        <el-button size="small" @click="openBindDialog">
+                            {{ profile.emailVerified ? '更换' : '绑定' }}
+                        </el-button>
+                    </div>
+                    <div class="stat-col">
+                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        <span class="stat-label">密码安全</span>
+                        <strong class="stat-value">{{ profile.emailVerified ? '已启用' : '需绑定邮箱' }}</strong>
+                        <el-button size="small" type="primary" :disabled="!profile.emailVerified" @click="openPasswordDialog">
+                            修改
+                        </el-button>
+                    </div>
+                    <div class="stat-col">
+                        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                        </svg>
+                        <span class="stat-label">钱包</span>
+                        <strong class="stat-value">{{ walletBalanceText }}</strong>
+                        <span class="stat-sublabel">可用于下单和拼团</span>
                     </div>
                 </div>
-                <el-button v-if="isSelf" class="upload-cta" type="primary" @click="openPurchaseIncentives">
-                    查看购买记录
-                </el-button>
-            </div>
-        </section>
-
-        <section v-if="isSelf" class="card security-card">
-            <header class="head">
-                <h2>账户安全</h2>
-            </header>
-            <div class="security-grid">
-                <div class="security-item">
-                    <p class="muted">绑定邮箱</p>
-                    <strong>{{ profile.emailVerified ? (profile.emailMasked || '已绑定') : '未绑定' }}</strong>
-                    <el-button size="small" @click="openBindDialog">
-                        {{ profile.emailVerified ? '更换邮箱' : '绑定邮箱' }}
-                    </el-button>
+                <div class="profile-actions">
+                    <el-button type="primary" @click="openPurchaseIncentives">查看购买记录</el-button>
                 </div>
-                <div class="security-item">
-                    <p class="muted">密码安全</p>
-                    <strong>{{ profile.emailVerified ? '已启用邮箱二次认证' : '需先绑定邮箱' }}</strong>
-                    <el-button size="small" type="primary" :disabled="!profile.emailVerified" @click="openPasswordDialog">
-                        修改密码
-                    </el-button>
-                </div>
-                <div class="security-item security-item--wallet">
-                    <p class="muted">钱包</p>
-                    <strong class="security-wallet-amount">{{ walletBalanceText }}</strong>
-                    <span class="security-wallet-tip">可用于直接下单和拼团支付</span>
-                </div>
-            </div>
+            </template>
+            <template v-else>
+                <p class="muted profile-guest-stat">累计上传：{{ profile.uploadsCount || 0 }} 张</p>
+            </template>
         </section>
 
         <section class="card">
@@ -1234,9 +1247,22 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .user-profile-page { width: min(1100px, 100%); margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 20px; }
 .card { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08); }
-.profile-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: nowrap; }
-.profile-main { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto; }
-.profile-main > div { min-width: 0; }
+.profile-top { display: flex; align-items: center; gap: 14px; }
+.profile-info { min-width: 0; }
+.profile-divider { border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0; }
+.profile-guest-stat { margin-top: 8px; }
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+.stat-col {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    padding: 0 16px; border-right: 1px solid #e2e8f0;
+}
+.stat-col:first-child { padding-left: 0; }
+.stat-col:last-child { border-right: none; padding-right: 0; }
+.stat-icon { width: 18px; height: 18px; color: #94a3b8; flex-shrink: 0; }
+.stat-label { font-size: 12px; color: #94a3b8; }
+.stat-value { color: #0f172a; font-size: 14px; }
+.stat-sublabel { font-size: 11px; color: #94a3b8; }
+.profile-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
 .display-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .display-name-row h1 { margin: 0; line-height: 1.2; }
 .display-name-input { width: min(280px, 60vw); }
@@ -1285,17 +1311,8 @@ onBeforeUnmount(() => {
 .name-action-btn.is-cancel { color: #b91c1c; border-color: rgba(185, 28, 28, 0.35); background: rgba(254, 242, 242, 0.95); }
 .name-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .avatar { width: 56px; height: 56px; border-radius: 50%; background: #1d4ed8; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
-.upload-cta { flex-shrink: 0; margin-left: auto; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .muted { color: #64748b; margin: 4px 0; }
-.security-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-.security-item { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title action" "status action"; column-gap: 10px; row-gap: 6px; align-items: center; }
-.security-item > p { grid-area: title; margin: 0; }
-.security-item > strong { grid-area: status; min-width: 0; }
-.security-item > .el-button { grid-area: action; justify-self: end; align-self: center; padding: 7px 12px; min-height: 34px; font-size: 12px; line-height: 1.2; max-width: 100%; }
-.security-item--wallet { grid-template-columns: 1fr; grid-template-areas: "title" "status" "tip"; }
-.security-wallet-amount { color: #0f172a; font-size: 1.15rem; line-height: 1.2; }
-.security-wallet-tip { grid-area: tip; color: #64748b; font-size: 12px; line-height: 1.4; }
 .inline-code { display: grid; grid-template-columns: 1fr auto; gap: 10px; width: 100%; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
 .item { background: #f8fafc; border-radius: 14px; padding: 10px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2); }
@@ -1308,51 +1325,26 @@ onBeforeUnmount(() => {
 .state { text-align: center; padding: 40px 0; color: #94a3b8; }
 
 @media (max-width: 768px) {
-    .profile-row {
-        align-items: center;
-        gap: 10px;
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+        row-gap: 12px;
     }
-
-    .profile-main {
-        gap: 10px;
-    }
-
-    .upload-cta {
-        margin-left: auto;
-    }
+    .stat-col:nth-child(2) { border-right: none; }
+    .stat-col:nth-child(3) { padding-left: 0; }
+    .profile-actions { justify-content: stretch; }
+    .profile-actions .el-button { width: 100%; }
 }
 
 @media (max-width: 560px) {
-    .profile-row {
-        align-items: flex-start;
-        flex-wrap: wrap;
-    }
-
-    .avatar {
-        display: none;
-    }
-
-    .profile-main {
-        width: 100%;
-    }
-
-    .display-name-input {
-        width: 100%;
-    }
-
-    .upload-cta {
-        width: 100%;
-        margin-left: 0;
-    }
-
-    .security-item {
-        grid-template-columns: 1fr;
-        grid-template-areas: "title" "status" "action";
-    }
-
-    .security-item > .el-button {
-        justify-self: start;
-    }
+    .profile-top { gap: 10px; }
+    .avatar { display: none; }
+    .display-name-input { width: 100%; }
+    .stats-row { grid-template-columns: 1fr; gap: 10px; }
+    .stat-col { border-right: none; padding: 0 0 10px 0; border-bottom: 1px solid #e2e8f0; }
+    .stat-col:last-child { border-bottom: none; padding-bottom: 0; }
+    .stat-col:nth-child(2) { padding-left: 0; }
+    .stat-col:nth-child(3) { padding-left: 0; }
+    .profile-actions .el-button { width: 100%; }
 }
 </style>
 
