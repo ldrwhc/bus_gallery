@@ -231,6 +231,12 @@ void MainWindow::setupUploadForm(QWidget *page)
 
     m_imageDrop = new ImageDropZone(formWidget);
     layout->addWidget(m_imageDrop);
+    // When image is dropped/selected and no plate is entered, auto-trigger AI recognition
+    connect(m_imageDrop, &ImageDropZone::imageSelected, this, [this](const QString &) {
+        if (m_plateEdit->text().trimmed().isEmpty()) {
+            onAIRecognize();
+        }
+    });
 
     // ---- Section: Basic Info ----
     auto *sectionBasic = new QLabel(QString::fromUtf8("基本信息"));
@@ -438,6 +444,8 @@ void MainWindow::setupUploadForm(QWidget *page)
         if (plate.length() >= 2)
             m_regionPicker->selectByPlateNumber(plate);
     });
+    // Enter key in plate field triggers buspedia fetch
+    connect(m_plateEdit, &QLineEdit::returnPressed, this, &MainWindow::fetchFromBuspedia);
     hookLineEdit(m_customNumEdit);
     hookLineEdit(m_engineEdit);
     hookLineEdit(m_motorEdit);
