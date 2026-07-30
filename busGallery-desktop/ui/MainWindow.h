@@ -88,6 +88,7 @@ private:
     bool m_factoryDateExplicit = false;
     bool m_launchDateExplicit = false;
     QCheckBox *m_airConditioned;
+    QLineEdit *m_airConditionerModelEdit;
     QComboBox *m_fuelType;
     QLineEdit *m_engineEdit;
     QLineEdit *m_motorEdit;

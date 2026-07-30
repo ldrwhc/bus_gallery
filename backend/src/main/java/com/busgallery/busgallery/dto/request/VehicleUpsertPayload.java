@@ -32,6 +32,7 @@ public class VehicleUpsertPayload {
     private LocalDate factoryDate;
     private LocalDate launchDate;
     private Boolean airConditioned;
+    private String airConditionerModel;
     private String source;
     private String remark;
 
@@ -86,6 +87,7 @@ public class VehicleUpsertPayload {
         vehicle.setFactoryDate(factoryDate);
         vehicle.setLaunchDate(launchDate);
         vehicle.setAirConditioned(Boolean.TRUE.equals(airConditioned));
+        vehicle.setAirConditionerModel(airConditionerModel);
         vehicle.setSource(StringUtils.hasText(source) ? source : "用户上传");
         vehicle.setRemark(remark);
 

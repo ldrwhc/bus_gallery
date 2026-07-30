@@ -121,7 +121,12 @@
                                     <el-col :sm="12" :xs="24"><el-form-item label="出厂日期"><el-date-picker v-model="form.factoryDate" type="month" value-format="YYYY-MM" placeholder="选择出厂年月" style="width:100%" /></el-form-item></el-col>
                                     <el-col :sm="12" :xs="24"><el-form-item label="上线日期"><el-date-picker v-model="form.launchDate" type="month" value-format="YYYY-MM" placeholder="选择上线年月" style="width:100%" /></el-form-item></el-col>
                                 </el-row>
-                                <el-form-item label="空调"><el-switch v-model="form.airConditioned" /></el-form-item>
+                                <el-form-item label="空调">
+                                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                                        <el-switch v-model="form.airConditioned" active-text="有" inactive-text="无" />
+                                        <el-input v-if="form.airConditioned" v-model="form.airConditionerModel" placeholder="空调型号（可留空）" style="width:160px" size="small" clearable />
+                                    </div>
+                                </el-form-item>
                                 <el-form-item label="来源"><el-input v-model="form.source" /></el-form-item>
                                 <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" /></el-form-item>
 
@@ -363,7 +368,12 @@
                     <el-col :sm="12" :xs="24"><el-form-item label="出厂日期"><el-date-picker v-model="manageForm.factoryDate" type="month" value-format="YYYY-MM" placeholder="选择出厂年月" style="width:100%" /></el-form-item></el-col>
                     <el-col :sm="12" :xs="24"><el-form-item label="上线日期"><el-date-picker v-model="manageForm.launchDate" type="month" value-format="YYYY-MM" placeholder="选择上线年月" style="width:100%" /></el-form-item></el-col>
                 </el-row>
-                <el-form-item label="空调"><el-switch v-model="manageForm.airConditioned" /></el-form-item>
+                <el-form-item label="空调">
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                        <el-switch v-model="manageForm.airConditioned" active-text="有" inactive-text="无" />
+                        <el-input v-if="manageForm.airConditioned" v-model="manageForm.airConditionerModel" placeholder="空调型号（可留空）" style="width:160px" size="small" clearable />
+                    </div>
+                </el-form-item>
                 <el-form-item label="来源"><el-input v-model="manageForm.source" /></el-form-item>
                 <el-form-item label="备注"><el-input v-model="manageForm.remark" type="textarea" /></el-form-item>
                 <el-form-item label="关联线路">
@@ -616,6 +626,7 @@ const blankPayload = () => ({
     factoryDate: '',
     launchDate: '',
     airConditioned: false,
+    airConditionerModel: '',
     source: '',
     remark: '',
     imageIds: [],
@@ -920,6 +931,7 @@ const toEditableManagePayload = (detail) => {
         factoryDate: toMonthValue(vehicle.factoryDate),
         launchDate: toMonthValue(vehicle.launchDate),
         airConditioned: Boolean(vehicle.airConditioned),
+        airConditionerModel: vehicle.airConditionerModel || '',
         source: vehicle.source || '',
         routes: vehicleRoutes.map(vr => ({
             routeId: vr.routeId,

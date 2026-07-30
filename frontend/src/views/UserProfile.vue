@@ -271,7 +271,12 @@
                     <el-col :sm="12" :xs="24"><el-form-item label="上线日期"><el-date-picker v-model="editForm.launchDate" type="month" value-format="YYYY-MM" placeholder="选择上线年月" style="width:100%" /></el-form-item></el-col>
                 </el-row>
 
-                <el-form-item label="空调"><el-switch v-model="editForm.airConditioned" /></el-form-item>
+                <el-form-item label="空调">
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                        <el-switch v-model="editForm.airConditioned" active-text="有" inactive-text="无" />
+                        <el-input v-if="editForm.airConditioned" v-model="editForm.airConditionerModel" placeholder="空调型号（可留空）" style="width:160px" size="small" clearable />
+                    </div>
+                </el-form-item>
                 <el-form-item label="来源"><el-input v-model="editForm.source" /></el-form-item>
 
                 <el-row v-if="showEditMotorField || showEditEngineField" :gutter="12">
@@ -561,6 +566,7 @@ const editForm = reactive({
     factoryDate: '',
     launchDate: '',
     airConditioned: false,
+    airConditionerModel: '',
     source: '',
     remark: '',
     imageIds: [],
@@ -1011,6 +1017,7 @@ const openEditDialog = async (image) => {
     editForm.factoryDate = toMonthValue(vehicle.factoryDate);
     editForm.launchDate = toMonthValue(vehicle.launchDate);
     editForm.airConditioned = Boolean(vehicle.airConditioned);
+    editForm.airConditionerModel = vehicle.airConditionerModel || '';
     editForm.source = vehicle.source || '';
     editForm.remark = vehicle.remark || '';
     editForm.imageIds = (detail?.images || []).map((item) => item?.id).filter((id) => id != null);
@@ -1106,6 +1113,7 @@ const submitEdit = async () => {
         factoryDate: normalizeMonthToDate(editForm.factoryDate),
         launchDate: normalizeMonthToDate(editForm.launchDate),
         airConditioned: Boolean(editForm.airConditioned),
+        airConditionerModel: cleanText(editForm.airConditionerModel),
         source: cleanText(editForm.source),
         remark: cleanText(editForm.remark),
         imageIds: Array.isArray(editForm.imageIds) ? editForm.imageIds : [],

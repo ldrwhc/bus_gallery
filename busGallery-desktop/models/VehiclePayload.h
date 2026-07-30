@@ -121,6 +121,7 @@ struct VehicleUpsertPayload {
     QString factoryDate;       // YYYY-MM-DD
     QString launchDate;
     bool airConditioned = true;
+    QString airConditionerModel;
     QString source = "用户上传";
     QString remark;
     VehicleConfigPayload config;
@@ -142,6 +143,7 @@ struct VehicleUpsertPayload {
         if (!factoryDate.isEmpty()) obj["factoryDate"] = factoryDate;
         if (!launchDate.isEmpty()) obj["launchDate"] = launchDate;
         obj["airConditioned"] = airConditioned;
+        if (!airConditionerModel.isEmpty()) obj["airConditionerModel"] = airConditionerModel;
         if (!source.isEmpty()) obj["source"] = source;
         if (!remark.isEmpty()) obj["remark"] = remark;
 

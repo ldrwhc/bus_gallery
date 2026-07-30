@@ -315,7 +315,10 @@ void MainWindow::setupUploadForm(QWidget *page)
 
     m_airConditioned = new QCheckBox(QString::fromUtf8("有空调"), formWidget);
     m_airConditioned->setChecked(true);
+    m_airConditionerModelEdit = new QLineEdit(formWidget);
+    m_airConditionerModelEdit->setPlaceholderText(QString::fromUtf8("空调型号（可留空，如松芝、精益）"));
     detailGrid->addRow(QString::fromUtf8("空调"), m_airConditioned);
+    detailGrid->addRow(QString::fromUtf8("空调型号"), m_airConditionerModelEdit);
 
     layout->addLayout(detailGrid);
 
@@ -574,6 +577,7 @@ void MainWindow::submitUpload()
         payload.launchDate = m_launchDate->date().toString("yyyy-MM") + "-01";
 
     payload.airConditioned = m_airConditioned->isChecked();
+    payload.airConditionerModel = m_airConditionerModelEdit->text().trimmed();
 
     QString fuel = m_fuelType->currentText().trimmed();
     payload.config.fuelType = fuel;
@@ -648,6 +652,7 @@ void MainWindow::resetForm()
     m_factoryDateExplicit = false;
     m_launchDateExplicit = false;
     m_airConditioned->setChecked(true);
+    m_airConditionerModelEdit->clear();
     m_fuelType->setCurrentIndex(0);
     m_engineEdit->clear();
     m_motorEdit->clear();
@@ -1327,6 +1332,21 @@ void MainWindow::fetchBuspediaDetail(const QString &detailUrl)
             }
         }
 
+        // Air conditioner model — buspedia stores it on veh.ac as a string
+        if (veh.contains("ac")) {
+            QString acVal = veh["ac"].toString().trimmed();
+            if (!acVal.isEmpty()) {
+                // If it's just "1" or "true", set checkbox only
+                bool isBool = (acVal == "1" || acVal.compare("true", Qt::CaseInsensitive) == 0);
+                m_airConditioned->setChecked(isBool || !acVal.isEmpty());
+                if (!isBool && acVal.compare("0", Qt::CaseInsensitive) != 0
+                    && acVal.compare("false", Qt::CaseInsensitive) != 0) {
+                    m_airConditionerModelEdit->setText(acVal);
+                    ++filled;
+                }
+            }
+        }
+
         // Fleet number — directly on veh object
         if (veh.contains("no") && !veh["no"].toString().isEmpty())
             setLine(m_customNumEdit, veh["no"].toString());
@@ -1354,20 +1374,72 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
         QMessageBox::information(this, QString::fromUtf8("提示"), QString::fromUtf8("请先输入线路号"));
         return;
     }
-    // Use user input as-is — don't force-add "路" suffix
-    QString searchName = routeNumber;
+
+    // Get the city from the region picker (set via company during buspedia scraping).
+    QString pickerCity = m_regionPicker->cityName().trimmed();  // e.g. "鞍山市"
+    QString cityShort = pickerCity;
+    if (cityShort.endsWith(QString::fromUtf8("市")) || cityShort.endsWith(QString::fromUtf8("省")))
+        cityShort.chop(1);  // e.g. "鞍山"
+
+    QString searchName = routeNumber;  // user input, e.g. "25" or "25路"
+    QString matchCity = pickerCity;
+
+    // Strip city prefix if user typed it manually (e.g. "鞍山25路" → "25路")
+    if (!pickerCity.isEmpty() && searchName.startsWith(pickerCity)) {
+        searchName = searchName.mid(pickerCity.length());
+    } else if (!cityShort.isEmpty() && searchName.startsWith(cityShort)) {
+        searchName = searchName.mid(cityShort.length());
+    }
+
+    if (searchName.isEmpty()) {
+        QMessageBox::information(this, QString::fromUtf8("提示"),
+            QString::fromUtf8("请包含具体线路编号"));
+        return;
+    }
 
     btn->setEnabled(false);
     btn->setText(QString::fromUtf8("⏳"));
 
-    QNetworkRequest req{QUrl(QString("https://api.buspedia.top/search?name=%1").arg(searchName))};
+    // Load buspedia region ID mapping from JSON file (update by running scan_regions.py)
+    static QMap<QString, int> buspediaRegionIds;
+    static bool regionIdsLoaded = false;
+    if (!regionIdsLoaded) {
+        regionIdsLoaded = true;
+        QString jsonPath = QCoreApplication::applicationDirPath() + "/buspedia_region_ids.json";
+        QFile jsonFile(jsonPath);
+        if (jsonFile.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(jsonFile.readAll());
+            jsonFile.close();
+            QJsonObject obj = doc.object();
+            for (auto it = obj.begin(); it != obj.end(); ++it)
+                buspediaRegionIds[it.key()] = it.value().toInt();
+        }
+        // Fallback: hardcoded essentials if JSON not found
+        if (buspediaRegionIds.isEmpty()) {
+            buspediaRegionIds = {
+                {"鞍山市", 106}, {"上海市", 13}, {"郑州市", 14}, {"重庆市", 15},
+                {"武汉市", 30}, {"西安市", 31}, {"成都市", 32}, {"珠海市", 33},
+                {"厦门市", 34}, {"南京市", 35}, {"杭州市", 36}, {"宁波市", 38},
+                {"佛山市", 41}, {"无锡市", 48}, {"衡水市", 50}, {"朔州市", 57},
+                {"长治市", 58}, {"运城市", 59}, {"晋城市", 60}, {"临汾市", 61},
+            };
+        }
+    }
+
+    // Build buspedia URL — use region ID when available for server-side filtering
+    QString url = QString("https://api.buspedia.top/search?name=%1&filter=l").arg(searchName);
+    if (!pickerCity.isEmpty() && buspediaRegionIds.contains(pickerCity)) {
+        url += QString("&region=%1").arg(buspediaRegionIds[pickerCity]);
+    }
+    QNetworkRequest req{QUrl(url)};
     req.setRawHeader("User-Agent", "Mozilla/5.0");
     req.setRawHeader("Accept", "application/json");
     req.setRawHeader("Origin", "https://buspedia.top");
     req.setRawHeader("Referer", "https://buspedia.top/");
 
     QNetworkReply *reply = m_buspediaNam->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, routeField, startEdit, endEdit, btn, routeNumber, searchName]() {
+    connect(reply, &QNetworkReply::finished, this,
+        [this, reply, routeField, startEdit, endEdit, btn, routeNumber, searchName, matchCity]() {
         reply->deleteLater();
         btn->setEnabled(true);
         btn->setText(QString::fromUtf8("🔍"));
@@ -1400,8 +1472,8 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
             return;
         }
 
-        // Collect matching routes, sort by city match
-        QString city = m_regionPicker->cityName().trimmed();
+        // Use the resolved city for filtering buspedia results
+        QString city = matchCity;
         QString cityShort = city;
         if (cityShort.endsWith(QString::fromUtf8("市"))) cityShort.chop(1);
         QJsonArray cityMatches, otherMatches;
@@ -1410,7 +1482,8 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
             QString name = l["name"].toString();
             if (name.contains(searchName) || searchName.contains(name) || name == searchName) {
                 QString rgn = l["region"].toString();
-                if (!city.isEmpty() && (rgn == city || rgn == cityShort || rgn.contains(city) || city.contains(rgn))) {
+                if (!city.isEmpty() && (rgn == city || rgn == cityShort
+                        || rgn.contains(city) || rgn.contains(cityShort) || city.contains(rgn))) {
                     cityMatches.append(l);
                 } else {
                     otherMatches.append(l);
@@ -1422,6 +1495,79 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
         if (cityMatches.size() == 1) {
             // Exactly one city match — use it directly
             best = cityMatches[0].toObject();
+        } else if (!city.isEmpty() && cityMatches.isEmpty() && !otherMatches.isEmpty()
+                   && !buspediaRegionIds.contains(city)) {
+            // City is set, no local match, and we don't have the region ID yet.
+            // Try to discover it: pick any result, fetch its line detail to extract
+            // the numeric region ID, cache it, then retry with &region= filter.
+            QString probeLineId;
+            for (const auto &mv : otherMatches) {
+                probeLineId = mv.toObject()["id"].toString();
+                if (!probeLineId.isEmpty()) break;
+            }
+            if (!probeLineId.isEmpty()) {
+                btn->setEnabled(false);
+                btn->setText(QString::fromUtf8("🔍…"));
+                QString detailUrl = QString("https://api.buspedia.top/line/%1").arg(probeLineId);
+                QNetworkRequest detailReq{QUrl(detailUrl)};
+                detailReq.setRawHeader("User-Agent", "Mozilla/5.0");
+                detailReq.setRawHeader("Accept", "application/json");
+                QNetworkReply *detailReply = m_buspediaNam->get(detailReq);
+                connect(detailReply, &QNetworkReply::finished, this,
+                    [this, detailReply, routeField, startEdit, endEdit, btn, routeNumber, city]() {
+                    detailReply->deleteLater();
+                    if (detailReply->error() == QNetworkReply::NoError) {
+                        QByteArray raw = detailReply->readAll();
+                        QByteArray djson;
+                        if (raw.size() >= 2 && (unsigned char)raw[0] == 0x78) {
+                            quint32 es = quint32(raw.size()) * 10;
+                            QByteArray hdr(4, '\0');
+                            hdr[0] = (es >> 24) & 0xFF; hdr[1] = (es >> 16) & 0xFF;
+                            hdr[2] = (es >> 8) & 0xFF;  hdr[3] = es & 0xFF;
+                            djson = qUncompress(hdr + raw);
+                        } else { djson = raw; }
+                        QJsonObject detail = QJsonDocument::fromJson(djson).object();
+                        // Try common region ID field names
+                        int regionId = 0;
+                        if (detail.contains("regionId"))
+                            regionId = detail["regionId"].toInt();
+                        else if (detail.contains("region_id"))
+                            regionId = detail["region_id"].toInt();
+                        if (regionId > 0) {
+                            buspediaRegionIds[city] = regionId;
+                        }
+                    }
+                    // Retry the search (now with region ID if we found it)
+                    fetchRouteStops(routeField, startEdit, endEdit, btn);
+                });
+                return;  // will retry after detail fetch
+            }
+        } else if (!city.isEmpty() && cityMatches.isEmpty() && !otherMatches.isEmpty()) {
+            // City is set but no local match (region ID known or discovery failed)
+            auto qbtn = QMessageBox::question(nullptr, QString::fromUtf8("线路搜索"),
+                QString::fromUtf8("%1 未找到 [%2] 的线路。\n\n是否查看其他城市的匹配结果？")
+                    .arg(cityShort, routeNumber),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+            if (qbtn == QMessageBox::Yes) {
+                QStringList choices;
+                for (const auto &mv : otherMatches) {
+                    QJsonObject m = mv.toObject();
+                    QString term = m["term"].toArray().isEmpty() ? QString("") : m["term"].toArray()[0].toString();
+                    choices << QString("%1 [%2] %3").arg(m["name"].toString(), m["region"].toString(), term);
+                }
+                bool ok;
+                QString pick = QInputDialog::getItem(nullptr, QString::fromUtf8("选择线路"),
+                    QString::fromUtf8("以下是其他城市的匹配结果，请选择:"), choices, 0, false, &ok);
+                if (ok && !pick.isEmpty()) {
+                    for (const auto &mv : otherMatches) {
+                        QJsonObject m = mv.toObject();
+                        QString term = m["term"].toArray().isEmpty() ? QString("") : m["term"].toArray()[0].toString();
+                        if (QString("%1 [%2] %3").arg(m["name"].toString(), m["region"].toString(), term) == pick) {
+                            best = m; break;
+                        }
+                    }
+                }
+            }
         } else if (cityMatches.size() > 1 || otherMatches.size() > 0) {
             // Multiple results — show picker with city matches first
             QStringList choices;
@@ -1480,20 +1626,30 @@ void MainWindow::fetchRouteStops(AutocompleteField *routeField, QLineEdit *start
                     else if (downStart.isEmpty()) { downStart = parts[0].trimmed(); downEnd = parts[1].trimmed(); }
                     continue;
                 }
-                // Try <> (bidirectional)
+                // Try <> (bidirectional — same stops both ways, NOT asymmetric)
                 parts = t.split(QString::fromUtf8("<>"));
                 if (parts.size() == 2) {
                     if (upStart.isEmpty()) { upStart = parts[0].trimmed(); upEnd = parts[1].trimmed(); }
-                    if (downStart.isEmpty()) { downStart = parts[1].trimmed(); downEnd = parts[0].trimmed(); }
+                    // <> means the route goes both ways between the same two stops.
+                    // Do NOT set downStart/downEnd — that would imply asymmetric intervals.
                 }
             }
             if (!upStart.isEmpty()) { startEdit->setText(upStart); endEdit->setText(upEnd); }
             // Try to find the row's advanced panel to fill down direction
+            // Only fill down stops if they're truly different from up stops
+            // (not identical, and not just the reverse — that's still symmetric)
+            bool downDiffers = !downStart.isEmpty()
+                && (downStart != upStart || downEnd != upEnd)          // not identical
+                && (downStart != upEnd || downEnd != upStart);         // not just reversed
             for (auto &rw : m_routeRows) {
                 if (rw.routeField == routeField) {
-                    if (!downStart.isEmpty() && rw.downStartStopEdit) {
+                    if (downDiffers && rw.downStartStopEdit) {
                         rw.downStartStopEdit->setText(downStart);
                         rw.downEndStopEdit->setText(downEnd);
+                    } else {
+                        // Clear down stops if they match up stops (symmetric route)
+                        if (rw.downStartStopEdit) rw.downStartStopEdit->clear();
+                        if (rw.downEndStopEdit) rw.downEndStopEdit->clear();
                     }
                     break;
                 }
@@ -1594,6 +1750,7 @@ QJsonObject MainWindow::formToJson() const
     if (m_launchDateExplicit && m_launchDate->date().isValid())
         o["launchDate"] = m_launchDate->date().toString("yyyy-MM");
     o["airConditioned"] = m_airConditioned->isChecked();
+    o["airConditionerModel"] = m_airConditionerModelEdit->text();
     o["fuelType"] = m_fuelType->currentIndex();
     o["engine"] = m_engineEdit->text();
     o["motor"] = m_motorEdit->text();
@@ -1668,6 +1825,7 @@ void MainWindow::formFromJson(const QJsonObject &o)
         m_launchDate->setDate(QDate::fromString(ld + "-01", "yyyy-MM-dd"));
 
     m_airConditioned->setChecked(o["airConditioned"].toBool(true));
+    m_airConditionerModelEdit->setText(o["airConditionerModel"].toString());
     int ftIdx = o["fuelType"].toInt(-1);
     if (ftIdx >= 0 && ftIdx < m_fuelType->count())
         m_fuelType->setCurrentIndex(ftIdx);

@@ -29,6 +29,7 @@ public class VehicleResponse {
     private LocalDate factoryDate;
     private LocalDate launchDate;
     private Boolean airConditioned;
+    private String airConditionerModel;
     private String source;
     private String remark;
     private VehicleConfigResponse config;
@@ -64,6 +65,7 @@ public class VehicleResponse {
         resp.setFactoryDate(vehicle.getFactoryDate());
         resp.setLaunchDate(vehicle.getLaunchDate());
         resp.setAirConditioned(vehicle.getAirConditioned());
+        resp.setAirConditionerModel(vehicle.getAirConditionerModel());
         resp.setSource(vehicle.getSource());
         resp.setRemark(vehicle.getRemark());
         resp.setConfig(VehicleConfigResponse.fromEntity(config));

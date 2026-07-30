@@ -69,6 +69,10 @@ public class Vehicle {
     @Column(name = "air_conditioned")
     private Boolean airConditioned = Boolean.FALSE;
 
+    /** 空调型号 */
+    @Column(name = "air_conditioner_model", length = 128)
+    private String airConditionerModel;
+
     /** 其他来源/备注 */
     @Column(name = "source", length = 256)
     private String source;

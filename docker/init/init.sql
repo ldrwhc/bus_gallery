@@ -73,6 +73,7 @@ CREATE TABLE `vehicle` (
   `launch_date`    DATE            DEFAULT NULL COMMENT '涓婄墝/鎶曡繍鏃ユ湡',
   `view_count`     BIGINT          NOT NULL DEFAULT 0 COMMENT 'visit count',
   `air_conditioned` TINYINT(1)     DEFAULT 0 COMMENT '鏄惁绌鸿皟杞?,
+  `air_conditioner_model` VARCHAR(128) DEFAULT NULL COMMENT '绌鸿皟鍨嬪彿',
   `source`         VARCHAR(256)    DEFAULT NULL COMMENT '淇℃伅鏉ユ簮',
   `remark`         TEXT            DEFAULT NULL,
   `created_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,

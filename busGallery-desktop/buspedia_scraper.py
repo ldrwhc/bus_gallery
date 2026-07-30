@@ -136,6 +136,18 @@ def scrape_bus_detail(slug_or_url):
     if isinstance(region, dict) and region.get('name'):
         result['regionName'] = region['name']
 
+    # Air conditioner — buspedia stores model name in veh.ac (e.g. "松芝", "电装")
+    ac_val = veh.get('ac')
+    if ac_val is not None:
+        ac_str = str(ac_val).strip()
+        if ac_str in ('1', 'true', 'True'):
+            result['airConditioned'] = True
+        elif ac_str in ('0', 'false', 'False', ''):
+            result['airConditioned'] = False
+        else:
+            result['airConditioned'] = True
+            result['airConditionerModel'] = ac_str
+
     # Fleet number — directly on veh object
     if veh.get('no'):
         result['fleetNumber'] = str(veh['no'])

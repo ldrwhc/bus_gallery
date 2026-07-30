@@ -12,6 +12,7 @@
                 <result property="launchDate" column="launch_date"/>
                 <result property="viewCount" column="view_count"/>
                 <result property="airConditioned" column="air_conditioned"/>
+                <result property="airConditionerModel" column="air_conditioner_model"/>
                 <result property="source" column="source"/>
                 <result property="remark" column="remark"/>
                 <result property="createdAt" column="created_at"/>
@@ -35,6 +36,7 @@
         <result property="launchDate" column="launch_date"/>
         <result property="viewCount" column="view_count"/>
         <result property="airConditioned" column="air_conditioned"/>
+        <result property="airConditionerModel" column="air_conditioner_model"/>
         <result property="source" column="source"/>
         <result property="remark" column="remark"/>
         <result property="createdAt" column="created_at"/>
@@ -68,7 +70,7 @@
 
         <sql id="BaseColumnList">
                 id, plate_number, custom_number, model_id, company_id, region_id,
-                factory_date, launch_date, view_count, air_conditioned, source, remark,
+                factory_date, launch_date, view_count, air_conditioned, air_conditioner_model, source, remark,
                 created_at, updated_at
         </sql>
 
@@ -81,7 +83,7 @@
     <select id="selectDetailById" parameterType="long" resultMap="VehicleDetailMap">
         SELECT
             v.id, v.plate_number, v.custom_number, v.model_id, v.company_id, v.region_id,
-            v.factory_date, v.launch_date, v.view_count, v.air_conditioned, v.source, v.remark,
+            v.factory_date, v.launch_date, v.view_count, v.air_conditioned, v.air_conditioner_model, v.source, v.remark,
             v.created_at, v.updated_at,
             m.id AS m_id, m.name AS m_name, m.brand_id AS m_brand_id,
             b.id AS b_id, b.name AS b_name, b.chn_name AS b_chn_name,
@@ -113,7 +115,7 @@
     <select id="selectDetailByPlateNumber" parameterType="string" resultMap="VehicleDetailMap">
         SELECT
             v.id, v.plate_number, v.custom_number, v.model_id, v.company_id, v.region_id,
-            v.factory_date, v.launch_date, v.view_count, v.air_conditioned, v.source, v.remark,
+            v.factory_date, v.launch_date, v.view_count, v.air_conditioned, v.air_conditioner_model, v.source, v.remark,
             v.created_at, v.updated_at,
             m.id AS m_id, m.name AS m_name, m.brand_id AS m_brand_id,
             b.id AS b_id, b.name AS b_name, b.chn_name AS b_chn_name,
@@ -344,6 +346,7 @@
                 factory_date,
                 launch_date,
                 air_conditioned,
+                air_conditioner_model,
                 source,
                 remark
                 ) VALUES (
@@ -362,6 +365,7 @@
                 #{factoryDate},
                 #{launchDate},
                 #{airConditioned},
+                #{airConditionerModel},
                 #{source},
                 #{remark}
                 )
@@ -386,8 +390,9 @@
                 </choose>,
                 factory_date    = #{factoryDate},
                 launch_date     = #{launchDate},
-                air_conditioned = #{airConditioned},
-                source          = #{source},
+                air_conditioned        = #{airConditioned},
+                air_conditioner_model  = #{airConditionerModel},
+                source                 = #{source},
                 remark          = #{remark}
                 WHERE id = #{id}
         </update>

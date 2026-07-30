@@ -352,20 +352,30 @@ public class VehicleController {
             Long routeId = ra.getRouteId();
             // Auto-create route if routeNumber is provided but no routeId
             if (routeId == null && ra.getRouteNumber() != null && !ra.getRouteNumber().isBlank()) {
-                com.busgallery.busgallery.entity.BusRoute newRoute = new com.busgallery.busgallery.entity.BusRoute();
-                newRoute.setRouteNumber(ra.getRouteNumber().trim());
-                newRoute.setRouteType("REGULAR");
-                newRoute.setIsActive(true);
-                newRoute.setStartStop(ra.getStartStop());
-                newRoute.setEndStop(ra.getEndStop());
-                // Inherit region/company from the vehicle
+                // Try to find existing route with same number in the same region first
                 com.busgallery.busgallery.entity.Vehicle vh = vehicleService.findById(vehicleId);
-                if (vh != null) {
-                    if (vh.getRegion() != null) newRoute.setRegion(vh.getRegion());
-                    if (vh.getCompany() != null) newRoute.setCompany(vh.getCompany());
+                Long regionId = vh != null && vh.getRegion() != null ? vh.getRegion().getId() : null;
+                if (regionId != null) {
+                    com.busgallery.busgallery.entity.BusRoute existing =
+                            busRouteMapper.selectByRouteNumberAndRegion(ra.getRouteNumber().trim(), regionId);
+                    if (existing != null) {
+                        routeId = existing.getId(); // reuse existing route
+                    }
                 }
-                busRouteMapper.insert(newRoute);
-                routeId = newRoute.getId();
+                if (routeId == null) {
+                    com.busgallery.busgallery.entity.BusRoute newRoute = new com.busgallery.busgallery.entity.BusRoute();
+                    newRoute.setRouteNumber(ra.getRouteNumber().trim());
+                    newRoute.setRouteType("REGULAR");
+                    newRoute.setIsActive(true);
+                    newRoute.setStartStop(ra.getStartStop());
+                    newRoute.setEndStop(ra.getEndStop());
+                    if (vh != null) {
+                        if (vh.getRegion() != null) newRoute.setRegion(vh.getRegion());
+                        if (vh.getCompany() != null) newRoute.setCompany(vh.getCompany());
+                    }
+                    busRouteMapper.insert(newRoute);
+                    routeId = newRoute.getId();
+                }
             }
             if (routeId != null) {
                 com.busgallery.busgallery.entity.VehicleRoute vr =
@@ -511,6 +521,7 @@ public class VehicleController {
         dto.setLaunchDate(source.getLaunchDate());
         dto.setViewCount(source.getViewCount());
         dto.setAirConditioned(source.getAirConditioned());
+        dto.setAirConditionerModel(source.getAirConditionerModel());
         dto.setSource(source.getSource());
         dto.setRemark(source.getRemark());
         dto.setCreatedAt(source.getCreatedAt());
@@ -668,6 +679,7 @@ public class VehicleController {
         private LocalDate launchDate;
         private Long viewCount;
         private Boolean airConditioned;
+        private String airConditionerModel;
         private String source;
         private String remark;
         private VehicleConfigRequest config;
@@ -681,6 +693,7 @@ public class VehicleController {
             vehicle.setFactoryDate(factoryDate);
             vehicle.setLaunchDate(launchDate);
             vehicle.setAirConditioned(Boolean.TRUE.equals(airConditioned));
+            vehicle.setAirConditionerModel(airConditionerModel);
             vehicle.setSource(source);
             vehicle.setRemark(remark);
             if (modelId != null) {
@@ -775,6 +788,7 @@ public class VehicleController {
         private LocalDate launchDate;
         private Long viewCount;
         private Boolean airConditioned;
+        private String airConditionerModel;
         private String source;
         private String remark;
         private java.time.LocalDateTime createdAt;

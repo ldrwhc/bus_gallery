@@ -143,7 +143,7 @@
                                         <el-tag v-if="r.isLoop" size="small" type="info">环线</el-tag>
                                     </div>
                                     <div class="route-item__stops">
-                                        <template v-if="r.downStartStop || r.downEndStop">
+                                        <template v-if="hasRouteAsymmetricStops(r)">
                                             上行 {{ r.startStop || '?' }} → {{ r.endStop || '?' }}
                                             | 下行 {{ r.downStartStop || r.endStop || '?' }} → {{ r.downEndStop || r.startStop || '?' }}
                                         </template>
@@ -1157,6 +1157,19 @@ const handleTradeJoinTeam = (teamId) => {
 const SUB_TYPE_LABELS = { INTERVAL: '区间', BRANCH: '支线', EXPRESS: '快线', NIGHT: '夜班', DIRECT: '直达' };
 const subTypeLabel = (v) => SUB_TYPE_LABELS[v] || v;
 
+const hasRouteAsymmetricStops = (r) => {
+    if (r.isLoop) return false;
+    const downStart = r.downStartStop || '';
+    const downEnd = r.downEndStop || '';
+    if (!downStart && !downEnd) return false;
+    const upStart = r.startStop || '';
+    const upEnd = r.endStop || '';
+    // Not asymmetric if identical, or if just the reverse (A→B vs B→A)
+    if (downStart === upStart && downEnd === upEnd) return false;
+    if (downStart === upEnd && downEnd === upStart) return false;
+    return true;
+};
+
 const routeCards = computed(() => {
     const routes = vehicle.value?.routes || [];
     return routes.map(r => ({
@@ -1497,6 +1510,8 @@ const extractVehicleField = (key) => {
             return getValueByPaths(vehicle.value, ['launchDate', 'launch_date']);
         case 'airConditioned':
             return getValueByPaths(vehicle.value, ['airConditioned', 'air_conditioned']);
+        case 'airConditionerModel':
+            return getValueByPaths(vehicle.value, ['airConditionerModel', 'air_conditioner_model']);
         default:
             return getValueByPaths(vehicle.value, [key]);
     }
@@ -1508,6 +1523,12 @@ const formatVehicleField = (field, rawValue) => {
     }
     if (field.type === 'boolean') {
         return formatBoolean(rawValue);
+    }
+    if (field.type === 'ac') {
+        // rawValue is airConditioned Boolean; model comes from vehicle
+        if (!rawValue) return '-';
+        const model = extractVehicleField('airConditionerModel');
+        return model || '有';
     }
     return rawValue ?? '-';
 };
@@ -1566,6 +1587,10 @@ const formatConfigField = (field, rawValue) => {
 const hasDisplayValue = (value, type) => {
     if (type === 'boolean') {
         return value !== null && value !== undefined;
+    }
+    if (type === 'ac') {
+        // Only show AC card when airConditioned is true
+        return Boolean(value);
     }
     if (value === null || value === undefined) return false;
     if (typeof value === 'string') {

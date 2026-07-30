@@ -19,7 +19,8 @@ export const VEHICLE_INFO_FIELDS = [
     { key: 'companyName', label: '公司', link: 'company' },
     { key: 'customNumber', label: '自编号' },
     { key: 'factoryDate', label: '出厂日期', type: 'date' },
-    { key: 'launchDate', label: '上线日期', type: 'date' }
+    { key: 'launchDate', label: '上线日期', type: 'date' },
+    { key: 'airConditioned', label: '空调', type: 'ac' }
 ];
 
 export const CONFIG_INFO_FIELDS = [

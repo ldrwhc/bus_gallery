@@ -21,6 +21,7 @@ public class VehicleRequest {
     private LocalDate factoryDate;
     private LocalDate launchDate;
     private Boolean airConditioned;
+    private String airConditionerModel;
     private String source;
     private String remark;
     private VehicleConfigRequest config;
@@ -37,6 +38,7 @@ public class VehicleRequest {
         vehicle.setFactoryDate(factoryDate);
         vehicle.setLaunchDate(launchDate);
         vehicle.setAirConditioned(Boolean.TRUE.equals(airConditioned));
+        vehicle.setAirConditionerModel(airConditionerModel);
         vehicle.setSource(source);
         vehicle.setRemark(remark);
 

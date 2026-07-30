@@ -167,10 +167,15 @@
             <el-row :gutter="16">
                 <el-col :md="8" :sm="24">
                     <el-form-item label="空调">
-                        <el-switch v-model="form.airConditioned" active-text="有空调" inactive-text="无空调" />
+                        <el-switch v-model="form.airConditioned" active-text="有" inactive-text="无" />
                     </el-form-item>
                 </el-col>
-                <el-col :md="16" :sm="24">
+                <el-col v-if="form.airConditioned" :md="8" :sm="24">
+                    <el-form-item label="空调型号">
+                        <el-input v-model="form.airConditionerModel" placeholder="例如：松芝、精益（可留空）" clearable />
+                    </el-form-item>
+                </el-col>
+                <el-col :md="form.airConditioned ? 8 : 16" :sm="24">
                     <el-form-item label="燃料类型">
                         <el-select v-model="form.config.fuelType" placeholder="请选择燃料" clearable>
                             <el-option v-for="option in fuelOptions" :key="option.value" :label="option.label" :value="option.value" />
@@ -324,6 +329,7 @@ const form = reactive({
     factoryDate: '',
     launchDate: '',
     airConditioned: true,
+    airConditionerModel: '',
     routes: [],
     config: initialConfig()
 });
@@ -622,6 +628,7 @@ const reset = () => {
     form.factoryDate = '';
     form.launchDate = '';
     form.airConditioned = true;
+    form.airConditionerModel = '';
     Object.assign(form.config, initialConfig());
 
     brandText.value = '';
@@ -774,6 +781,7 @@ const submit = async () => {
             factoryDate: normalizeMonth(form.factoryDate),
             launchDate: normalizeMonth(form.launchDate),
             airConditioned: form.airConditioned,
+            airConditionerModel: form.airConditionerModel?.trim() || null,
             source: '用户上传',
             remark: null,
             routes: (form.routes || []).filter(r => r.routeId || r.routeNumber).map(r => ({
